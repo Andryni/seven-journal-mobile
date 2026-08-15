@@ -3,50 +3,125 @@ import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../../theme';
 
 interface BadgeProps {
-  label: string;
-  variant?: 'blue' | 'gold' | 'green' | 'red' | 'cyan' | 'neutral';
+  label: string | null | undefined;
+  variant?: 'green' | 'red' | 'gold' | 'blue' | 'cyan' | 'neutral';
+  size?: 'sm' | 'md';
+  pulse?: boolean;
 }
 
-export const Badge: React.FC<BadgeProps> = ({ label, variant = 'neutral' }) => {
-  const getColors = () => {
-    switch (variant) {
-      case 'blue':
-        return { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 0.4)', text: '#818cf8' };
-      case 'gold':
-        return { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.4)', text: '#fbbf24' };
-      case 'green':
-        return { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.4)', text: '#34d399' };
-      case 'red':
-        return { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.4)', text: '#f87171' };
-      case 'cyan':
-        return { bg: 'rgba(6, 182, 212, 0.15)', border: 'rgba(6, 182, 212, 0.4)', text: '#67e8f9' };
-      default:
-        return { bg: 'rgba(148, 163, 184, 0.1)', border: 'rgba(148, 163, 184, 0.2)', text: '#94a3b8' };
-    }
-  };
-
-  const colors = getColors();
+export const Badge: React.FC<BadgeProps> = ({
+  label,
+  variant = 'neutral',
+  size = 'md',
+  pulse = false,
+}) => {
+  if (!label) return null;
 
   return (
-    <View style={[styles.badge, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-      <Text style={[styles.text, { color: colors.text }]}>{label}</Text>
+    <View
+      style={[
+        styles.badge,
+        size === 'sm' && styles.badgeSm,
+        variant === 'green' && styles.badgeGreen,
+        variant === 'red' && styles.badgeRed,
+        variant === 'gold' && styles.badgeGold,
+        variant === 'blue' && styles.badgeBlue,
+        variant === 'cyan' && styles.badgeCyan,
+        variant === 'neutral' && styles.badgeNeutral,
+      ]}
+    >
+      {pulse && (
+        <View
+          style={[
+            styles.dot,
+            variant === 'green' && styles.dotGreen,
+            variant === 'red' && styles.dotRed,
+            variant === 'gold' && styles.dotGold,
+            variant === 'blue' && styles.dotBlue,
+          ]}
+        />
+      )}
+      <Text
+        style={[
+          styles.text,
+          size === 'sm' && styles.textSm,
+          variant === 'green' && styles.textGreen,
+          variant === 'red' && styles.textRed,
+          variant === 'gold' && styles.textGold,
+          variant === 'blue' && styles.textBlue,
+          variant === 'cyan' && styles.textCyan,
+          variant === 'neutral' && styles.textNeutral,
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    alignSelf: 'flex-start',
+    gap: 4,
   },
+  badgeSm: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  dotGreen: { backgroundColor: '#10b981' },
+  dotRed: { backgroundColor: '#ef4444' },
+  dotGold: { backgroundColor: '#f59e0b' },
+  dotBlue: { backgroundColor: '#818cf8' },
+
+  badgeGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  badgeRed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  badgeGold: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  badgeBlue: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderColor: 'rgba(99, 102, 241, 0.35)',
+  },
+  badgeCyan: {
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    borderColor: 'rgba(6, 182, 212, 0.35)',
+  },
+  badgeNeutral: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+
   text: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    letterSpacing: 0.6,
     fontVariant: ['tabular-nums'],
   },
+  textSm: {
+    fontSize: 9,
+  },
+  textGreen: { color: '#34d399' },
+  textRed: { color: '#f87171' },
+  textGold: { color: '#fbbf24' },
+  textBlue: { color: '#818cf8' },
+  textCyan: { color: '#67e8f9' },
+  textNeutral: { color: '#94a3b8' },
 });
