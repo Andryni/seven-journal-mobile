@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
-import Svg, { Rect, Line, Text as SvgText, G } from 'react-native-svg';
+import Svg, { Rect, Line, G } from 'react-native-svg';
 
 interface BicolorBarChartProps {
   data: { label: string; value: number }[];
@@ -19,21 +19,27 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   if (!data || data.length === 0) return null;
 
-  const paddingLeft = 52;
-  const paddingRight = 16;
-  const paddingVertical = 24;
-  const chartWidth = width - paddingLeft - paddingRight;
+  const yAxisWidth = 56;
+  const paddingRight = 12;
+  const paddingVertical = 20;
+  const chartWidth = width - yAxisWidth - paddingRight;
   const chartHeight = height - paddingVertical * 2;
 
   const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 100);
   const zeroY = paddingVertical + chartHeight / 2;
-  const barWidth = Math.min(22, chartWidth / data.length - 8);
+  const barWidth = Math.min(22, chartWidth / data.length - 6);
 
   const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
 
+  const formatCompact = (val: number) => {
+    if (val >= 1000000) return `${yAxisPrefix}${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `${yAxisPrefix}${(val / 1000).toFixed(1)}k`;
+    return `${yAxisPrefix}${val.toFixed(0)}`;
+  };
+
   return (
     <View style={[styles.container, { height, width }]}>
-      {/* Interactive Tooltip on Top */}
+      {/* Interactive Tooltip */}
       {activeItem && (
         <View style={styles.tooltipBadge}>
           <Text style={styles.tooltipDate}>{activeItem.label}</Text>
@@ -48,117 +54,109 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
         </View>
       )}
 
-      <Svg width={width} height={height}>
-        {/* Zero Axis Line */}
-        <Line
-          x1={paddingLeft}
-          y1={zeroY}
-          x2={width - paddingRight}
-          y2={zeroY}
-          stroke="rgba(255, 255, 255, 0.15)"
-          strokeWidth="1"
-          strokeDasharray="4 4"
-        />
+      <View style={styles.chartRow}>
+        {/* Native Y-Axis Labels (crisp, no SVG text) */}
+        <View style={[styles.yAxisContainer, { height }]}>
+          <Text style={[styles.yAxisLabel, styles.yAxisTop, styles.greenText]}>
+            +{formatCompact(maxVal)}
+          </Text>
+          <Text style={[styles.yAxisLabel, styles.yAxisMid, { top: zeroY - 7 }]}>
+            {yAxisPrefix}0
+          </Text>
+          <Text style={[styles.yAxisLabel, styles.yAxisBottom, styles.redText]}>
+            -{formatCompact(maxVal)}
+          </Text>
+        </View>
 
-        {/* Reference Lines */}
-        <Line
-          x1={paddingLeft}
-          y1={paddingVertical}
-          x2={width - paddingRight}
-          y2={paddingVertical}
-          stroke="rgba(255, 255, 255, 0.05)"
-          strokeWidth="1"
-        />
-        <Line
-          x1={paddingLeft}
-          y1={height - paddingVertical}
-          x2={width - paddingRight}
-          y2={height - paddingVertical}
-          stroke="rgba(255, 255, 255, 0.05)"
-          strokeWidth="1"
-        />
+        {/* SVG Chart Canvas */}
+        <View style={{ width: chartWidth + paddingRight, height }}>
+          <Svg width={chartWidth + paddingRight} height={height}>
+            {/* Zero Axis Line */}
+            <Line
+              x1={0}
+              y1={zeroY}
+              x2={chartWidth}
+              y2={zeroY}
+              stroke="rgba(255, 255, 255, 0.15)"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+            />
+            <Line
+              x1={0}
+              y1={paddingVertical}
+              x2={chartWidth}
+              y2={paddingVertical}
+              stroke="rgba(255, 255, 255, 0.05)"
+              strokeWidth="1"
+            />
+            <Line
+              x1={0}
+              y1={height - paddingVertical}
+              x2={chartWidth}
+              y2={height - paddingVertical}
+              stroke="rgba(255, 255, 255, 0.05)"
+              strokeWidth="1"
+            />
 
-        {/* Max & Min Labels (Cleanly Formatted) */}
-        <SvgText
-          x={paddingLeft - 8}
-          y={paddingVertical + 4}
-          fill="#94a3b8"
-          fontSize="8"
-          fontWeight="bold"
-          textAnchor="end"
-        >
-          +{yAxisPrefix}{maxVal >= 1000 ? `${(maxVal / 1000).toFixed(1)}k` : maxVal.toFixed(0)}
-        </SvgText>
-        <SvgText
-          x={paddingLeft - 8}
-          y={zeroY + 3}
-          fill="#64748b"
-          fontSize="8"
-          fontWeight="bold"
-          textAnchor="end"
-        >
-          {yAxisPrefix}0
-        </SvgText>
-        <SvgText
-          x={paddingLeft - 8}
-          y={height - paddingVertical + 4}
-          fill="#94a3b8"
-          fontSize="8"
-          fontWeight="bold"
-          textAnchor="end"
-        >
-          -{yAxisPrefix}{maxVal >= 1000 ? `${(maxVal / 1000).toFixed(1)}k` : maxVal.toFixed(0)}
-        </SvgText>
+            {/* Bars */}
+            {data.map((item, index) => {
+              const x = index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
+              const isPositive = item.value >= 0;
+              const barHeight = (Math.abs(item.value) / maxVal) * (chartHeight / 2);
+              const y = isPositive ? zeroY - barHeight : zeroY;
+              const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
 
-        {/* Bars */}
-        {data.map((item, index) => {
-          const x = paddingLeft + index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
-          const isPositive = item.value >= 0;
-          const barHeight = (Math.abs(item.value) / maxVal) * (chartHeight / 2);
-          const y = isPositive ? zeroY - barHeight : zeroY;
-          const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
+              return (
+                <G key={index}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={Math.max(barHeight, 2)}
+                    fill={isPositive ? '#10b981' : '#ef4444'}
+                    opacity={isSelected ? 1 : 0.7}
+                    stroke={isSelected ? '#ffffff' : 'none'}
+                    strokeWidth={isSelected ? 1.5 : 0}
+                    rx={3}
+                  />
+                </G>
+              );
+            })}
+          </Svg>
 
-          return (
-            <G key={index}>
-              {/* Bar */}
-              <Rect
-                x={x}
-                y={y}
-                width={barWidth}
-                height={Math.max(barHeight, 2)}
-                fill={isPositive ? '#10b981' : '#ef4444'}
-                opacity={isSelected ? 1 : 0.7}
-                stroke={isSelected ? '#ffffff' : 'none'}
-                strokeWidth={isSelected ? 1.5 : 0}
-                rx={3}
+          {/* Native X-Axis Labels (below bars) */}
+          <View style={[styles.xAxisRow, { width: chartWidth }]}>
+            {data.map((item, index) => {
+              const segmentWidth = chartWidth / data.length;
+              const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
+              return (
+                <Text
+                  key={index}
+                  style={[
+                    styles.xAxisLabel,
+                    { width: segmentWidth },
+                    isSelected && styles.xAxisLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+              );
+            })}
+          </View>
+
+          {/* Touch Overlays */}
+          <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', width: chartWidth }]}>
+            {data.map((_, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={{ flex: 1, height: '100%' }}
+                onPress={() => setSelectedIdx(idx)}
+                activeOpacity={1}
               />
-
-              {/* X Axis Label */}
-              <SvgText
-                x={x + barWidth / 2}
-                y={height - 6}
-                fill={isSelected ? '#ffffff' : '#94a3b8'}
-                fontSize="8"
-                fontWeight={isSelected ? 'bold' : 'normal'}
-                textAnchor="middle"
-              >
-                {item.label}
-              </SvgText>
-            </G>
-          );
-        })}
-      </Svg>
-
-      {/* Interactive Touch Areas */}
-      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', paddingLeft, paddingRight }]}>
-        {data.map((_, idx) => (
-          <TouchableOpacity
-            key={idx}
-            style={{ flex: 1, height: '100%' }}
-            onPress={() => setSelectedIdx(idx)}
-            activeOpacity={1}
-          />
-        ))}
+            ))}
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -170,10 +168,55 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
     overflow: 'hidden',
     position: 'relative',
+    paddingVertical: 4,
+  },
+  chartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  yAxisContainer: {
+    width: 56,
+    paddingRight: 6,
+    position: 'relative',
+  },
+  yAxisLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#94a3b8',
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
+  yAxisTop: {
+    position: 'absolute',
+    top: 16,
+    right: 6,
+  },
+  yAxisMid: {
+    position: 'absolute',
+    right: 6,
+    color: '#64748b',
+  },
+  yAxisBottom: {
+    position: 'absolute',
+    bottom: 16,
+    right: 6,
+  },
+  xAxisRow: {
+    position: 'absolute',
+    bottom: 2,
+    flexDirection: 'row',
+  },
+  xAxisLabel: {
+    color: '#64748b',
+    fontSize: 8,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  xAxisLabelActive: {
+    color: '#ffffff',
+    fontWeight: '800',
   },
   tooltipBadge: {
     position: 'absolute',
