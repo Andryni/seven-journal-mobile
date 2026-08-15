@@ -421,7 +421,22 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </Card>
 
-      {/* ── 8. RECENT TRADES SECTION ── */}
+      {/* ── 8. PERFORMANCE MENSUELLE (100% PARITÉ WEB) ── */}
+      <Card title="PERFORMANCE MENSUELLE">
+        {m.monthlyPerformance.length === 0 ? (
+          <Text style={styles.emptyText}>Aucune donnée mensuelle disponible.</Text>
+        ) : (
+          <BicolorBarChart
+            data={m.monthlyPerformance.map(e => ({
+              label: e.month,
+              value: e.pnl,
+            }))}
+            height={170}
+          />
+        )}
+      </Card>
+
+      {/* ── 9. RECENT TRADES SECTION ── */}
       <Card title="DERNIERS TRADES EXÉCUTÉS">
         {m.recentTrades.length === 0 ? (
           <Text style={styles.emptyText}>Aucun trade récent enregistré.</Text>
