@@ -5,21 +5,32 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
+import { TradeDetailModal } from '../components/trades/TradeDetailModal';
 import { Plus } from 'lucide-react-native';
 
 export const TradesScreen: React.FC = () => {
-  const { trades, isLoading } = useTrades();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const { trades, deleteTrade, isLoading } = useTrades();
+  const [formModalVisible, setFormModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   const handleAddTrade = () => {
-    setEditingTrade(null);
-    setModalVisible(true);
+    setSelectedTrade(null);
+    setFormModalVisible(true);
+  };
+
+  const handleViewTrade = (t: Trade) => {
+    setSelectedTrade(t);
+    setDetailModalVisible(true);
   };
 
   const handleEditTrade = (t: Trade) => {
-    setEditingTrade(t);
-    setModalVisible(true);
+    setSelectedTrade(t);
+    setFormModalVisible(true);
+  };
+
+  const handleDeleteTrade = async (id: string) => {
+    await deleteTrade(id);
   };
 
   const renderTradeItem = ({ item }: { item: Trade }) => {
@@ -29,7 +40,7 @@ export const TradesScreen: React.FC = () => {
     return (
       <TouchableOpacity
         style={styles.tradeCard}
-        onPress={() => handleEditTrade(item)}
+        onPress={() => handleViewTrade(item)}
         activeOpacity={0.8}
       >
         <View style={styles.tradeHeader}>
@@ -95,10 +106,18 @@ export const TradesScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       />
 
+      <TradeDetailModal
+        visible={detailModalVisible}
+        onClose={() => setDetailModalVisible(false)}
+        trade={selectedTrade}
+        onEdit={handleEditTrade}
+        onDelete={handleDeleteTrade}
+      />
+
       <TradeFormModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        editingTrade={editingTrade}
+        visible={formModalVisible}
+        onClose={() => setFormModalVisible(false)}
+        editingTrade={selectedTrade}
       />
     </View>
   );
