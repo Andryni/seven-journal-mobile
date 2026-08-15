@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -36,20 +37,27 @@ export default function App() {
 
   if (loading) {
     return (
-      <View style={styles.centerScreen}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.centerScreen}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   if (!session) {
-    return <AuthScreen />;
+    return (
+      <SafeAreaProvider>
+        <AuthScreen />
+      </SafeAreaProvider>
+    );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <NavigationContainer>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
+          <NavigationContainer>
           <Tab.Navigator
             screenOptions={{
               headerShown: false,
@@ -120,6 +128,7 @@ export default function App() {
         </NavigationContainer>
       </SafeAreaView>
     </QueryClientProvider>
+  </SafeAreaProvider>
   );
 }
 
