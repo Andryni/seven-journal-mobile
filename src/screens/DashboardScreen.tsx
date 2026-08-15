@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  Dimensions,
 } from 'react-native';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
@@ -16,6 +17,7 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { LineChart, BarChart } from 'react-native-gifted-charts';
 import {
   Sparkles,
   Globe,
@@ -283,7 +285,45 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* ── 5. STREAK TRACKER BANNER ── */}
+      {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS ── */}
+      <Card title="COURBE D'ÉQUITÉ LIVE">
+        <LineChart
+          data={m.equityCurve.length > 0 ? m.equityCurve.map((e, idx) => ({ value: e.pnl, label: `${idx + 1}` })) : [{ value: 0, label: '0' }]}
+          color={isPositive ? theme.colors.green : theme.colors.red}
+          thickness={3}
+          areaChart
+          startFillColor={isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}
+          endFillColor="rgba(0,0,0,0.01)"
+          height={170}
+          width={Dimensions.get('window').width - 80}
+          noOfSections={4}
+          yAxisColor={theme.colors.cardBorder}
+          xAxisColor={theme.colors.cardBorder}
+          yAxisTextStyle={{ color: theme.colors.textMuted, fontSize: 9 }}
+        />
+      </Card>
+
+      {m.dailyPnL.length > 0 && (
+        <Card title="P&L QUOTIDIEN — BARS">
+          <BarChart
+            data={m.dailyPnL.slice(-10).map(d => ({
+              value: Math.abs(d.pnl),
+              frontColor: d.pnl >= 0 ? theme.colors.green : theme.colors.red,
+              label: d.date.slice(5),
+            }))}
+            barWidth={14}
+            noOfSections={3}
+            height={130}
+            width={Dimensions.get('window').width - 80}
+            yAxisColor={theme.colors.cardBorder}
+            xAxisColor={theme.colors.cardBorder}
+            yAxisTextStyle={{ color: theme.colors.textMuted, fontSize: 8 }}
+            xAxisLabelTextStyle={{ color: theme.colors.textMuted, fontSize: 8 }}
+          />
+        </Card>
+      )}
+
+      {/* ── 6. STREAK TRACKER BANNER ── */}
       {m.streak.current > 0 && (
         <View
           style={[
