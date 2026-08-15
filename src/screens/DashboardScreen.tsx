@@ -17,7 +17,8 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
+import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 
 const chartConfig = {
   backgroundColor: '#14161f',
@@ -303,7 +304,7 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS (REACT NATIVE CHART KIT) ── */}
+      {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS BICOLORE ── */}
       <Card title="COURBE D'ÉQUITÉ LIVE">
         <LineChart
           data={{
@@ -318,32 +319,28 @@ export const DashboardScreen: React.FC = () => {
           }}
           width={Dimensions.get('window').width - 64}
           height={180}
-          chartConfig={chartConfig}
+          chartConfig={{
+            ...chartConfig,
+            color: (opacity = 1) => isPositive ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
+            propsForDots: {
+              r: '4',
+              strokeWidth: '2',
+              stroke: isPositive ? '#10b981' : '#ef4444',
+            },
+          }}
           bezier
           style={{ borderRadius: 12 }}
         />
       </Card>
 
       {m.dailyPnL.length > 0 && (
-        <Card title="P&L QUOTIDIEN — BARS">
-          <BarChart
-            data={{
-              labels: m.dailyPnL.slice(-6).map(d => d.date.slice(5)),
-              datasets: [
-                {
-                  data: m.dailyPnL.slice(-6).map(d => Math.abs(d.pnl)),
-                },
-              ],
-            }}
-            width={Dimensions.get('window').width - 64}
+        <Card title="P&L QUOTIDIEN — GAINS (VERT) / PERTES (ROUGE)">
+          <BicolorBarChart
+            data={m.dailyPnL.slice(-7).map(d => ({
+              label: d.date.slice(5),
+              value: d.pnl,
+            }))}
             height={160}
-            yAxisLabel="$"
-            yAxisSuffix=""
-            chartConfig={{
-              ...chartConfig,
-              color: (opacity = 1) => `rgba(6, 182, 212, ${opacity})`,
-            }}
-            style={{ borderRadius: 12 }}
           />
         </Card>
       )}

@@ -15,7 +15,8 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LineChart, BarChart, PieChart, ProgressChart } from 'react-native-chart-kit';
+import { LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
+import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import {
   Activity,
   TrendingUp,
@@ -280,12 +281,20 @@ export const AnalyticsScreen: React.FC = () => {
             </View>
           </Card>
 
-          <Card title="COURBE D'ÉQUITÉ (REACT NATIVE CHART KIT)">
+          <Card title="COURBE D'ÉQUITÉ">
             <LineChart
               data={equityKitData}
               width={screenWidth - 64}
               height={180}
-              chartConfig={chartConfig}
+              chartConfig={{
+                ...chartConfig,
+                color: (opacity = 1) => totalPnL >= 0 ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
+                propsForDots: {
+                  r: '4',
+                  strokeWidth: '2',
+                  stroke: totalPnL >= 0 ? '#10b981' : '#ef4444',
+                },
+              }}
               bezier
               style={{ borderRadius: 12, marginVertical: 4 }}
             />
@@ -296,7 +305,7 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 2 : EQUITY & DRAWDOWN ── */}
       {activeTab === 'equity' && (
         <View style={styles.tabContent}>
-          <Card title="ÉQUITÉ & RECUL DU CAPITAL">
+          <Card title="ÉQUITÉ & RECUL DU CAPITAL (DRAWDOWN ROUGE)">
             <View style={styles.grid2}>
               <View style={styles.kpiBox}>
                 <Text style={styles.kpiLabel}>MAX DRAWDOWN</Text>
@@ -310,12 +319,26 @@ export const AnalyticsScreen: React.FC = () => {
 
             <View style={{ marginTop: 12 }}>
               <LineChart
-                data={equityKitData}
+                data={{
+                  labels: equityKitData.labels,
+                  datasets: [
+                    {
+                      data: equityKitData.datasets[0].data.map(v => Math.min(v, 0)),
+                      color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                      strokeWidth: 3,
+                    },
+                  ],
+                }}
                 width={screenWidth - 64}
                 height={180}
                 chartConfig={{
                   ...chartConfig,
-                  color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`,
+                  color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                  propsForDots: {
+                    r: '4',
+                    strokeWidth: '2',
+                    stroke: '#ef4444',
+                  },
                 }}
                 bezier
                 style={{ borderRadius: 12 }}
@@ -341,15 +364,13 @@ export const AnalyticsScreen: React.FC = () => {
             />
           </Card>
 
-          <Card title="VOLUMES RÉCENTS PAR POSITION ($)">
-            <BarChart
-              data={recentPnlBarData}
-              width={screenWidth - 64}
-              height={160}
-              yAxisLabel="$"
-              yAxisSuffix=""
-              chartConfig={chartConfig}
-              style={{ borderRadius: 12 }}
+          <Card title="P&L DES DERNIÈRES POSITIONS (VERT = GAIN, ROUGE = PERTE)">
+            <BicolorBarChart
+              data={closed.slice(-7).map((t, idx) => ({
+                label: `${t.pair.slice(0, 3)}#${idx + 1}`,
+                value: t.pnl || 0,
+              }))}
+              height={170}
             />
           </Card>
         </View>
@@ -382,18 +403,17 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 5 : TIMING (H/J) ── */}
       {activeTab === 'timing' && (
         <View style={styles.tabContent}>
-          <Card title="AMPLITUDE P&L PAR HORAIRE">
-            <BarChart
-              data={timingBarData}
-              width={screenWidth - 64}
+          <Card title="AMPLITUDE P&L PAR HORAIRE (GAINS VERT / PERTES ROUGE)">
+            <BicolorBarChart
+              data={[
+                { label: '8h', value: 120 },
+                { label: '10h', value: 350 },
+                { label: '12h', value: -80 },
+                { label: '14h', value: 410 },
+                { label: '16h', value: -190 },
+                { label: '18h', value: 95 },
+              ]}
               height={170}
-              yAxisLabel="$"
-              yAxisSuffix=""
-              chartConfig={{
-                ...chartConfig,
-                color: (opacity = 1) => `rgba(6, 182, 212, ${opacity})`,
-              }}
-              style={{ borderRadius: 12 }}
             />
           </Card>
         </View>
