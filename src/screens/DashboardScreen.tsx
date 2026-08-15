@@ -17,8 +17,9 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LineChart } from 'react-native-chart-kit';
+import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
+import { LiveTickerBanner } from '../components/common/LiveTickerBanner';
 
 const chartConfig = {
   backgroundColor: '#14161f',
@@ -164,7 +165,10 @@ export const DashboardScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* ── 1. TICKER BANNER (LIVE RECENT TRADES FEED) ── */}
+      {/* ── 0. LIVE TICKER BANNER ANIMÉ ── */}
+      <LiveTickerBanner />
+
+      {/* ── 1. HERO BANNER & SESSIONS OVERVIEW ── */}
       {trades.length > 0 && (
         <View style={styles.tickerContainer}>
           <Text style={styles.tickerLabel}>LIVE TRADES</Text>
@@ -306,30 +310,9 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS BICOLORE ── */}
       <Card title="COURBE D'ÉQUITÉ LIVE">
-        <LineChart
-          data={{
-            labels: m.equityCurve.length > 0 ? m.equityCurve.slice(-6).map(e => e.date) : ['0'],
-            datasets: [
-              {
-                data: m.equityCurve.length > 0 ? m.equityCurve.slice(-6).map(e => e.pnl) : [0],
-                color: (opacity = 1) => isPositive ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
-                strokeWidth: 3,
-              },
-            ],
-          }}
-          width={Dimensions.get('window').width - 64}
-          height={180}
-          chartConfig={{
-            ...chartConfig,
-            color: (opacity = 1) => isPositive ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
-            propsForDots: {
-              r: '4',
-              strokeWidth: '2',
-              stroke: isPositive ? '#10b981' : '#ef4444',
-            },
-          }}
-          bezier
-          style={{ borderRadius: 12 }}
+        <GlowingEquityAreaChart
+          data={m.equityCurve.length > 0 ? m.equityCurve.map(e => ({ date: e.date, value: e.pnl })) : [{ date: '0', value: 0 }]}
+          height={190}
         />
       </Card>
 

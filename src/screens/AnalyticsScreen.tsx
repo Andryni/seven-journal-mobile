@@ -16,7 +16,8 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
+import { PieChart, ProgressChart } from 'react-native-chart-kit';
+import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import {
   Activity,
@@ -338,22 +339,13 @@ export const AnalyticsScreen: React.FC = () => {
             </View>
           </Card>
 
-          <Card title="COURBE D'ÉQUITÉ">
-            <LineChart
-              data={equityKitData}
-              width={screenWidth - 64}
-              height={180}
-              chartConfig={{
-                ...chartConfig,
-                color: (opacity = 1) => totalPnL >= 0 ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
-                propsForDots: {
-                  r: '4',
-                  strokeWidth: '2',
-                  stroke: totalPnL >= 0 ? '#10b981' : '#ef4444',
-                },
-              }}
-              bezier
-              style={{ borderRadius: 12, marginVertical: 4 }}
+          <Card title="COURBE D'ÉQUITÉ GLOWING">
+            <GlowingEquityAreaChart
+              data={equityKitData.labels.map((l, i) => ({
+                date: l || `#${i + 1}`,
+                value: equityKitData.datasets[0].data[i] || 0,
+              }))}
+              height={190}
             />
           </Card>
         </View>
@@ -375,30 +367,12 @@ export const AnalyticsScreen: React.FC = () => {
             </View>
 
             <View style={{ marginTop: 12 }}>
-              <LineChart
-                data={{
-                  labels: equityKitData.labels,
-                  datasets: [
-                    {
-                      data: equityKitData.datasets[0].data.map(v => Math.min(v, 0)),
-                      color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                      strokeWidth: 3,
-                    },
-                  ],
-                }}
-                width={screenWidth - 64}
-                height={180}
-                chartConfig={{
-                  ...chartConfig,
-                  color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: {
-                    r: '4',
-                    strokeWidth: '2',
-                    stroke: '#ef4444',
-                  },
-                }}
-                bezier
-                style={{ borderRadius: 12 }}
+              <GlowingEquityAreaChart
+                data={equityKitData.labels.map((l, i) => ({
+                  date: l || `#${i + 1}`,
+                  value: Math.min(equityKitData.datasets[0].data[i] || 0, 0),
+                }))}
+                height={190}
               />
             </View>
           </Card>
