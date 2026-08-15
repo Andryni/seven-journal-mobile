@@ -17,7 +17,25 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { LineChart, BarChart } from 'react-native-gifted-charts';
+import { LineChart, BarChart } from 'react-native-chart-kit';
+
+const chartConfig = {
+  backgroundColor: '#14161f',
+  backgroundGradientFrom: '#181920',
+  backgroundGradientTo: '#101217',
+  decimalPlaces: 0,
+  color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+  propsForDots: {
+    r: '4',
+    strokeWidth: '2',
+    stroke: '#818cf8',
+  },
+  propsForBackgroundLines: {
+    strokeDasharray: '',
+    stroke: 'rgba(255, 255, 255, 0.05)',
+  },
+};
 import {
   Sparkles,
   Globe,
@@ -285,40 +303,47 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS ── */}
+      {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS (REACT NATIVE CHART KIT) ── */}
       <Card title="COURBE D'ÉQUITÉ LIVE">
         <LineChart
-          data={m.equityCurve.length > 0 ? m.equityCurve.map((e, idx) => ({ value: e.pnl, label: `${idx + 1}` })) : [{ value: 0, label: '0' }]}
-          color={isPositive ? theme.colors.green : theme.colors.red}
-          thickness={3}
-          areaChart
-          startFillColor={isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}
-          endFillColor="rgba(0,0,0,0.01)"
-          height={170}
-          width={Dimensions.get('window').width - 80}
-          noOfSections={4}
-          yAxisColor={theme.colors.cardBorder}
-          xAxisColor={theme.colors.cardBorder}
-          yAxisTextStyle={{ color: theme.colors.textMuted, fontSize: 9 }}
+          data={{
+            labels: m.equityCurve.length > 0 ? m.equityCurve.slice(-6).map(e => e.date) : ['0'],
+            datasets: [
+              {
+                data: m.equityCurve.length > 0 ? m.equityCurve.slice(-6).map(e => e.pnl) : [0],
+                color: (opacity = 1) => isPositive ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
+                strokeWidth: 3,
+              },
+            ],
+          }}
+          width={Dimensions.get('window').width - 64}
+          height={180}
+          chartConfig={chartConfig}
+          bezier
+          style={{ borderRadius: 12 }}
         />
       </Card>
 
       {m.dailyPnL.length > 0 && (
         <Card title="P&L QUOTIDIEN — BARS">
           <BarChart
-            data={m.dailyPnL.slice(-10).map(d => ({
-              value: Math.abs(d.pnl),
-              frontColor: d.pnl >= 0 ? theme.colors.green : theme.colors.red,
-              label: d.date.slice(5),
-            }))}
-            barWidth={14}
-            noOfSections={3}
-            height={130}
-            width={Dimensions.get('window').width - 80}
-            yAxisColor={theme.colors.cardBorder}
-            xAxisColor={theme.colors.cardBorder}
-            yAxisTextStyle={{ color: theme.colors.textMuted, fontSize: 8 }}
-            xAxisLabelTextStyle={{ color: theme.colors.textMuted, fontSize: 8 }}
+            data={{
+              labels: m.dailyPnL.slice(-6).map(d => d.date.slice(5)),
+              datasets: [
+                {
+                  data: m.dailyPnL.slice(-6).map(d => Math.abs(d.pnl)),
+                },
+              ],
+            }}
+            width={Dimensions.get('window').width - 64}
+            height={160}
+            yAxisLabel="$"
+            yAxisSuffix=""
+            chartConfig={{
+              ...chartConfig,
+              color: (opacity = 1) => `rgba(6, 182, 212, ${opacity})`,
+            }}
+            style={{ borderRadius: 12 }}
           />
         </Card>
       )}
