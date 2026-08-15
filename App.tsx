@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './src/api/supabaseClient';
 import { theme } from './src/theme';
 import { TopAccountBar } from './src/components/common/TopAccountBar';
+import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
@@ -22,6 +23,7 @@ const Tab = createBottomTabNavigator();
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [splashFinished, setSplashFinished] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -35,6 +37,14 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  if (!splashFinished) {
+    return (
+      <SafeAreaProvider>
+        <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+      </SafeAreaProvider>
+    );
+  }
 
   if (loading) {
     return (
