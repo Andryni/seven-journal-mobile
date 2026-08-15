@@ -6,11 +6,13 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { theme } from '../../theme';
-import { Wallet, ChevronDown, Check, LogOut } from 'lucide-react-native';
+import { Wallet, ChevronDown, Check, LogOut, Sparkles } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
 
 export const TopAccountBar: React.FC = () => {
@@ -24,6 +26,27 @@ export const TopAccountBar: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Brand Logo & Name */}
+      <View style={styles.brandRow}>
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../assets/seven_tracking_logo.png')}
+            style={styles.logoImg}
+            resizeMode="cover"
+          />
+        </View>
+        <View>
+          <View style={styles.flexRow}>
+            <Text style={styles.brandTextSeven}>SEVEN </Text>
+            <Text style={styles.brandTextTerminal}>TRACKING</Text>
+          </View>
+          <View style={styles.liveIndicatorRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.terminalSub}>FINTECH TERMINAL</Text>
+          </View>
+        </View>
+      </View>
+
       {/* Account Selector Button */}
       <TouchableOpacity
         style={styles.selectorBtn}
@@ -34,14 +57,14 @@ export const TopAccountBar: React.FC = () => {
           <View style={styles.iconCircle}>
             <Wallet size={12} color={theme.colors.primaryLight} />
           </View>
-          <View>
-            <Text style={styles.accountTitle}>
-              {activeAccount ? activeAccount.name.toUpperCase() : 'TOUS LES COMPTES'}
+          <View style={{ maxWidth: 120 }}>
+            <Text style={styles.accountTitle} numberOfLines={1}>
+              {activeAccount ? activeAccount.name.toUpperCase() : 'TOUS COMPTES'}
             </Text>
-            <Text style={styles.accountSub}>
+            <Text style={styles.accountSub} numberOfLines={1}>
               {activeAccount
-                ? `$${activeAccount.balance.toLocaleString()} ${activeAccount.currency} · ${activeAccount.type.toUpperCase()}`
-                : `${accounts.length} COMPTE(S) ACTIF(S)`}
+                ? `$${activeAccount.balance.toLocaleString()} ${activeAccount.currency}`
+                : `${accounts.length} COMPTES`}
             </Text>
           </View>
         </View>
@@ -65,12 +88,21 @@ export const TopAccountBar: React.FC = () => {
           onPress={() => setModalVisible(false)}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalHeading}>SÉLECTIONNER LE COMPTE ACTIF</Text>
-            <Text style={styles.modalSubheading}>
-              Filtre instantanément l'intégralité du terminal (trades, KPIs, graphiques).
-            </Text>
+            <LinearGradient
+              colors={['rgba(99, 102, 241, 0.6)', 'rgba(6, 182, 212, 0.4)', 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.modalGlow}
+            />
 
-            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeading}>SÉLECTIONNER LE COMPTE ACTIF</Text>
+              <Text style={styles.modalSubheading}>
+                Filtre instantanément l'intégralité du terminal (trades, KPIs, graphiques).
+              </Text>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
               {/* Option: Tous les comptes */}
               <TouchableOpacity
                 style={[styles.accountItem, !activeAccountId && styles.accountItemActive]}
@@ -127,12 +159,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0d0e14',
+    backgroundColor: '#07080a',
     borderBottomWidth: 1,
-    borderBottomColor: '#262833',
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 8,
     gap: 8,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+  },
+  logoImg: {
+    width: 32,
+    height: 32,
+  },
+  flexRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandTextSeven: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  brandTextTerminal: {
+    color: theme.colors.primaryLight,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  liveIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  liveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: theme.colors.greenLight,
+  },
+  terminalSub: {
+    color: theme.colors.textMuted,
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   selectorBtn: {
     flex: 1,
@@ -140,55 +226,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#14161f',
-    borderColor: '#262833',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   btnLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   accountTitle: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.6,
+    letterSpacing: 0.4,
   },
   accountSub: {
     color: theme.colors.textSecondary,
-    fontSize: 9,
+    fontSize: 8,
     marginTop: 1,
+    fontVariant: ['tabular-nums'],
   },
   logoutBtn: {
     padding: 8,
     backgroundColor: '#14161f',
-    borderColor: '#262833',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: 10,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
   modalContent: {
     backgroundColor: '#181920',
-    borderColor: '#262833',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: 20,
+    overflow: 'hidden',
     padding: theme.spacing.lg,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.8,
+    shadowRadius: 25,
+    elevation: 15,
+  },
+  modalGlow: {
+    height: 2,
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  modalHeader: {
+    marginBottom: theme.spacing.md,
   },
   modalHeading: {
     color: '#ffffff',
@@ -199,8 +302,7 @@ const styles = StyleSheet.create({
   modalSubheading: {
     color: theme.colors.textSecondary,
     fontSize: 10,
-    marginTop: 2,
-    marginBottom: theme.spacing.md,
+    marginTop: 3,
   },
   accountItem: {
     flexDirection: 'row',
@@ -210,8 +312,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#121318',
     borderColor: '#262833',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: 6,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   accountItemActive: {
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
@@ -226,6 +328,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 9,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
   },
   whiteText: {
     color: '#ffffff',
