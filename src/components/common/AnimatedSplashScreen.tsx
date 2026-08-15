@@ -8,47 +8,52 @@ interface AnimatedSplashScreenProps {
 }
 
 export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAnimationFinish }) => {
-  const scaleAnim = useRef(new Animated.Value(0.7)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const textFadeAnim = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.5)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoRotate = useRef(new Animated.Value(0)).current;
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  const glowPulse = useRef(new Animated.Value(0.4)).current;
+  const textFade = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const containerFade = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // 1. Entrance animation (Spring + Zoom + Glow)
     Animated.sequence([
       Animated.parallel([
-        Animated.spring(scaleAnim, {
+        Animated.spring(logoScale, {
           toValue: 1,
-          friction: 6,
-          tension: 40,
+          friction: 5,
+          tension: 50,
           useNativeDriver: true,
         }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(glowAnim, {
+        Animated.timing(logoOpacity, {
           toValue: 1,
           duration: 600,
           useNativeDriver: true,
         }),
-        Animated.timing(textFadeAnim, {
+        Animated.timing(textFade, {
           toValue: 1,
-          duration: 500,
+          duration: 700,
           useNativeDriver: true,
         }),
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: false,
+        }),
       ]),
-      Animated.delay(1200),
+      // 2. Continuous breathing / glowing loop
+      Animated.delay(600),
+      // 3. Smooth exit transition
       Animated.parallel([
-        Animated.timing(opacityAnim, {
+        Animated.timing(containerFade, {
           toValue: 0,
           duration: 400,
           useNativeDriver: true,
         }),
-        Animated.timing(scaleAnim, {
-          toValue: 1.15,
+        Animated.timing(logoScale, {
+          toValue: 1.12,
           duration: 400,
           useNativeDriver: true,
         }),
@@ -56,30 +61,58 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     ]).start(() => {
       onAnimationFinish();
     });
+
+    // Ambient pulsing loop
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, {
+          toValue: 0.8,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowPulse, {
+          toValue: 0.35,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => pulseLoop.stop();
   }, []);
 
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: containerFade }]}>
+      {/* Background radial gradient effect */}
+      <View style={styles.ambientGlow} />
+
       <Animated.View
         style={[
           styles.contentWrap,
           {
-            opacity: opacityAnim,
-            transform: [{ scale: scaleAnim }],
+            opacity: logoOpacity,
+            transform: [{ scale: logoScale }],
           },
         ]}
       >
-        {/* Glowing Background Halo */}
+        {/* Pulsing Neon Halo around Logo */}
         <Animated.View
           style={[
             styles.glowHalo,
             {
-              opacity: glowAnim,
+              opacity: glowPulse,
+              transform: [{ scale: pulseScale }],
             },
           ]}
         />
 
-        {/* Logo Neon Image */}
+        {/* Logo Neon Card */}
         <View style={styles.logoCard}>
           <Image
             source={require('../../assets/seven_tracking_logo.png')}
@@ -88,21 +121,26 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
           />
         </View>
 
-        {/* Brand Text */}
-        <Animated.View style={[styles.textBlock, { opacity: textFadeAnim }]}>
+        {/* Brand Text Block */}
+        <Animated.View style={[styles.textBlock, { opacity: textFade }]}>
           <View style={styles.brandRow}>
             <Text style={styles.brandSeven}>SEVEN </Text>
             <Text style={styles.brandTracking}>TRACKING</Text>
           </View>
-          <Text style={styles.tagline}>FINTECH TRADING TERMINAL 2026</Text>
+          <Text style={styles.tagline}>QUANTITATIVE TRADING TERMINAL</Text>
+
+          {/* High-Tech Animated Loading Bar */}
+          <View style={styles.progressBarBg}>
+            <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
+          </View>
 
           <View style={styles.loadingRow}>
             <View style={styles.liveDot} />
-            <Text style={styles.statusText}>SYNCHRONISATION QUANTITATIVE...</Text>
+            <Text style={styles.statusText}>INITIALISATION DU TERMINAL...</Text>
           </View>
         </Animated.View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -113,35 +151,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  ambientGlow: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    filter: 'blur(40px)',
+  },
   contentWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   glowHalo: {
     position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(99, 102, 241, 0.25)',
-    top: -20,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(99, 102, 241, 0.35)',
+    top: -15,
     shadowColor: '#6366f1',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 40,
-    elevation: 20,
+    shadowOpacity: 1,
+    shadowRadius: 35,
+    elevation: 25,
   },
   logoCard: {
     width: 120,
     height: 120,
-    borderRadius: 28,
+    borderRadius: 30,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.6)',
+    borderColor: 'rgba(129, 140, 248, 0.7)',
     shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 0.8,
+    shadowRadius: 25,
+    elevation: 20,
     backgroundColor: '#0d0e14',
     marginBottom: 24,
   },
@@ -159,33 +205,40 @@ const styles = StyleSheet.create({
   },
   brandSeven: {
     color: '#ffffff',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   brandTracking: {
     color: '#818cf8',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   tagline: {
     color: '#94a3b8',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 20,
+    letterSpacing: 2,
+    marginBottom: 24,
+  },
+  progressBarBg: {
+    width: 180,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#818cf8',
+    borderRadius: 2,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#14161f',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
   },
   liveDot: {
     width: 6,

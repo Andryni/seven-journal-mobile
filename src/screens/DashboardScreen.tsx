@@ -258,7 +258,9 @@ export const DashboardScreen: React.FC = () => {
         {/* Win Rate */}
         <View style={styles.kpiCard}>
           <Text style={styles.kpiLabel}>WIN RATE GLOBAL</Text>
-          <Text style={styles.kpiValueLarge}>{m.winRate.toFixed(1)}%</Text>
+          <Text style={[styles.kpiValueLarge, m.winRate >= 50 ? styles.greenText : styles.redText]}>
+            {m.winRate.toFixed(1)}%
+          </Text>
           <Text style={styles.kpiSub}>
             <Text style={styles.greenText}>{m.winCount}W</Text> · <Text style={styles.redText}>{m.lossCount}L</Text>
           </Text>
@@ -676,11 +678,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   kpiValueLarge: {
+    color: '#ffffff',
     fontSize: 20,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
   },
   kpiValue: {
+    color: '#ffffff',
     fontSize: 17,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
