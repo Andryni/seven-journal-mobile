@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './src/api/supabaseClient';
 import { theme } from './src/theme';
+import { TopAccountBar } from './src/components/common/TopAccountBar';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
@@ -57,6 +58,7 @@ export default function App() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top', 'left', 'right']}>
+          <TopAccountBar />
           <NavigationContainer>
           <Tab.Navigator
             screenOptions={{
