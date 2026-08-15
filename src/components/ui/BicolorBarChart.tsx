@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText, G } from 'react-native-svg';
-import { theme } from '../../theme';
 
 interface BicolorBarChartProps {
   data: { label: string; value: number }[];
@@ -20,14 +19,15 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   if (!data || data.length === 0) return null;
 
-  const paddingHorizontal = 36;
+  const paddingLeft = 52;
+  const paddingRight = 16;
   const paddingVertical = 24;
-  const chartWidth = width - paddingHorizontal * 2;
+  const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingVertical * 2;
 
   const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 100);
   const zeroY = paddingVertical + chartHeight / 2;
-  const barWidth = Math.min(24, chartWidth / data.length - 6);
+  const barWidth = Math.min(22, chartWidth / data.length - 8);
 
   const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
 
@@ -51,9 +51,9 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
       <Svg width={width} height={height}>
         {/* Zero Axis Line */}
         <Line
-          x1={paddingHorizontal}
+          x1={paddingLeft}
           y1={zeroY}
-          x2={width - paddingHorizontal}
+          x2={width - paddingRight}
           y2={zeroY}
           stroke="rgba(255, 255, 255, 0.15)"
           strokeWidth="1"
@@ -62,35 +62,35 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
         {/* Reference Lines */}
         <Line
-          x1={paddingHorizontal}
+          x1={paddingLeft}
           y1={paddingVertical}
-          x2={width - paddingHorizontal}
+          x2={width - paddingRight}
           y2={paddingVertical}
           stroke="rgba(255, 255, 255, 0.05)"
           strokeWidth="1"
         />
         <Line
-          x1={paddingHorizontal}
+          x1={paddingLeft}
           y1={height - paddingVertical}
-          x2={width - paddingHorizontal}
+          x2={width - paddingRight}
           y2={height - paddingVertical}
           stroke="rgba(255, 255, 255, 0.05)"
           strokeWidth="1"
         />
 
-        {/* Max & Min Labels */}
+        {/* Max & Min Labels (Cleanly Formatted) */}
         <SvgText
-          x={paddingHorizontal - 6}
+          x={paddingLeft - 8}
           y={paddingVertical + 4}
           fill="#94a3b8"
           fontSize="8"
           fontWeight="bold"
           textAnchor="end"
         >
-          +{yAxisPrefix}{maxVal.toFixed(0)}
+          +{yAxisPrefix}{maxVal >= 1000 ? `${(maxVal / 1000).toFixed(1)}k` : maxVal.toFixed(0)}
         </SvgText>
         <SvgText
-          x={paddingHorizontal - 6}
+          x={paddingLeft - 8}
           y={zeroY + 3}
           fill="#64748b"
           fontSize="8"
@@ -100,19 +100,19 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
           {yAxisPrefix}0
         </SvgText>
         <SvgText
-          x={paddingHorizontal - 6}
+          x={paddingLeft - 8}
           y={height - paddingVertical + 4}
           fill="#94a3b8"
           fontSize="8"
           fontWeight="bold"
           textAnchor="end"
         >
-          -{yAxisPrefix}{maxVal.toFixed(0)}
+          -{yAxisPrefix}{maxVal >= 1000 ? `${(maxVal / 1000).toFixed(1)}k` : maxVal.toFixed(0)}
         </SvgText>
 
         {/* Bars */}
         {data.map((item, index) => {
-          const x = paddingHorizontal + index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
+          const x = paddingLeft + index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
           const isPositive = item.value >= 0;
           const barHeight = (Math.abs(item.value) / maxVal) * (chartHeight / 2);
           const y = isPositive ? zeroY - barHeight : zeroY;
@@ -127,7 +127,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
                 width={barWidth}
                 height={Math.max(barHeight, 2)}
                 fill={isPositive ? '#10b981' : '#ef4444'}
-                opacity={isSelected ? 1 : 0.65}
+                opacity={isSelected ? 1 : 0.7}
                 stroke={isSelected ? '#ffffff' : 'none'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 rx={3}
@@ -150,7 +150,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
       </Svg>
 
       {/* Interactive Touch Areas */}
-      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', paddingHorizontal }]}>
+      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', paddingLeft, paddingRight }]}>
         {data.map((_, idx) => (
           <TouchableOpacity
             key={idx}
@@ -166,7 +166,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#181920',
+    backgroundColor: '#12141c',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
@@ -179,8 +179,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 12,
-    backgroundColor: '#121318',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#0d0f15',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,

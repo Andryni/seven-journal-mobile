@@ -9,9 +9,7 @@ import Svg, {
   Line,
   Text as SvgText,
   G,
-  Rect,
 } from 'react-native-svg';
-import { theme } from '../../theme';
 
 interface GlowingEquityAreaChartProps {
   data: { date: string; value: number }[];
@@ -28,10 +26,10 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
 
   if (!data || data.length === 0) return null;
 
-  const paddingLeft = 40;
+  const paddingLeft = 52;
   const paddingRight = 20;
-  const paddingTop = 25;
-  const paddingBottom = 30;
+  const paddingTop = 28;
+  const paddingBottom = 28;
 
   const chartW = width - paddingLeft - paddingRight;
   const chartH = height - paddingTop - paddingBottom;
@@ -47,7 +45,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   const points = data.map((d, i) => {
     const x = paddingLeft + (i / Math.max(data.length - 1, 1)) * chartW;
     const y = paddingTop + chartH - ((d.value - minVal) / range) * chartH;
-    return { x, y, value: d.value, date: d.date };
+    return { x, y, value: d.value, date: d.date, index: i + 1 };
   });
 
   // Build SVG Path with smooth curves
@@ -68,12 +66,26 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
 
   const activePoint = selectedIndex !== null ? points[selectedIndex] : points[points.length - 1];
 
+  // Pick 4-5 well-spaced indices for X-axis labels to avoid text crowding
+  const sampleIndices = new Set<number>();
+  if (points.length <= 5) {
+    points.forEach((_, i) => sampleIndices.add(i));
+  } else {
+    sampleIndices.add(0);
+    sampleIndices.add(Math.floor(points.length * 0.25));
+    sampleIndices.add(Math.floor(points.length * 0.5));
+    sampleIndices.add(Math.floor(points.length * 0.75));
+    sampleIndices.add(points.length - 1);
+  }
+
   return (
     <View style={[styles.container, { width, height }]}>
       {/* Interactive Tooltip on Top */}
       {activePoint && (
         <View style={styles.tooltipBadge}>
-          <Text style={styles.tooltipDate}>{activePoint.date}</Text>
+          <Text style={styles.tooltipDate}>
+            Trade #{activePoint.index} · {activePoint.date}
+          </Text>
           <Text
             style={[
               styles.tooltipVal,
@@ -97,7 +109,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           </LinearGradient>
         </Defs>
 
-        {/* Grid Horizontal Lines */}
+        {/* Grid Lines */}
         <Line
           x1={paddingLeft}
           y1={paddingTop}
@@ -124,19 +136,19 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           strokeWidth="1"
         />
 
-        {/* Y Axis Labels */}
+        {/* Y Axis Labels (Clean & Readable) */}
         <SvgText
-          x={paddingLeft - 6}
+          x={paddingLeft - 8}
           y={paddingTop + 4}
           fill="#94a3b8"
           fontSize="9"
           fontWeight="bold"
           textAnchor="end"
         >
-          +${maxVal.toFixed(0)}
+          +${Math.abs(maxVal) >= 1000 ? `${(maxVal / 1000).toFixed(1)}k` : maxVal.toFixed(0)}
         </SvgText>
         <SvgText
-          x={paddingLeft - 6}
+          x={paddingLeft - 8}
           y={zeroY + 3}
           fill="#64748b"
           fontSize="9"
@@ -145,16 +157,18 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
         >
           $0
         </SvgText>
-        <SvgText
-          x={paddingLeft - 6}
-          y={bottomY + 3}
-          fill="#94a3b8"
-          fontSize="9"
-          fontWeight="bold"
-          textAnchor="end"
-        >
-          -${Math.abs(minVal).toFixed(0)}
-        </SvgText>
+        {minVal < 0 && (
+          <SvgText
+            x={paddingLeft - 8}
+            y={bottomY + 3}
+            fill="#f87171"
+            fontSize="9"
+            fontWeight="bold"
+            textAnchor="end"
+          >
+            -${Math.abs(minVal) >= 1000 ? `${(Math.abs(minVal) / 1000).toFixed(1)}k` : Math.abs(minVal).toFixed(0)}
+          </SvgText>
+        )}
 
         {/* Area Gradient Fill */}
         <Path
@@ -167,15 +181,17 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           d={linePath}
           fill="none"
           stroke={mainColor}
-          strokeWidth="3"
+          strokeWidth="2.5"
         />
 
-        {/* Interactive Dots and Click Areas */}
+        {/* Selected / Sample Points */}
         {points.map((p, i) => {
           const isSelected = (selectedIndex === null && i === points.length - 1) || selectedIndex === i;
+          const isSample = sampleIndices.has(i);
+
           return (
             <G key={i}>
-              {/* Pulsing glow circle on active point */}
+              {/* Highlight active point with pulsing glow */}
               {isSelected ? (
                 <>
                   <Circle
@@ -193,27 +209,29 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
                     strokeWidth="2"
                   />
                 </>
-              ) : (
+              ) : isSample ? (
                 <Circle
                   cx={p.x}
                   cy={p.y}
-                  r={3}
+                  r={2.5}
                   fill={p.value >= 0 ? '#10b981' : '#ef4444'}
                   opacity={0.6}
                 />
-              )}
+              ) : null}
 
-              {/* X Axis Label */}
-              <SvgText
-                x={p.x}
-                y={height - 8}
-                fill="#64748b"
-                fontSize="8"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {p.date.slice(5) || p.date}
-              </SvgText>
+              {/* Sample X Axis Labels without overlap */}
+              {isSample && (
+                <SvgText
+                  x={p.x}
+                  y={height - 8}
+                  fill="#64748b"
+                  fontSize="8"
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  {p.date}
+                </SvgText>
+              )}
             </G>
           );
         })}
@@ -236,8 +254,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#181920',
-    borderRadius: 16,
+    backgroundColor: '#12141c',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
     overflow: 'hidden',
@@ -249,8 +267,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 12,
-    backgroundColor: '#121318',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#0d0f15',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
