@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTrades } from '../features/trades/useTrades';
@@ -13,7 +14,14 @@ import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+
+const screenWidth = Dimensions.get('window').width;
+const CALENDAR_PADDING = 16; // horizontal padding inside the calendar frame
+const CELL_GAP = 3;
+const COLS = 7;
+const calendarInnerWidth = screenWidth - (theme.spacing.lg * 2) - (CALENDAR_PADDING * 2);
+const CELL_SIZE = Math.floor((calendarInnerWidth - CELL_GAP * (COLS - 1)) / COLS);
 
 export const CalendarScreen: React.FC = () => {
   const { trades, isLoading } = useTrades();
@@ -72,6 +80,10 @@ export const CalendarScreen: React.FC = () => {
     return { monthPnl, greenDays, redDays, totalTradesMonth };
   }, [tradesByDate, year, month, totalDays]);
 
+  // Calculate total weeks for grid rows
+  const totalCells = adjustedStartDay + totalDays;
+  const totalRows = Math.ceil(totalCells / 7);
+
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -86,10 +98,8 @@ export const CalendarScreen: React.FC = () => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* ── HEADER ── */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.screenTitle}>CALENDRIER QUANTITATIF</Text>
-          <Text style={styles.screenSubtitle}>Heatmap journalier & amplitude P&L</Text>
-        </View>
+        <Text style={styles.screenTitle}>CALENDRIER QUANTITATIF</Text>
+        <Text style={styles.screenSubtitle}>Heatmap journalier & amplitude P&L</Text>
       </View>
 
       {/* ── MONTHLY HERO METRICS ── */}
@@ -122,69 +132,104 @@ export const CalendarScreen: React.FC = () => {
         </LinearGradient>
       </View>
 
-      {/* ── MONTH SELECTOR NAVIGATION ── */}
-      <View style={styles.monthNav}>
-        <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7}>
-          <ChevronLeft color="#ffffff" size={18} />
-        </TouchableOpacity>
-        <Text style={styles.monthTitle}>{monthName.toUpperCase()}</Text>
-        <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7}>
-          <ChevronRight color="#ffffff" size={18} />
-        </TouchableOpacity>
-      </View>
+      {/* ── FRAMED CALENDAR SECTION ── */}
+      <View style={styles.calendarFrame}>
+        {/* Month Navigation (inside frame) */}
+        <View style={styles.monthNav}>
+          <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7}>
+            <ChevronLeft color="#ffffff" size={16} />
+          </TouchableOpacity>
+          <Text style={styles.monthTitle}>{monthName.toUpperCase()}</Text>
+          <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7}>
+            <ChevronRight color="#ffffff" size={16} />
+          </TouchableOpacity>
+        </View>
 
-      {/* ── DAYS HEADER ── */}
-      <View style={styles.daysHeader}>
-        {['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'].map(d => (
-          <Text key={d} style={styles.dayColHeader}>{d}</Text>
-        ))}
-      </View>
+        {/* Separator */}
+        <View style={styles.separator} />
 
-      {/* ── HEATMAP GRID ── */}
-      <View style={styles.grid}>
-        {Array.from({ length: adjustedStartDay }).map((_, i) => (
-          <View key={`empty-${i}`} style={styles.emptyCell} />
-        ))}
+        {/* Days Header */}
+        <View style={styles.daysHeader}>
+          {['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'].map(d => (
+            <View key={d} style={[styles.dayColHeaderBox, { width: CELL_SIZE }]}>
+              <Text style={styles.dayColHeaderText}>{d}</Text>
+            </View>
+          ))}
+        </View>
 
-        {Array.from({ length: totalDays }).map((_, i) => {
-          const day = i + 1;
-          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const ds = tradesByDate[dateStr];
-          const isSelected = selectedDateStr === dateStr;
+        {/* Heatmap Grid — Row by Row for perfect alignment */}
+        {Array.from({ length: totalRows }).map((_, rowIdx) => (
+          <View key={rowIdx} style={styles.gridRow}>
+            {Array.from({ length: 7 }).map((__, colIdx) => {
+              const cellIndex = rowIdx * 7 + colIdx;
+              const dayNum = cellIndex - adjustedStartDay + 1;
 
-          const isWin = ds && ds.pnl > 0;
-          const isLoss = ds && ds.pnl < 0;
+              // Empty cell (before month start or after month end)
+              if (dayNum < 1 || dayNum > totalDays) {
+                return <View key={colIdx} style={[styles.emptyCell, { width: CELL_SIZE, height: CELL_SIZE }]} />;
+              }
 
-          return (
-            <TouchableOpacity
-              key={day}
-              style={[
-                styles.dayCell,
-                isWin && styles.dayCellWin,
-                isLoss && styles.dayCellLoss,
-                isSelected && styles.dayCellSelected,
-              ]}
-              onPress={() => setSelectedDateStr(dateStr)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
-                {day}
-              </Text>
-              {ds && (
-                <Text
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+              const ds = tradesByDate[dateStr];
+              const isSelected = selectedDateStr === dateStr;
+              const isWin = ds && ds.pnl > 0;
+              const isLoss = ds && ds.pnl < 0;
+              const isToday =
+                dayNum === new Date().getDate() &&
+                month === new Date().getMonth() &&
+                year === new Date().getFullYear();
+
+              return (
+                <TouchableOpacity
+                  key={colIdx}
                   style={[
-                    styles.dayPnl,
-                    isWin && styles.greenText,
-                    isLoss && styles.redText,
+                    styles.dayCell,
+                    { width: CELL_SIZE, height: CELL_SIZE },
+                    isWin && styles.dayCellWin,
+                    isLoss && styles.dayCellLoss,
+                    isToday && !isSelected && styles.dayCellToday,
+                    isSelected && styles.dayCellSelected,
                   ]}
-                  numberOfLines={1}
+                  onPress={() => setSelectedDateStr(dateStr)}
+                  activeOpacity={0.7}
                 >
-                  {isWin ? '+' : ''}${Math.abs(ds.pnl) >= 1000 ? `${(ds.pnl / 1000).toFixed(1)}k` : ds.pnl.toFixed(0)}
-                </Text>
-              )}
-            </TouchableOpacity>
-          );
-        })}
+                  <Text
+                    style={[
+                      styles.dayNum,
+                      isToday && styles.dayNumToday,
+                      isSelected && styles.dayNumSelected,
+                    ]}
+                  >
+                    {dayNum}
+                  </Text>
+                  {ds && (
+                    <Text
+                      style={[
+                        styles.dayPnl,
+                        isWin && styles.greenText,
+                        isLoss && styles.redText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isWin ? '+' : ''}${Math.abs(ds.pnl) >= 1000 ? `${(ds.pnl / 1000).toFixed(1)}k` : ds.pnl.toFixed(0)}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+
+        {/* Monthly Summary Footer */}
+        <View style={styles.separator} />
+        <View style={styles.calendarFooter}>
+          <Text style={styles.footerLabel}>
+            {monthlyStats.totalTradesMonth} trades · {monthlyStats.greenDays + monthlyStats.redDays} jours actifs
+          </Text>
+          <Text style={[styles.footerPnl, monthlyStats.monthPnl >= 0 ? styles.greenText : styles.redText]}>
+            {monthlyStats.monthPnl >= 0 ? '+' : ''}${monthlyStats.monthPnl.toFixed(2)}
+          </Text>
+        </View>
       </View>
 
       {/* ── SELECTED DATE DETAILS ── */}
@@ -220,6 +265,8 @@ export const CalendarScreen: React.FC = () => {
           )}
         </Card>
       )}
+
+      <View style={{ height: 32 }} />
     </ScrollView>
   );
 };
@@ -252,6 +299,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
+
+  // ── Hero Card ──
   heroMonthCard: {
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
@@ -308,57 +357,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
+
+  // ── Framed Calendar ──
+  calendarFrame: {
+    backgroundColor: '#0e1017',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: CALENDAR_PADDING,
+    marginBottom: theme.spacing.lg,
+  },
   monthNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#12141c',
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    paddingBottom: 10,
   },
   navBtn: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   monthTitle: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    marginBottom: 10,
   },
   daysHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
-    paddingHorizontal: 4,
   },
-  dayColHeader: {
-    flex: 1,
-    textAlign: 'center',
-    color: theme.colors.textMuted,
+  dayColHeaderBox: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  dayColHeaderText: {
+    color: '#64748b',
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
-  grid: {
+
+  // ── Grid ──
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: theme.spacing.lg,
-    gap: 4,
+    justifyContent: 'space-between',
+    marginBottom: CELL_GAP,
   },
   emptyCell: {
-    width: '13.5%',
-    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   dayCell: {
-    width: '13.5%',
-    aspectRatio: 1,
-    backgroundColor: '#12141c',
-    borderRadius: 6,
+    backgroundColor: '#161923',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.04)',
     alignItems: 'center',
@@ -366,31 +428,61 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   dayCellWin: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
   },
   dayCellLoss: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  dayCellToday: {
+    borderColor: 'rgba(99, 102, 241, 0.5)',
+    borderWidth: 1.5,
   },
   dayCellSelected: {
     borderColor: '#ffffff',
-    borderWidth: 1.5,
+    borderWidth: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   dayNum: {
-    color: theme.colors.textSecondary,
-    fontSize: 9,
+    color: '#94a3b8',
+    fontSize: 10,
     fontWeight: '700',
+  },
+  dayNumToday: {
+    color: '#818cf8',
+    fontWeight: '900',
   },
   dayNumSelected: {
     color: '#ffffff',
+    fontWeight: '900',
   },
   dayPnl: {
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
+
+  // ── Calendar Footer ──
+  calendarFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 2,
+  },
+  footerLabel: {
+    color: '#64748b',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  footerPnl: {
+    fontSize: 12,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── Trade Details ──
   tradeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

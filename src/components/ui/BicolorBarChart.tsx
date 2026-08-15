@@ -19,14 +19,18 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   if (!data || data.length === 0) return null;
 
-  const yAxisWidth = 56;
+  const yAxisWidth = 52;
   const paddingRight = 12;
-  const paddingVertical = 20;
+  const paddingTop = 20;
+  const paddingBottom = 4; // bars end here, X labels go below
+  const xLabelHeight = 20; // reserved space for X-axis labels
+  const totalHeight = height + xLabelHeight;
+
   const chartWidth = width - yAxisWidth - paddingRight;
-  const chartHeight = height - paddingVertical * 2;
+  const chartHeight = height - paddingTop - paddingBottom;
 
   const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 100);
-  const zeroY = paddingVertical + chartHeight / 2;
+  const zeroY = paddingTop + chartHeight / 2;
   const barWidth = Math.min(22, chartWidth / data.length - 6);
 
   const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
@@ -38,7 +42,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   };
 
   return (
-    <View style={[styles.container, { height, width }]}>
+    <View style={[styles.container, { height: totalHeight, width }]}>
       {/* Interactive Tooltip */}
       {activeItem && (
         <View style={styles.tooltipBadge}>
@@ -55,7 +59,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
       )}
 
       <View style={styles.chartRow}>
-        {/* Native Y-Axis Labels (crisp, no SVG text) */}
+        {/* Native Y-Axis Labels */}
         <View style={[styles.yAxisContainer, { height }]}>
           <Text style={[styles.yAxisLabel, styles.yAxisTop, styles.greenText]}>
             +{formatCompact(maxVal)}
@@ -68,34 +72,25 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
           </Text>
         </View>
 
-        {/* SVG Chart Canvas */}
-        <View style={{ width: chartWidth + paddingRight, height }}>
+        {/* SVG Chart Canvas + X labels below */}
+        <View style={{ width: chartWidth + paddingRight, height: totalHeight }}>
           <Svg width={chartWidth + paddingRight} height={height}>
             {/* Zero Axis Line */}
             <Line
-              x1={0}
-              y1={zeroY}
-              x2={chartWidth}
-              y2={zeroY}
+              x1={0} y1={zeroY}
+              x2={chartWidth} y2={zeroY}
               stroke="rgba(255, 255, 255, 0.15)"
-              strokeWidth="1"
-              strokeDasharray="4 4"
+              strokeWidth="1" strokeDasharray="4 4"
             />
             <Line
-              x1={0}
-              y1={paddingVertical}
-              x2={chartWidth}
-              y2={paddingVertical}
-              stroke="rgba(255, 255, 255, 0.05)"
-              strokeWidth="1"
+              x1={0} y1={paddingTop}
+              x2={chartWidth} y2={paddingTop}
+              stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1"
             />
             <Line
-              x1={0}
-              y1={height - paddingVertical}
-              x2={chartWidth}
-              y2={height - paddingVertical}
-              stroke="rgba(255, 255, 255, 0.05)"
-              strokeWidth="1"
+              x1={0} y1={height - paddingBottom}
+              x2={chartWidth} y2={height - paddingBottom}
+              stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1"
             />
 
             {/* Bars */}
@@ -109,8 +104,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               return (
                 <G key={index}>
                   <Rect
-                    x={x}
-                    y={y}
+                    x={x} y={y}
                     width={barWidth}
                     height={Math.max(barHeight, 2)}
                     fill={isPositive ? '#10b981' : '#ef4444'}
@@ -124,8 +118,8 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
             })}
           </Svg>
 
-          {/* Native X-Axis Labels (below bars) */}
-          <View style={[styles.xAxisRow, { width: chartWidth }]}>
+          {/* Native X-Axis Labels — OUTSIDE SVG, fully visible */}
+          <View style={[styles.xAxisRow, { width: chartWidth, height: xLabelHeight }]}>
             {data.map((item, index) => {
               const segmentWidth = chartWidth / data.length;
               const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
@@ -146,7 +140,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
           </View>
 
           {/* Touch Overlays */}
-          <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', width: chartWidth }]}>
+          <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', width: chartWidth, height }]}>
             {data.map((_, idx) => (
               <TouchableOpacity
                 key={idx}
@@ -168,17 +162,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
-    overflow: 'hidden',
     position: 'relative',
     paddingVertical: 4,
+    // NO overflow: 'hidden' — X labels must be visible
   },
   chartRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   yAxisContainer: {
-    width: 56,
-    paddingRight: 6,
+    width: 52,
+    paddingRight: 4,
     position: 'relative',
   },
   yAxisLabel: {
@@ -191,32 +185,32 @@ const styles = StyleSheet.create({
   yAxisTop: {
     position: 'absolute',
     top: 16,
-    right: 6,
+    right: 4,
   },
   yAxisMid: {
     position: 'absolute',
-    right: 6,
+    right: 4,
     color: '#64748b',
   },
   yAxisBottom: {
     position: 'absolute',
-    bottom: 16,
-    right: 6,
+    bottom: 36, // account for xLabelHeight
+    right: 4,
   },
   xAxisRow: {
-    position: 'absolute',
-    bottom: 2,
     flexDirection: 'row',
+    paddingTop: 4,
   },
   xAxisLabel: {
     color: '#64748b',
-    fontSize: 8,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '700',
     textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   xAxisLabelActive: {
     color: '#ffffff',
-    fontWeight: '800',
+    fontWeight: '900',
   },
   tooltipBadge: {
     position: 'absolute',
