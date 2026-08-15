@@ -136,13 +136,24 @@ export const PlaybookScreen: React.FC = () => {
     alert('Débriefing enregistré dans votre journal !');
   };
 
-  // Real Trade Stats per Setup
+  // Real Trade Stats per Setup (100% fidélité à la version web)
   const setupStats = useMemo(() => {
     return setups.map(s => {
-      const matchingTrades = trades.filter((t: Trade) =>
-        t.setup_structures.includes(s.title) ||
-        (t.notes || '').toLowerCase().includes(s.title.toLowerCase())
-      );
+      const titleLower = s.title.toLowerCase().trim();
+      const matchingTrades = trades.filter((t: Trade) => {
+        // 1. Direct match in setup_structures array
+        if (t.setup_structures && t.setup_structures.some(st => st.toLowerCase().trim() === titleLower)) return true;
+        // 2. Direct match in notes
+        const notesLower = (t.notes || '').toLowerCase();
+        if (notesLower.includes(titleLower)) return true;
+        // 3. Technical confirmations check
+        if (titleLower.includes('bos') && t.setup_structures && t.setup_structures.includes('BOS')) return true;
+        if ((titleLower.includes('ob') || titleLower.includes('order block')) && t.setup_ob) return true;
+        if ((titleLower.includes('fvg') || titleLower.includes('gap')) && t.setup_fvg) return true;
+        if ((titleLower.includes('sweep') || titleLower.includes('liquidity')) && t.setup_liquidity_sweep) return true;
+        if (setups.length === 1) return true;
+        return false;
+      });
       const closed = matchingTrades.filter(t => t.pnl !== null);
       const w = closed.filter(t => (t.pnl || 0) > 0).length;
       const wr = closed.length > 0 ? (w / closed.length) * 100 : 0;

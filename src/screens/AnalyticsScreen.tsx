@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
+import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
 import { theme } from '../theme';
@@ -65,6 +66,7 @@ const TABS: { id: TabType; label: string; icon: React.FC<{ color?: string; size?
 export const AnalyticsScreen: React.FC = () => {
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
+  const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -136,7 +138,7 @@ export const AnalyticsScreen: React.FC = () => {
     };
   }, [closed, totalPnL]);
 
-  // 3. PIE & BAR DATA
+  // 3. PIE DATA
   const pieData = useMemo(() => [
     {
       name: 'Gains',
@@ -161,44 +163,99 @@ export const AnalyticsScreen: React.FC = () => {
     },
   ], [wins, losses, closed]);
 
-  const recentPnlBarData = useMemo(() => {
-    const recent = closed.slice(-6);
-    return {
-      labels: recent.map(t => t.pair.slice(0, 3)),
-      datasets: [
-        {
-          data: recent.length > 0 ? recent.map(t => Math.abs(t.pnl || 0)) : [100, 200, 150],
-        },
-      ],
-    };
-  }, [closed]);
-
-  // 4. SETUP BREAKDOWN
+  // 4. PAR SETUP DU PLAYBOOK (Fidèle à 100% à la version Web)
   const setupBreakdown = useMemo(() => {
-    const setups = ['BOS', 'OB', 'FVG', 'Liquidity Sweep'];
-    return setups.map(s => {
-      let matching: Trade[] = [];
-      if (s === 'BOS') matching = closed.filter(t => t.setup_structures.includes('BOS'));
-      if (s === 'OB') matching = closed.filter(t => t.setup_ob);
-      if (s === 'FVG') matching = closed.filter(t => t.setup_fvg);
-      if (s === 'Liquidity Sweep') matching = closed.filter(t => t.setup_liquidity_sweep);
+    if (playbookSetups.length > 0) {
+      return playbookSetups.map(s => {
+        const titleLower = s.title.toLowerCase().trim();
+        const sub = closed.filter(t => {
+          // 1. Direct match in setup_structures
+          if (t.setup_structures && t.setup_structures.some(st => st.toLowerCase().trim() === titleLower)) return true;
+          // 2. Direct match in notes
+          const notesLower = (t.notes || '').toLowerCase();
+          if (notesLower.includes(titleLower)) return true;
+          // 3. Technical confirmations check
+          if (titleLower.includes('bos') && t.setup_structures && t.setup_structures.includes('BOS')) return true;
+          if ((titleLower.includes('ob') || titleLower.includes('order block')) && t.setup_ob) return true;
+          if ((titleLower.includes('fvg') || titleLower.includes('gap')) && t.setup_fvg) return true;
+          if ((titleLower.includes('sweep') || titleLower.includes('liquidity')) && t.setup_liquidity_sweep) return true;
+          if (playbookSetups.length === 1) return true;
+          return false;
+        });
+        const w = sub.filter(t => (t.pnl || 0) > 0).length;
+        const pnl = sub.reduce((acc, t) => acc + (t.pnl || 0), 0);
+        const wr = sub.length > 0 ? (w / sub.length) * 100 : 0;
+        return {
+          name: s.title,
+          count: sub.length,
+          winRate: wr,
+          pnl,
+        };
+      });
+    }
 
-      const w = matching.filter(t => (t.pnl || 0) > 0).length;
-      const wr = matching.length > 0 ? (w / matching.length) * 100 : 0;
-      const pnl = matching.reduce((sum, t) => sum + (t.pnl || 0), 0);
-      return { name: s, count: matching.length, winRate: wr, pnl };
+    // Default confirmations if no playbook setups created yet
+    const defs = [
+      { name: 'BOS (Break of Structure)', check: (t: Trade) => t.setup_structures.includes('BOS') },
+      { name: 'Order Block (OB)', check: (t: Trade) => t.setup_ob },
+      { name: 'Fair Value Gap (FVG)', check: (t: Trade) => t.setup_fvg },
+      { name: 'Liquidity Sweep', check: (t: Trade) => t.setup_liquidity_sweep },
+    ];
+    return defs.map(({ name, check }) => {
+      const sub = closed.filter(check);
+      const w = sub.filter(t => (t.pnl || 0) > 0).length;
+      const pnl = sub.reduce((s, t) => s + (t.pnl || 0), 0);
+      const wr = sub.length > 0 ? (w / sub.length) * 100 : 0;
+      return { name, count: sub.length, winRate: wr, pnl };
     });
+  }, [playbookSetups, closed]);
+
+  // 4b. PAR PAIRE / INSTRUMENT
+  const pairBreakdown = useMemo(() => {
+    const map: Record<string, { pnl: number; wins: number; total: number }> = {};
+    closed.forEach(t => {
+      if (!map[t.pair]) map[t.pair] = { pnl: 0, wins: 0, total: 0 };
+      map[t.pair].pnl += (t.pnl || 0);
+      map[t.pair].total++;
+      if ((t.pnl || 0) > 0) map[t.pair].wins++;
+    });
+    return Object.entries(map).map(([pair, d]) => ({
+      name: pair,
+      pnl: d.pnl,
+      winRate: d.total > 0 ? (d.wins / d.total) * 100 : 0,
+      total: d.total,
+    }));
   }, [closed]);
 
-  // 5. TIMING BY HOUR
-  const timingBarData = useMemo(() => {
-    const hours = ['8h', '10h', '12h', '14h', '16h', '18h'];
-    const pnlValues = [120, 350, 80, 410, 190, 95];
-    return {
-      labels: hours,
-      datasets: [{ data: pnlValues }],
-    };
-  }, []);
+  // 4c. PAR TIMEFRAME
+  const tfBreakdown = useMemo(() => {
+    const map: Record<string, { pnl: number; wins: number; total: number }> = {};
+    closed.forEach(t => {
+      if (!map[t.timeframe]) map[t.timeframe] = { pnl: 0, wins: 0, total: 0 };
+      map[t.timeframe].pnl += (t.pnl || 0);
+      map[t.timeframe].total++;
+      if ((t.pnl || 0) > 0) map[t.timeframe].wins++;
+    });
+    return Object.entries(map).map(([tf, d]) => ({
+      name: tf,
+      pnl: d.pnl,
+      winRate: d.total > 0 ? (d.wins / d.total) * 100 : 0,
+      total: d.total,
+    }));
+  }, [closed]);
+
+  // 5. TIMING PAR HORAIRE
+  const timingBreakdown = useMemo(() => {
+    const hours = [8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20];
+    return hours.map(h => {
+      const match = closed.filter(t => new Date(t.entry_time).getHours() === h);
+      const pnl = match.reduce((sum, t) => sum + (t.pnl || 0), 0);
+      return {
+        label: `${h}h`,
+        value: pnl,
+      };
+    }).filter(h => h.value !== 0);
+  }, [closed]);
 
   // 6. PSYCHOLOGY BREAKDOWN
   const mentalBreakdown = useMemo(() => {
@@ -212,7 +269,7 @@ export const AnalyticsScreen: React.FC = () => {
     });
   }, [closed]);
 
-  if (tradesLoading || accountsLoading) {
+  if (tradesLoading || accountsLoading || setupsLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={theme.colors.primary} size="large" />
@@ -379,19 +436,60 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
       {activeTab === 'breakdown' && (
         <View style={styles.tabContent}>
-          <Card title="WIN RATE & P&L PAR SETUP SMC">
+          {/* Par Stratégie Playbook */}
+          <Card title="WIN RATE PAR STRATÉGIE PLAYBOOK">
             {setupBreakdown.map(s => (
               <View key={s.name} style={styles.rowBetween}>
-                <View>
-                  <Text style={styles.boldWhite}>{s.name}</Text>
-                  <Text style={styles.subMuted}>{s.count} trades</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.boldWhite}>🎯 {s.name}</Text>
+                  <Text style={styles.subMuted}>{s.count} trades exécutés</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.boldVal, s.winRate >= 50 ? styles.greenText : styles.redText]}>
-                    {s.winRate.toFixed(0)}% WR
+                  <Text style={[styles.boldVal, s.winRate >= 50 ? styles.greenText : s.count > 0 ? styles.redText : { color: theme.colors.textMuted }]}>
+                    {s.count > 0 ? `${s.winRate.toFixed(1)}% WR` : '—'}
                   </Text>
                   <Text style={[styles.subMuted, s.pnl >= 0 ? styles.greenText : styles.redText]}>
-                    {s.pnl >= 0 ? '+' : ''}${s.pnl.toFixed(2)}
+                    {s.count > 0 ? `${s.pnl >= 0 ? '+' : ''}$${s.pnl.toFixed(2)}` : '$0.00'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+
+          {/* Par Instrument / Paire */}
+          <Card title="PERFORMANCE PAR INSTRUMENT">
+            {pairBreakdown.map(p => (
+              <View key={p.name} style={styles.rowBetween}>
+                <View>
+                  <Text style={styles.boldWhite}>{p.name}</Text>
+                  <Text style={styles.subMuted}>{p.total} trades</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.boldVal, p.winRate >= 50 ? styles.greenText : styles.redText]}>
+                    {p.winRate.toFixed(1)}% WR
+                  </Text>
+                  <Text style={[styles.subMuted, p.pnl >= 0 ? styles.greenText : styles.redText]}>
+                    {p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+
+          {/* Par Timeframe */}
+          <Card title="PERFORMANCE PAR TIMEFRAME">
+            {tfBreakdown.map(tf => (
+              <View key={tf.name} style={styles.rowBetween}>
+                <View>
+                  <Text style={styles.boldWhite}>{tf.name}</Text>
+                  <Text style={styles.subMuted}>{tf.total} trades</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.boldVal, tf.winRate >= 50 ? styles.greenText : styles.redText]}>
+                    {tf.winRate.toFixed(1)}% WR
+                  </Text>
+                  <Text style={[styles.subMuted, tf.pnl >= 0 ? styles.greenText : styles.redText]}>
+                    {tf.pnl >= 0 ? '+' : ''}$${tf.pnl.toFixed(2)}
                   </Text>
                 </View>
               </View>
@@ -404,17 +502,14 @@ export const AnalyticsScreen: React.FC = () => {
       {activeTab === 'timing' && (
         <View style={styles.tabContent}>
           <Card title="AMPLITUDE P&L PAR HORAIRE (GAINS VERT / PERTES ROUGE)">
-            <BicolorBarChart
-              data={[
-                { label: '8h', value: 120 },
-                { label: '10h', value: 350 },
-                { label: '12h', value: -80 },
-                { label: '14h', value: 410 },
-                { label: '16h', value: -190 },
-                { label: '18h', value: 95 },
-              ]}
-              height={170}
-            />
+            {timingBreakdown.length > 0 ? (
+              <BicolorBarChart
+                data={timingBreakdown}
+                height={170}
+              />
+            ) : (
+              <Text style={styles.emptyText}>Aucune donnée horaire disponible.</Text>
+            )}
           </Card>
         </View>
       )}
@@ -601,5 +696,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 10,
     marginTop: 2,
+  },
+  emptyText: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    paddingVertical: theme.spacing.lg,
+    fontStyle: 'italic',
   },
 });
