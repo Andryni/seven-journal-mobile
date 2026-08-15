@@ -169,29 +169,6 @@ export const DashboardScreen: React.FC = () => {
       <LiveTickerBanner />
 
       {/* ── 1. HERO BANNER & SESSIONS OVERVIEW ── */}
-      {trades.length > 0 && (
-        <View style={styles.tickerContainer}>
-          <Text style={styles.tickerLabel}>LIVE TRADES</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tickerScroll}>
-            {trades.slice(0, 8).map((t: Trade) => (
-              <View key={t.id} style={styles.tickerItem}>
-                <Text style={styles.tickerPair}>{t.pair}</Text>
-                <Text style={t.direction === 'BUY' ? styles.tickerBuy : styles.tickerSell}>
-                  {t.direction}
-                </Text>
-                <Text style={(t.pnl || 0) >= 0 ? styles.greenText : styles.redText}>
-                  {t.pnl !== null ? `${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(0)}` : 'OPEN'}
-                </Text>
-                {t.r_multiple !== null && (
-                  <Text style={styles.tickerR}>{t.r_multiple >= 0 ? '+' : ''}{t.r_multiple}R</Text>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* ── 2. HERO BANNER & SESSIONS OVERVIEW ── */}
       <View style={styles.heroBanner}>
         <View style={styles.heroHeader}>
           <View>
