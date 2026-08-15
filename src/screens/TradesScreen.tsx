@@ -1,20 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
 import { theme } from '../theme';
 import { Badge } from '../components/ui/Badge';
+import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { Plus } from 'lucide-react-native';
 
 export const TradesScreen: React.FC = () => {
   const { trades, isLoading } = useTrades();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+
+  const handleAddTrade = () => {
+    setEditingTrade(null);
+    setModalVisible(true);
+  };
+
+  const handleEditTrade = (t: Trade) => {
+    setEditingTrade(t);
+    setModalVisible(true);
+  };
 
   const renderTradeItem = ({ item }: { item: Trade }) => {
     const isWin = (item.pnl || 0) > 0;
     const isLoss = (item.pnl || 0) < 0;
 
     return (
-      <View style={styles.tradeCard}>
+      <TouchableOpacity
+        style={styles.tradeCard}
+        onPress={() => handleEditTrade(item)}
+        activeOpacity={0.8}
+      >
         <View style={styles.tradeHeader}>
           <View style={styles.pairInfo}>
             <Text style={styles.pairText}>{item.pair}</Text>
@@ -45,7 +62,7 @@ export const TradesScreen: React.FC = () => {
             <Badge label={item.result} variant={item.result === 'TP' ? 'green' : item.result === 'SL' ? 'red' : 'neutral'} />
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -60,8 +77,14 @@ export const TradesScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.screenHeader}>
-        <Text style={styles.screenTitle}>JOURNAL DES TRADES</Text>
-        <Text style={styles.screenSubtitle}>{trades.length} POSITIONS ENREGISTRÉES</Text>
+        <View>
+          <Text style={styles.screenTitle}>JOURNAL DES TRADES</Text>
+          <Text style={styles.screenSubtitle}>{trades.length} POSITIONS ENREGISTRÉES</Text>
+        </View>
+        <TouchableOpacity style={styles.addBtn} onPress={handleAddTrade}>
+          <Plus color="#ffffff" size={16} />
+          <Text style={styles.addBtnText}>AJOUTER</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -70,6 +93,12 @@ export const TradesScreen: React.FC = () => {
         renderItem={renderTradeItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+      />
+
+      <TradeFormModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        editingTrade={editingTrade}
       />
     </View>
   );
@@ -89,6 +118,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   screenHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.lg,
   },
   screenTitle: {
@@ -103,6 +135,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
     marginTop: 2,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.md,
+  },
+  addBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
   },
   listContent: {
     paddingBottom: theme.spacing.xxl,

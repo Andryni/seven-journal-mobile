@@ -6,29 +6,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './src/api/supabaseClient';
 import { theme } from './src/theme';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
-import { LayoutGrid, BookOpen, User, Wallet } from 'lucide-react-native';
+import { AccountsScreen } from './src/screens/AccountsScreen';
+import { CalendarScreen } from './src/screens/CalendarScreen';
+import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
+import { PlaybookScreen } from './src/screens/PlaybookScreen';
+import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked } from 'lucide-react-native';
 
 const queryClient = new QueryClient();
 const Tab = createBottomTabNavigator();
-
-function DashboardPlaceholder() {
-  return (
-    <View style={styles.centerScreen}>
-      <Text style={styles.titleText}>DASHBOARD MOBILE</Text>
-      <Text style={styles.subText}>Seven Journal Terminal 2026</Text>
-    </View>
-  );
-}
-
-function AccountsPlaceholder() {
-  return (
-    <View style={styles.centerScreen}>
-      <Text style={styles.titleText}>COMPTES DE TRADING</Text>
-      <Text style={styles.subText}>Garde-fou Anti-Revenge ($ / % Daily Loss)</Text>
-    </View>
-  );
-}
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -69,32 +56,64 @@ export default function App() {
               tabBarStyle: {
                 backgroundColor: theme.colors.card,
                 borderTopColor: theme.colors.cardBorder,
-                height: 60,
+                height: 64,
                 paddingBottom: 8,
+                paddingTop: 6,
               },
               tabBarActiveTintColor: theme.colors.primaryLight,
               tabBarInactiveTintColor: theme.colors.textMuted,
+              tabBarLabelStyle: {
+                fontSize: 9,
+                fontWeight: '800',
+              },
             }}
           >
             <Tab.Screen
               name="Dashboard"
-              component={DashboardPlaceholder}
+              component={DashboardScreen}
               options={{
-                tabBarIcon: ({ color }) => <LayoutGrid color={color} size={20} />,
+                tabBarLabel: 'DASHBOARD',
+                tabBarIcon: ({ color }) => <LayoutGrid color={color} size={18} />,
               }}
             />
             <Tab.Screen
               name="Trades"
               component={TradesScreen}
               options={{
-                tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
+                tabBarLabel: 'TRADES',
+                tabBarIcon: ({ color }) => <BookOpen color={color} size={18} />,
+              }}
+            />
+            <Tab.Screen
+              name="Calendrier"
+              component={CalendarScreen}
+              options={{
+                tabBarLabel: 'CALENDRIER',
+                tabBarIcon: ({ color }) => <Calendar color={color} size={18} />,
+              }}
+            />
+            <Tab.Screen
+              name="Analytics"
+              component={AnalyticsScreen}
+              options={{
+                tabBarLabel: 'ANALYTICS',
+                tabBarIcon: ({ color }) => <BarChart2 color={color} size={18} />,
+              }}
+            />
+            <Tab.Screen
+              name="Playbook"
+              component={PlaybookScreen}
+              options={{
+                tabBarLabel: 'PLAYBOOK',
+                tabBarIcon: ({ color }) => <BookMarked color={color} size={18} />,
               }}
             />
             <Tab.Screen
               name="Comptes"
-              component={AccountsPlaceholder}
+              component={AccountsScreen}
               options={{
-                tabBarIcon: ({ color }) => <Wallet color={color} size={20} />,
+                tabBarLabel: 'COMPTES',
+                tabBarIcon: ({ color }) => <Wallet color={color} size={18} />,
               }}
             />
           </Tab.Navigator>
@@ -110,16 +129,5 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  titleText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
-  subText: {
-    color: theme.colors.primaryLight,
-    fontSize: 12,
-    marginTop: 4,
   },
 });
