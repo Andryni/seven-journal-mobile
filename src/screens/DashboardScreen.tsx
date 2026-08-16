@@ -513,7 +513,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-  },
   center: {
     flex: 1,
     backgroundColor: theme.colors.background,
