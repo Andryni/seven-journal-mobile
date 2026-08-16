@@ -98,24 +98,25 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               )}
             </View>
 
-            {/* Confirmations Techniques SMC */}
+            {/* Stratégie Playbook */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>CONFIRMATIONS TECHNIQUES SMC</Text>
+              <Text style={styles.sectionTitle}>STRATÉGIE DU PLAYBOOK</Text>
               <View style={styles.badgeRow}>
-                {trade.setup_structures.map((s, idx) => (
-                  <View key={idx} style={styles.smcPill}>
-                    <Text style={styles.smcText}>{s}</Text>
-                  </View>
-                ))}
-                {trade.setup_ob && (
-                  <View style={styles.smcPill}><Text style={styles.smcText}>ORDER BLOCK</Text></View>
-                )}
-                {trade.setup_fvg && (
-                  <View style={styles.smcPill}><Text style={styles.smcText}>FAIR VALUE GAP</Text></View>
-                )}
-                {trade.setup_liquidity_sweep && (
-                  <View style={styles.smcPill}><Text style={styles.smcText}>LIQUIDITY SWEEP</Text></View>
-                )}
+                {(() => {
+                  const playbookSetups = trade.setup_structures.filter(s => s !== 'BOS');
+                  if (playbookSetups.length > 0) {
+                    return playbookSetups.map((s, idx) => (
+                      <View key={idx} style={styles.strategyPill}>
+                        <Text style={styles.strategyText}>🎯 {s}</Text>
+                      </View>
+                    ));
+                  }
+                  return (
+                    <Text style={styles.noStrategyText}>
+                      Aucune stratégie spécifique associée
+                    </Text>
+                  );
+                })()}
               </View>
             </View>
 
@@ -325,6 +326,24 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  strategyPill: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: '#6366f1',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  strategyText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  noStrategyText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontStyle: 'italic',
   },
   miniLabel: {
     color: theme.colors.textSecondary,
