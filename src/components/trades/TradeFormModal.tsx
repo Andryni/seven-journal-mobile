@@ -31,6 +31,8 @@ import {
   ChevronDown,
   Clock,
   Wallet,
+  Calendar,
+  Check,
 } from 'lucide-react-native';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
@@ -70,13 +72,21 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Form State - Section 1
   const [accountId, setAccountId] = useState(activeAccountId || (accounts[0]?.id ?? ''));
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [accountPickerVisible, setAccountPickerVisible] = useState(false);
+  const [sessionPickerVisible, setSessionPickerVisible] = useState(false);
   const [pair, setPair] = useState('XAUUSD');
-  const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [entryDate, setEntryDate] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  });
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [timeframe, setTimeframe] = useState<TradeTimeframe>('M5');
   const [session, setSession] = useState<'Asia' | 'London' | 'New York' | 'Over Session' | ''>('London');
-  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
   const [size, setSize] = useState('1.0');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
@@ -111,7 +121,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     if (editingTrade) {
       setAccountId(editingTrade.account_id);
       setPair(editingTrade.pair);
-      setEntryDate(editingTrade.entry_time.slice(0, 16));
+      if (editingTrade.entry_time) {
+        const dt = new Date(editingTrade.entry_time);
+        if (!isNaN(dt.getTime())) {
+          const year = dt.getFullYear();
+          const month = String(dt.getMonth() + 1).padStart(2, '0');
+          const day = String(dt.getDate()).padStart(2, '0');
+          const hours = String(dt.getHours()).padStart(2, '0');
+          const minutes = String(dt.getMinutes()).padStart(2, '0');
+          setEntryDate(`${year}-${month}-${day} ${hours}:${minutes}`);
+        }
+      }
       setDirection(editingTrade.direction);
       setTimeframe(editingTrade.timeframe);
       setSession(editingTrade.session || '');
@@ -139,13 +159,19 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   const resetForm = () => {
     setAccountId(activeAccountId || (accounts[0]?.id ?? ''));
-    setShowAccountDropdown(false);
+    setAccountPickerVisible(false);
+    setSessionPickerVisible(false);
     setPair('XAUUSD');
-    setEntryDate(new Date().toISOString().slice(0, 16));
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    setEntryDate(`${year}-${month}-${day} ${hours}:${minutes}`);
     setDirection('BUY');
     setTimeframe('M5');
     setSession('London');
-    setShowSessionDropdown(false);
     setSize('1.0');
     setEntryPrice('');
     setStopLoss('');
@@ -260,6 +286,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const setupStructures: string[] = [];
     if (selectedSetupTitle) setupStructures.push(selectedSetupTitle);
 
+    let parsedEntryTime = new Date().toISOString();
+    if (entryDate.trim()) {
+      const d = new Date(entryDate.replace(' ', 'T'));
+      if (!isNaN(d.getTime())) {
+        parsedEntryTime = d.toISOString();
+      }
+    }
+
     const tradePayload = {
       account_id: accountId,
       pair: pair.trim().toUpperCase(),
@@ -269,7 +303,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       stop_loss: sl,
       take_profit: tp,
       size: lotSize,
-      entry_time: entryDate ? new Date(entryDate).toISOString() : new Date().toISOString(),
+      entry_time: parsedEntryTime,
       exit_time: exit ? new Date().toISOString() : null,
       pnl: finalPnl,
       r_multiple: finalR,
@@ -352,16 +386,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 1. PARAMÈTRES PRINCIPAUX & PRIX
               </Text>
 
-              {/* Compte (Dropdown compact) & Paire */}
+              {/* Compte & Instrument / Paire */}
               <View style={styles.row2}>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>COMPTE *</Text>
                   <TouchableOpacity
                     style={styles.dropdownSelector}
-                    onPress={() => {
-                      setShowAccountDropdown(!showAccountDropdown);
-                      setShowSessionDropdown(false);
-                    }}
+                    onPress={() => setAccountPickerVisible(true)}
                     activeOpacity={0.8}
                   >
                     <View style={styles.dropdownSelectedContent}>
@@ -372,37 +403,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     </View>
                     <ChevronDown size={14} color="#94a3b8" />
                   </TouchableOpacity>
-
-                  {/* Dropdown Menu Overlay */}
-                  {showAccountDropdown && (
-                    <View style={styles.dropdownMenu}>
-                      {accounts.map(acc => (
-                        <TouchableOpacity
-                          key={acc.id}
-                          style={[
-                            styles.dropdownMenuItem,
-                            accountId === acc.id && styles.dropdownMenuItemActive,
-                          ]}
-                          onPress={() => {
-                            setAccountId(acc.id);
-                            setShowAccountDropdown(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.dropdownMenuItemText,
-                              accountId === acc.id && styles.whiteText,
-                            ]}
-                          >
-                            {acc.name} ({acc.type.toUpperCase()})
-                          </Text>
-                          <Text style={styles.dropdownMenuItemSub}>
-                            ${acc.balance.toLocaleString()}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.col}>
@@ -414,6 +414,21 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     value={pair}
                     onChangeText={t => setPair(t.toUpperCase())}
                     autoCapitalize="characters"
+                  />
+                </View>
+              </View>
+
+              {/* Date & Heure d'entrée */}
+              <View style={styles.dateRow}>
+                <Text style={styles.fieldLabel}>DATE & HEURE D'ENTRÉE (AAAA-MM-JJ HH:MM) *</Text>
+                <View style={styles.dateInputWrapper}>
+                  <Calendar size={14} color={theme.colors.primaryLight} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="2026-08-16 14:30"
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={entryDate}
+                    onChangeText={setEntryDate}
                   />
                 </View>
               </View>
@@ -439,7 +454,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Timeframe & Session (Dropdown compact) */}
+              {/* Timeframe & Session */}
               <View style={styles.row2}>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>TIMEFRAME *</Text>
@@ -460,10 +475,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   <Text style={styles.fieldLabel}>SESSION *</Text>
                   <TouchableOpacity
                     style={styles.dropdownSelector}
-                    onPress={() => {
-                      setShowSessionDropdown(!showSessionDropdown);
-                      setShowAccountDropdown(false);
-                    }}
+                    onPress={() => setSessionPickerVisible(true)}
                     activeOpacity={0.8}
                   >
                     <View style={styles.dropdownSelectedContent}>
@@ -474,34 +486,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     </View>
                     <ChevronDown size={14} color="#94a3b8" />
                   </TouchableOpacity>
-
-                  {/* Session Dropdown Menu */}
-                  {showSessionDropdown && (
-                    <View style={styles.dropdownMenu}>
-                      {SESSIONS.map(s => (
-                        <TouchableOpacity
-                          key={s.id}
-                          style={[
-                            styles.dropdownMenuItem,
-                            session === s.id && styles.dropdownMenuItemActive,
-                          ]}
-                          onPress={() => {
-                            setSession(s.id as any);
-                            setShowSessionDropdown(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.dropdownMenuItemText,
-                              session === s.id && styles.whiteText,
-                            ]}
-                          >
-                            {s.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
               </View>
 
@@ -821,6 +805,98 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── MODAL DE SÉLECTION DU COMPTE (POPUP PROPRE SANS DÉCALAGE DE FORMULAIRE) ── */}
+      <Modal visible={accountPickerVisible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setAccountPickerVisible(false)}
+        >
+          <View style={styles.pickerModalContent}>
+            <View style={styles.pickerModalHeader}>
+              <Text style={styles.pickerModalTitle}>CHOISIR LE COMPTE</Text>
+              <TouchableOpacity onPress={() => setAccountPickerVisible(false)}>
+                <X size={18} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {accounts.map(acc => {
+                const isSelected = accountId === acc.id;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[styles.pickerItem, isSelected && styles.pickerItemActive]}
+                    onPress={() => {
+                      setAccountId(acc.id);
+                      setAccountPickerVisible(false);
+                    }}
+                  >
+                    <View style={styles.pickerItemLeft}>
+                      <View style={[styles.pickerDot, isSelected && styles.pickerDotActive]} />
+                      <View>
+                        <Text style={[styles.pickerItemName, isSelected && styles.whiteText]}>
+                          {acc.name}
+                        </Text>
+                        <Text style={styles.pickerItemType}>
+                          {acc.type.toUpperCase()} · ${acc.initial_balance.toLocaleString()} {acc.currency}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.pickerItemRight}>
+                      <Text style={[styles.pickerItemBalance, isSelected && styles.whiteText]}>
+                        ${acc.balance.toLocaleString()}
+                      </Text>
+                      {isSelected && <Check size={14} color="#10b981" style={{ marginLeft: 6 }} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── MODAL DE SÉLECTION DE SESSION ── */}
+      <Modal visible={sessionPickerVisible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setSessionPickerVisible(false)}
+        >
+          <View style={styles.pickerModalContent}>
+            <View style={styles.pickerModalHeader}>
+              <Text style={styles.pickerModalTitle}>CHOISIR LA SESSION</Text>
+              <TouchableOpacity onPress={() => setSessionPickerVisible(false)}>
+                <X size={18} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 250 }}>
+              {SESSIONS.map(s => {
+                const isSelected = session === s.id;
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.pickerItem, isSelected && styles.pickerItemActive]}
+                    onPress={() => {
+                      setSession(s.id as any);
+                      setSessionPickerVisible(false);
+                    }}
+                  >
+                    <View style={styles.pickerItemLeft}>
+                      <Clock size={14} color={isSelected ? theme.colors.primaryLight : '#64748b'} />
+                      <Text style={[styles.pickerItemName, isSelected && styles.whiteText]}>
+                        {s.label}
+                      </Text>
+                    </View>
+                    {isSelected && <Check size={14} color="#10b981" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 };
@@ -950,6 +1026,26 @@ const styles = StyleSheet.create({
   col: {
     flex: 1,
   },
+  dateRow: {
+    marginBottom: 8,
+  },
+  dateInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0a0c12',
+    borderColor: '#1e2130',
+    borderWidth: 1,
+    borderRadius: 10,
+    height: 44,
+    paddingHorizontal: 12,
+  },
+  dateInput: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   input: {
     backgroundColor: '#0a0c12',
     borderColor: '#1e2130',
@@ -988,39 +1084,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
-  },
-  dropdownMenu: {
-    backgroundColor: '#161924',
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-    borderWidth: 1,
-    borderRadius: 10,
-    marginTop: 4,
-    padding: 4,
-    maxHeight: 160,
-    zIndex: 100,
-    elevation: 10,
-  },
-  dropdownMenuItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dropdownMenuItemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-  },
-  dropdownMenuItemText: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  dropdownMenuItemSub: {
-    color: '#64748b',
-    fontSize: 10,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
   },
   directionRow: {
     flexDirection: 'row',
@@ -1194,5 +1257,95 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,
+  },
+
+  // Picker Modal Styles (Popups propres)
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  pickerModalContent: {
+    backgroundColor: '#12141c',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 25,
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  pickerModalTitle: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#161924',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+    marginBottom: 6,
+  },
+  pickerItemActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderColor: theme.colors.primary,
+  },
+  pickerItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  pickerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#475569',
+  },
+  pickerDotActive: {
+    backgroundColor: '#10b981',
+  },
+  pickerItemName: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pickerItemType: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  pickerItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pickerItemBalance: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
 });
