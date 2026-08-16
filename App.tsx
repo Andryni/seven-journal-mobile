@@ -1,5 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Prevent the native splash screen from auto-hiding
+// It stays visible until we explicitly call hideAsync()
+SplashScreen.preventAutoHideAsync();
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -67,10 +72,17 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Hide native splash once our AnimatedSplashScreen component has mounted
+  const onSplashLayout = useCallback(async () => {
+    await SplashScreen.hideAsync();
+  }, []);
+
   if (!splashFinished || !fontsLoaded) {
     return (
       <SafeAreaProvider>
-        <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+        <View style={{ flex: 1 }} onLayout={onSplashLayout}>
+          <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+        </View>
       </SafeAreaProvider>
     );
   }
