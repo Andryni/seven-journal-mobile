@@ -20,6 +20,7 @@ import { usePlaybookSetups } from '../../features/playbook/usePlaybookSetups';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   X,
   AlertCircle,
@@ -75,15 +76,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [accountPickerVisible, setAccountPickerVisible] = useState(false);
   const [sessionPickerVisible, setSessionPickerVisible] = useState(false);
   const [pair, setPair] = useState('XAUUSD');
-  const [entryDate, setEntryDate] = useState(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
-  });
+  const [entryDateObj, setEntryDateObj] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [timeframe, setTimeframe] = useState<TradeTimeframe>('M5');
   const [session, setSession] = useState<'Asia' | 'London' | 'New York' | 'Over Session' | ''>('London');
@@ -124,12 +119,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       if (editingTrade.entry_time) {
         const dt = new Date(editingTrade.entry_time);
         if (!isNaN(dt.getTime())) {
-          const year = dt.getFullYear();
-          const month = String(dt.getMonth() + 1).padStart(2, '0');
-          const day = String(dt.getDate()).padStart(2, '0');
-          const hours = String(dt.getHours()).padStart(2, '0');
-          const minutes = String(dt.getMinutes()).padStart(2, '0');
-          setEntryDate(`${year}-${month}-${day} ${hours}:${minutes}`);
+          setEntryDateObj(dt);
         }
       }
       setDirection(editingTrade.direction);
@@ -162,13 +152,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setAccountPickerVisible(false);
     setSessionPickerVisible(false);
     setPair('XAUUSD');
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    setEntryDate(`${year}-${month}-${day} ${hours}:${minutes}`);
+    setEntryDateObj(new Date());
+    setShowDatePicker(false);
+    setShowTimePicker(false);
     setDirection('BUY');
     setTimeframe('M5');
     setSession('London');
@@ -286,14 +272,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const setupStructures: string[] = [];
     if (selectedSetupTitle) setupStructures.push(selectedSetupTitle);
 
-    let parsedEntryTime = new Date().toISOString();
-    if (entryDate.trim()) {
-      const d = new Date(entryDate.replace(' ', 'T'));
-      if (!isNaN(d.getTime())) {
-        parsedEntryTime = d.toISOString();
-      }
-    }
-
     const tradePayload = {
       account_id: accountId,
       pair: pair.trim().toUpperCase(),
@@ -303,7 +281,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       stop_loss: sl,
       take_profit: tp,
       size: lotSize,
-      entry_time: parsedEntryTime,
+      entry_time: entryDateObj.toISOString(),
       exit_time: exit ? new Date().toISOString() : null,
       pnl: finalPnl,
       r_multiple: finalR,
@@ -418,20 +396,85 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
-              {/* Date & Heure d'entrée */}
+              {/* Date & Heure d'entrée cliquables avec calendrier et heure natifs */}
               <View style={styles.dateRow}>
-                <Text style={styles.fieldLabel}>DATE & HEURE D'ENTRÉE (AAAA-MM-JJ HH:MM) *</Text>
-                <View style={styles.dateInputWrapper}>
-                  <Calendar size={14} color={theme.colors.primaryLight} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="2026-08-16 14:30"
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={entryDate}
-                    onChangeText={setEntryDate}
-                  />
+                <Text style={styles.fieldLabel}>DATE & HEURE D'ENTRÉE *</Text>
+                <View style={styles.row2}>
+                  {/* Bouton Date */}
+                  <TouchableOpacity
+                    style={[styles.dropdownSelector, { flex: 1.2 }]}
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dropdownSelectedContent}>
+                      <Calendar size={14} color={theme.colors.primaryLight} />
+                      <Text style={styles.dropdownSelectedText}>
+                        {entryDateObj.toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+
+                  {/* Bouton Heure */}
+                  <TouchableOpacity
+                    style={[styles.dropdownSelector, { flex: 0.8 }]}
+                    onPress={() => setShowTimePicker(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dropdownSelectedContent}>
+                      <Clock size={14} color={theme.colors.primaryLight} />
+                      <Text style={styles.dropdownSelectedText}>
+                        {entryDateObj.toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color="#94a3b8" />
+                  </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Native Date Picker */}
+              {showDatePicker && (
+                <DateTimePicker
+                  value={entryDateObj}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  themeVariant="dark"
+                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                    setShowDatePicker(false);
+                    if (selectedDate && event.type !== 'dismissed') {
+                      const updated = new Date(entryDateObj);
+                      updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                      setEntryDateObj(updated);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Native Time Picker */}
+              {showTimePicker && (
+                <DateTimePicker
+                  value={entryDateObj}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={true}
+                  themeVariant="dark"
+                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                    setShowTimePicker(false);
+                    if (selectedDate && event.type !== 'dismissed') {
+                      const updated = new Date(entryDateObj);
+                      updated.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+                      setEntryDateObj(updated);
+                    }
+                  }}
+                />
+              )}
 
               {/* Direction BUY / SELL */}
               <Text style={styles.fieldLabel}>DIRECTION *</Text>
