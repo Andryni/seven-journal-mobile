@@ -446,6 +446,15 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   themeVariant="dark"
+                  onDismiss={() => setShowDatePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      const updated = new Date(entryDateObj);
+                      updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                      setEntryDateObj(updated);
+                    }
+                  }}
                   onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
                     setShowDatePicker(false);
                     if (selectedDate && event.type !== 'dismissed') {
@@ -465,6 +474,15 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   is24Hour={true}
                   themeVariant="dark"
+                  onDismiss={() => setShowTimePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowTimePicker(false);
+                    if (selectedDate) {
+                      const updated = new Date(entryDateObj);
+                      updated.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+                      setEntryDateObj(updated);
+                    }
+                  }}
                   onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
                     setShowTimePicker(false);
                     if (selectedDate && event.type !== 'dismissed') {
