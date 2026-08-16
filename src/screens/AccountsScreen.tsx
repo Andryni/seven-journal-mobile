@@ -11,12 +11,23 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAccounts } from '../features/accounts/useAccounts';
+import { useTrades } from '../features/trades/useTrades';
 import { useUIStore } from '../store/uiStore';
-import type { TradingAccount, AccountType } from '../types/domain';
+import type { TradingAccount, AccountType, Trade } from '../types/domain';
 import { theme } from '../theme';
-import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Plus, Shield, Check, Trash2, Edit3, X, DollarSign, Wallet, Target, Activity } from 'lucide-react-native';
+import {
+  Plus,
+  Shield,
+  Trash2,
+  Edit3,
+  X,
+  Wallet,
+  Target,
+  TrendingUp,
+  BarChart2,
+  Percent,
+} from 'lucide-react-native';
 
 const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
   { id: 'challenge', label: 'CHALLENGE PROP' },
@@ -29,6 +40,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP'];
 
 export const AccountsScreen: React.FC = () => {
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const { trades } = useTrades();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
   const setActiveAccountId = useUIStore((state: { setActiveAccountId: (id: string | null) => void }) => state.setActiveAccountId);
 
@@ -117,15 +129,28 @@ export const AccountsScreen: React.FC = () => {
     const isSelected = activeAccountId === item.id;
     const isProp = item.type === 'challenge' || item.type === 'funded';
 
+    // Account specific trades & metrics calculation
+    const accountTrades = trades.filter((t: Trade) => t.account_id === item.id);
+    const closedTrades = accountTrades.filter((t: Trade) => t.pnl !== null);
+    const winTrades = closedTrades.filter((t: Trade) => (t.pnl || 0) > 0);
+
+    const cumulativePnl = closedTrades.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0);
+    const computedBalance = item.initial_balance + cumulativePnl;
+    const pnlPercent = item.initial_balance > 0 ? (cumulativePnl / item.initial_balance) * 100 : 0;
+    const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length) * 100 : 0;
+    const totalR = closedTrades.reduce((sum: number, t: Trade) => sum + (t.r_multiple || 0), 0);
+
     return (
       <TouchableOpacity
         style={[styles.accountCard, isSelected && styles.selectedCard]}
         onPress={() => setActiveAccountId(isSelected ? null : item.id)}
         activeOpacity={0.85}
       >
+        {/* Card Top Header */}
         <View style={styles.cardHeader}>
           <View style={styles.titleInfo}>
-            <Text style={styles.accountName}>{item.name}</Text>
+            <View style={[styles.activeDot, isSelected && styles.activeDotSelected]} />
+            <Text style={styles.accountName} numberOfLines={1}>{item.name}</Text>
             <Badge
               label={item.type.toUpperCase()}
               variant={item.type === 'funded' ? 'green' : item.type === 'challenge' ? 'gold' : 'blue'}
@@ -134,25 +159,51 @@ export const AccountsScreen: React.FC = () => {
           </View>
           <View style={styles.actionButtons}>
             <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
-              <Edit3 color={theme.colors.textSecondary} size={15} />
+              <Edit3 color={theme.colors.textSecondary} size={14} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.iconBtn}>
-              <Trash2 color={theme.colors.redLight} size={15} />
+              <Trash2 color={theme.colors.redLight} size={14} />
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Primary Balances Row */}
         <View style={styles.balanceRow}>
           <View>
             <Text style={styles.statLabel}>SOLDE ACTUEL</Text>
             <Text style={styles.balanceValue}>
-              ${item.balance.toLocaleString()} {item.currency}
+              ${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.alignRight}>
-            <Text style={styles.statLabel}>CAPITAL INITIAL</Text>
-            <Text style={styles.initialValue}>
-              ${item.initial_balance.toLocaleString()}
+            <Text style={styles.statLabel}>P&L CUMULÉ</Text>
+            <Text
+              style={[
+                styles.pnlValue,
+                cumulativePnl >= 0 ? styles.greenText : styles.redText,
+              ]}
+            >
+              {cumulativePnl >= 0 ? '+' : ''}${cumulativePnl.toFixed(2)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
+            </Text>
+          </View>
+        </View>
+
+        {/* Multi-metric 3-box Grid (Positions, WR, Cumul R) */}
+        <View style={styles.metricsGrid3}>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricBoxLabel}>POSITIONS</Text>
+            <Text style={styles.metricBoxValue}>{closedTrades.length}</Text>
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricBoxLabel}>WIN RATE</Text>
+            <Text style={[styles.metricBoxValue, winRate >= 50 ? styles.greenText : styles.redText]}>
+              {winRate.toFixed(0)}%
+            </Text>
+          </View>
+          <View style={styles.metricBox}>
+            <Text style={styles.metricBoxLabel}>CUMUL R</Text>
+            <Text style={[styles.metricBoxValue, totalR >= 0 ? styles.cyanText : styles.redText]}>
+              {totalR >= 0 ? '+' : ''}{totalR.toFixed(1)}R
             </Text>
           </View>
         </View>
@@ -160,7 +211,7 @@ export const AccountsScreen: React.FC = () => {
         {/* Lock Guard & Prop Info */}
         <View style={styles.footerRow}>
           <View style={styles.lockRuleBox}>
-            <Shield color={theme.colors.goldLight} size={12} />
+            <Shield color={theme.colors.goldLight} size={11} />
             <Text style={styles.lockRuleText}>
               Perte Max/J : ${item.max_daily_loss_limit ?? (item.initial_balance * 0.01).toFixed(0)}
             </Text>
@@ -168,12 +219,18 @@ export const AccountsScreen: React.FC = () => {
 
           {isProp && item.profit_target && (
             <View style={styles.targetRuleBox}>
-              <Target color={theme.colors.greenLight} size={12} />
+              <Target color={theme.colors.greenLight} size={11} />
               <Text style={styles.targetRuleText}>
                 TP : ${item.profit_target.toLocaleString()}
               </Text>
             </View>
           )}
+
+          <View style={styles.initialCapBox}>
+            <Text style={styles.initialCapText}>
+              Cap: ${item.initial_balance.toLocaleString()} {item.currency}
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -195,7 +252,7 @@ export const AccountsScreen: React.FC = () => {
       <View style={styles.screenHeader}>
         <View>
           <Text style={styles.screenTitle}>COMPTES DE TRADING</Text>
-          <Text style={styles.screenSubtitle}>Prop Firms, Comptes Personnels & Lock Guard</Text>
+          <Text style={styles.screenSubtitle}>Prop Firms, Portefeuilles & Lock Guard</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.8}>
           <Plus color="#ffffff" size={16} />
@@ -476,7 +533,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#12141c',
     borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: 16,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.md,
   },
@@ -495,16 +552,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
+    marginRight: 6,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  activeDotSelected: {
+    backgroundColor: '#10b981',
   },
   accountName: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '900',
+    flexShrink: 1,
   },
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   iconBtn: {
     padding: 6,
@@ -515,7 +584,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   statLabel: {
     color: theme.colors.textMuted,
@@ -530,37 +599,65 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  initialValue: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '800',
+  pnlValue: {
+    fontSize: 13,
+    fontWeight: '900',
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
   alignRight: {
     alignItems: 'flex-end',
   },
+  metricsGrid3: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  metricBox: {
+    flex: 1,
+    backgroundColor: '#0a0c12',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  metricBoxLabel: {
+    color: '#64748b',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  metricBoxValue: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.05)',
     paddingTop: 8,
-    marginTop: 6,
   },
   lockRuleBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
   },
   lockRuleText: {
     color: '#fbbf24',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
   },
   targetRuleBox: {
@@ -568,14 +665,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
   },
   targetRuleText: {
     color: '#34d399',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
+  },
+  initialCapBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginLeft: 'auto',
+  },
+  initialCapText: {
+    color: '#94a3b8',
+    fontSize: 8,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   emptyContainer: {
     alignItems: 'center',
@@ -800,7 +910,16 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     color: '#94a3b8',
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  greenText: {
+    color: '#10b981',
+  },
+  redText: {
+    color: '#ef4444',
+  },
+  cyanText: {
+    color: '#38bdf8',
   },
 });

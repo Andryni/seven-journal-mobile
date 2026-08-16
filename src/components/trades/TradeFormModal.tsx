@@ -19,28 +19,27 @@ import { useAccounts } from '../../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../../features/playbook/usePlaybookSetups';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
-import { MENTAL_STATE_LABELS } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
 import {
   X,
-  Check,
   AlertCircle,
   Image as ImageIcon,
   Upload,
   Link,
   Target,
-  Brain,
   Layers,
-  Sparkles,
+  ChevronDown,
+  Clock,
+  Wallet,
 } from 'lucide-react-native';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSIONS = [
   { id: '', label: 'AUCUNE' },
-  { id: 'Asia', label: 'ASIA SESSION' },
-  { id: 'London', label: 'LONDON SESSION' },
-  { id: 'New York', label: 'NEW YORK SESSION' },
-  { id: 'Over Session', label: 'OVER SESSION' },
+  { id: 'Asia', label: 'ASIA' },
+  { id: 'London', label: 'LONDON' },
+  { id: 'New York', label: 'NEW YORK' },
+  { id: 'Over Session', label: 'OVER' },
 ];
 
 const MENTAL_STATES: { id: MentalState; label: string }[] = [
@@ -71,11 +70,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Form State - Section 1
   const [accountId, setAccountId] = useState(activeAccountId || (accounts[0]?.id ?? ''));
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [pair, setPair] = useState('XAUUSD');
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 16));
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [timeframe, setTimeframe] = useState<TradeTimeframe>('M5');
   const [session, setSession] = useState<'Asia' | 'London' | 'New York' | 'Over Session' | ''>('London');
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
   const [size, setSize] = useState('1.0');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
@@ -91,12 +92,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [manualPnl, setManualPnl] = useState('');
   const [manualRMultiple, setManualRMultiple] = useState('');
 
-  // Section 2: Strategy & Setup
+  // Section 2: Strategy & Setup (Playbook Only)
   const [selectedSetupTitle, setSelectedSetupTitle] = useState('');
-  const [bos, setBos] = useState(false);
-  const [ob, setOb] = useState(false);
-  const [fvg, setFvg] = useState(false);
-  const [liquiditySweep, setLiquiditySweep] = useState(false);
 
   // Section 3: Screenshots (URL or Local Pick)
   const [screenshotBefore, setScreenshotBefore] = useState('');
@@ -106,8 +103,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Section 4: Mental State & Notes
   const [mentalState, setMentalState] = useState<MentalState>('focused');
-  const [cookieJar, setCookieJar] = useState(false);
-  const [rule40, setRule40] = useState(false);
   const [notes, setNotes] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -128,15 +123,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setResult(editingTrade.result);
       setManualPnl(editingTrade.pnl !== null ? editingTrade.pnl.toString() : '');
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
-      setBos(editingTrade.setup_structures.includes('BOS'));
-      setOb(editingTrade.setup_ob);
-      setFvg(editingTrade.setup_fvg);
-      setLiquiditySweep(editingTrade.setup_liquidity_sweep);
+      setSelectedSetupTitle(
+        editingTrade.setup_structures && editingTrade.setup_structures.length > 0
+          ? editingTrade.setup_structures.find(s => s !== 'BOS') || editingTrade.setup_structures[0]
+          : ''
+      );
       setScreenshotBefore(editingTrade.screenshot_before_url || '');
       setScreenshotAfter(editingTrade.screenshot_after_url || '');
-      setMentalState(editingTrade.mental_state);
-      setCookieJar(editingTrade.cookie_jar_ref);
-      setRule40(editingTrade.rule_40_percent);
+      setMentalState(editingTrade.mental_state || 'focused');
       setNotes(editingTrade.notes || '');
     } else {
       resetForm();
@@ -145,11 +139,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   const resetForm = () => {
     setAccountId(activeAccountId || (accounts[0]?.id ?? ''));
+    setShowAccountDropdown(false);
     setPair('XAUUSD');
     setEntryDate(new Date().toISOString().slice(0, 16));
     setDirection('BUY');
     setTimeframe('M5');
     setSession('London');
+    setShowSessionDropdown(false);
     setSize('1.0');
     setEntryPrice('');
     setStopLoss('');
@@ -161,15 +157,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setManualPnl('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
-    setBos(false);
-    setOb(false);
-    setFvg(false);
-    setLiquiditySweep(false);
     setScreenshotBefore('');
     setScreenshotAfter('');
     setMentalState('focused');
-    setCookieJar(false);
-    setRule40(false);
     setNotes('');
     setErrorMsg('');
   };
@@ -268,7 +258,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const finalR = manualRMultiple ? Number(manualRMultiple) : null;
 
     const setupStructures: string[] = [];
-    if (bos) setupStructures.push('BOS');
     if (selectedSetupTitle) setupStructures.push(selectedSetupTitle);
 
     const tradePayload = {
@@ -286,16 +275,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       r_multiple: finalR,
       timeframe,
       setup_structures: setupStructures,
-      setup_fvg: fvg,
-      setup_ob: ob,
-      setup_liquidity_sweep: liquiditySweep,
+      setup_fvg: false,
+      setup_ob: false,
+      setup_liquidity_sweep: false,
       bookmap_absorption: null,
       bookmap_passive_orders: null,
       bookmap_aggressive_orders: null,
       bookmap_vwap_position: null,
       mental_state: mentalState,
-      cookie_jar_ref: cookieJar,
-      rule_40_percent: rule40,
+      cookie_jar_ref: false,
+      rule_40_percent: false,
       screenshot_before_url: screenshotBefore || null,
       screenshot_after_url: screenshotAfter || null,
       notes: notes || null,
@@ -315,6 +304,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     }
   };
 
+  const selectedAccount = accounts.find(a => a.id === accountId);
+  const selectedSessionObj = SESSIONS.find(s => s.id === session);
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <KeyboardAvoidingView
@@ -322,9 +314,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         style={styles.modalOverlay}
       >
         <View style={styles.modalContent}>
-          <View style={styles.dragIndicatorWrapper}>
-            <View style={styles.dragIndicator} />
+          {/* Drag Handle Indicator */}
+          <View style={styles.dragHandleWrap}>
+            <View style={styles.dragHandle} />
           </View>
+
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleWrap}>
@@ -358,29 +352,64 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 1. PARAMÈTRES PRINCIPAUX & PRIX
               </Text>
 
-              {/* Compte & Paire */}
+              {/* Compte (Dropdown compact) & Paire */}
               <View style={styles.row2}>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>COMPTE *</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
-                    {accounts.map(acc => (
-                      <TouchableOpacity
-                        key={acc.id}
-                        style={[styles.accountPill, accountId === acc.id && styles.accountPillActive]}
-                        onPress={() => setAccountId(acc.id)}
-                      >
-                        <Text style={[styles.accountPillText, accountId === acc.id && styles.whiteText]}>
-                          {acc.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <TouchableOpacity
+                    style={styles.dropdownSelector}
+                    onPress={() => {
+                      setShowAccountDropdown(!showAccountDropdown);
+                      setShowSessionDropdown(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dropdownSelectedContent}>
+                      <Wallet size={14} color={theme.colors.primaryLight} />
+                      <Text style={styles.dropdownSelectedText} numberOfLines={1}>
+                        {selectedAccount?.name || 'Sélectionner...'}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+
+                  {/* Dropdown Menu Overlay */}
+                  {showAccountDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      {accounts.map(acc => (
+                        <TouchableOpacity
+                          key={acc.id}
+                          style={[
+                            styles.dropdownMenuItem,
+                            accountId === acc.id && styles.dropdownMenuItemActive,
+                          ]}
+                          onPress={() => {
+                            setAccountId(acc.id);
+                            setShowAccountDropdown(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownMenuItemText,
+                              accountId === acc.id && styles.whiteText,
+                            ]}
+                          >
+                            {acc.name} ({acc.type.toUpperCase()})
+                          </Text>
+                          <Text style={styles.dropdownMenuItemSub}>
+                            ${acc.balance.toLocaleString()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
+
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>INSTRUMENT / PAIRE *</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="ex: XAUUSD, NAS100, EURUSD"
+                    placeholder="ex: XAUUSD, NAS100"
                     placeholderTextColor={theme.colors.textMuted}
                     value={pair}
                     onChangeText={t => setPair(t.toUpperCase())}
@@ -410,7 +439,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Timeframe & Session */}
+              {/* Timeframe & Session (Dropdown compact) */}
               <View style={styles.row2}>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>TIMEFRAME *</Text>
@@ -429,17 +458,50 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>SESSION *</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
-                    {SESSIONS.map(s => (
-                      <TouchableOpacity
-                        key={s.id}
-                        style={[styles.pill, session === s.id && styles.pillActive]}
-                        onPress={() => setSession(s.id as any)}
-                      >
-                        <Text style={[styles.pillText, session === s.id && styles.whiteText]}>{s.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <TouchableOpacity
+                    style={styles.dropdownSelector}
+                    onPress={() => {
+                      setShowSessionDropdown(!showSessionDropdown);
+                      setShowAccountDropdown(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dropdownSelectedContent}>
+                      <Clock size={14} color={theme.colors.primaryLight} />
+                      <Text style={styles.dropdownSelectedText} numberOfLines={1}>
+                        {selectedSessionObj?.label || 'AUCUNE'}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+
+                  {/* Session Dropdown Menu */}
+                  {showSessionDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      {SESSIONS.map(s => (
+                        <TouchableOpacity
+                          key={s.id}
+                          style={[
+                            styles.dropdownMenuItem,
+                            session === s.id && styles.dropdownMenuItemActive,
+                          ]}
+                          onPress={() => {
+                            setSession(s.id as any);
+                            setShowSessionDropdown(false);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownMenuItemText,
+                              session === s.id && styles.whiteText,
+                            ]}
+                          >
+                            {s.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -575,16 +637,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               </View>
             </View>
 
-            {/* ── SECTION 2 : STRATÉGIE & SETUP PLAYBOOK ── */}
+            {/* ── SECTION 2 : STRATÉGIE PLAYBOOK ── */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>
                 <Layers color={theme.colors.greenLight} size={13} style={{ marginRight: 6 }} />
-                2. STRATÉGIE & SETUP DU PLAYBOOK
+                2. STRATÉGIE DU PLAYBOOK
               </Text>
 
               {playbookSetups.length > 0 ? (
-                <View style={{ gap: 6, marginBottom: 12 }}>
-                  <Text style={styles.fieldLabel}>CHOISIR UNE STRATÉGIE DU PLAYBOOK</Text>
+                <View style={{ gap: 6 }}>
+                  <Text style={styles.fieldLabel}>CHOISIR VOTRE STRATÉGIE PLAYBOOK</Text>
                   {playbookSetups.map(s => {
                     const isSelected = selectedSetupTitle === s.title;
                     return (
@@ -593,7 +655,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                         style={[styles.setupCard, isSelected && styles.setupCardActive]}
                         onPress={() => {
                           setSelectedSetupTitle(isSelected ? '' : s.title);
-                          setBos(true);
                         }}
                       >
                         <Text style={[styles.setupCardText, isSelected && styles.whiteText]}>
@@ -606,53 +667,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     );
                   })}
                 </View>
-              ) : null}
-
-              <Text style={styles.fieldLabel}>CONFIRMATIONS SMC / ICT</Text>
-              <View style={styles.checkboxGrid}>
-                <TouchableOpacity
-                  style={[styles.checkboxItem, bos && styles.checkboxActive]}
-                  onPress={() => setBos(!bos)}
-                >
-                  <View style={[styles.box, bos && styles.boxChecked]}>
-                    {bos ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>BOS (Break of Structure)</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.checkboxItem, ob && styles.checkboxActive]}
-                  onPress={() => setOb(!ob)}
-                >
-                  <View style={[styles.box, ob && styles.boxChecked]}>
-                    {ob ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Order Block (OB)</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.checkboxItem, fvg && styles.checkboxActive]}
-                  onPress={() => setFvg(!fvg)}
-                >
-                  <View style={[styles.box, fvg && styles.boxChecked]}>
-                    {fvg ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Fair Value Gap (FVG)</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.checkboxItem, liquiditySweep && styles.checkboxActive]}
-                  onPress={() => setLiquiditySweep(!liquiditySweep)}
-                >
-                  <View style={[styles.box, liquiditySweep && styles.boxChecked]}>
-                    {liquiditySweep ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Liquidity Sweep</Text>
-                </TouchableOpacity>
-              </View>
+              ) : (
+                <Text style={styles.emptyPlaybookHint}>
+                  Aucune stratégie créée. Rendez-vous dans l'onglet Playbook pour structurer vos setups.
+                </Text>
+              )}
             </View>
 
-            {/* ── SECTION 3 : SCREENSHOTS GRAPHIQUES AVANT & APRÈS ── */}
+            {/* ── SECTION 3 : SCREENSHOTS DU GRAPHIQUE ── */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>
                 <ImageIcon color={theme.colors.cyanLight} size={13} style={{ marginRight: 6 }} />
@@ -751,11 +773,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
             {/* ── SECTION 4 : PSYCHOLOGIE & NOTES ── */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>
-                <Brain color={theme.colors.goldLight} size={13} style={{ marginRight: 6 }} />
-                4. PSYCHOLOGIE & FRAMEWORKS MENTAUX
+                <Target color={theme.colors.goldLight} size={13} style={{ marginRight: 6 }} />
+                4. ÉTAT MENTAL & NOTES
               </Text>
 
-              <Text style={styles.fieldLabel}>ÉTAT MENTAL</Text>
+              <Text style={styles.fieldLabel}>PSYCHOLOGIE DU TRADER</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
                 {MENTAL_STATES.map(m => (
                   <TouchableOpacity
@@ -769,28 +791,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-
-              <View style={styles.row2}>
-                <TouchableOpacity
-                  style={[styles.checkboxItem, cookieJar && styles.checkboxActive, { flex: 1 }]}
-                  onPress={() => setCookieJar(!cookieJar)}
-                >
-                  <View style={[styles.box, cookieJar && styles.boxChecked]}>
-                    {cookieJar ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Cookie Jar (Goggins)</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.checkboxItem, rule40 && styles.checkboxActive, { flex: 1 }]}
-                  onPress={() => setRule40(!rule40)}
-                >
-                  <View style={[styles.box, rule40 && styles.boxChecked]}>
-                    {rule40 ? <Check color="#ffffff" size={12} /> : null}
-                  </View>
-                  <Text style={styles.checkboxLabel}>40% Rule</Text>
-                </TouchableOpacity>
-              </View>
 
               <Text style={styles.fieldLabel}>NOTES & CONTEXTE DE MARCHÉ</Text>
               <TextInput
@@ -835,100 +835,100 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d0f15',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderColor: '#1e2130',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    padding: theme.spacing.lg,
-    paddingTop: 12,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    paddingTop: theme.spacing.sm,
     maxHeight: '92%',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.5,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 25,
   },
-  dragIndicatorWrapper: {
+  dragHandleWrap: {
     alignItems: 'center',
-    marginBottom: 16,
+    paddingVertical: 6,
   },
-  dragIndicator: {
+  dragHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#262833',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e2130',
-    paddingBottom: 16,
-    paddingHorizontal: 4,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    paddingBottom: theme.spacing.sm,
   },
   headerTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   accentBar: {
-    width: 3,
-    height: 28,
+    width: 3.5,
+    height: 30,
     backgroundColor: theme.colors.primary,
     borderRadius: 2,
     marginRight: 10,
   },
   headerTitle: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
   headerSubtitle: {
     color: theme.colors.textSecondary,
-    fontSize: 11,
+    fontSize: 10,
+    fontWeight: '600',
     marginTop: 2,
   },
   closeBtn: {
     padding: 6,
-    backgroundColor: '#181920',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#262833',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: theme.spacing.sm,
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
   },
   errorText: {
     color: theme.colors.redLight,
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '600',
     flex: 1,
   },
   formScroll: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   sectionBox: {
-    backgroundColor: '#11131a',
-    borderColor: '#1e2130',
+    backgroundColor: '#12141c',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     color: theme.colors.primaryLight,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e2130',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     paddingBottom: 8,
     marginBottom: 12,
     flexDirection: 'row',
@@ -936,15 +936,15 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: theme.colors.textSecondary,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.6,
-    marginBottom: 6,
-    marginTop: 8,
+    marginBottom: 5,
+    marginTop: 6,
   },
   row2: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
     marginBottom: 8,
   },
   col: {
@@ -955,24 +955,81 @@ const styles = StyleSheet.create({
     borderColor: '#1e2130',
     borderWidth: 1,
     borderRadius: 10,
-    height: 46,
-    paddingHorizontal: 16,
+    height: 44,
+    paddingHorizontal: theme.spacing.md,
     color: '#ffffff',
     fontSize: 13,
+    fontWeight: '600',
   },
   textArea: {
-    height: 80,
-    paddingTop: 12,
+    height: 70,
+    paddingTop: 10,
     textAlignVertical: 'top',
+  },
+  dropdownSelector: {
+    height: 44,
+    backgroundColor: '#0a0c12',
+    borderColor: '#1e2130',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownSelectedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 4,
+  },
+  dropdownSelectedText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dropdownMenu: {
+    backgroundColor: '#161924',
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 4,
+    padding: 4,
+    maxHeight: 160,
+    zIndex: 100,
+    elevation: 10,
+  },
+  dropdownMenuItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownMenuItemActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+  },
+  dropdownMenuItemText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dropdownMenuItemSub: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   directionRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
     marginBottom: 8,
   },
   directionBtn: {
     flex: 1,
-    height: 46,
+    height: 44,
     backgroundColor: '#0a0c12',
     borderColor: '#1e2130',
     borderWidth: 1,
@@ -981,12 +1038,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buyActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.5)',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#10b981',
   },
   sellActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: 'rgba(239, 68, 68, 0.5)',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: '#ef4444',
   },
   directionText: {
     color: theme.colors.textSecondary,
@@ -1000,45 +1057,28 @@ const styles = StyleSheet.create({
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 4,
   },
   pillScroll: {
     flexDirection: 'row',
+    marginBottom: 6,
   },
   pill: {
     backgroundColor: '#0a0c12',
     borderColor: '#1e2130',
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 8,
-    marginRight: 8,
+    marginRight: 4,
   },
   pillActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primaryLight,
   },
   pillText: {
     color: theme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  accountPill: {
-    backgroundColor: '#0a0c12',
-    borderColor: '#1e2130',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  accountPillActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-  },
-  accountPillText: {
-    color: theme.colors.textSecondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
   },
   flexRow: {
@@ -1048,22 +1088,22 @@ const styles = StyleSheet.create({
   toggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: '#0a0c12',
     borderColor: '#1e2130',
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    marginRight: 8,
+    marginRight: 4,
   },
   toggleBtnActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primaryLight,
   },
   toggleText: {
-    color: theme.colors.textSecondary,
-    fontSize: 11,
+    color: '#ffffff',
+    fontSize: 10,
     fontWeight: '800',
   },
   setupCard: {
@@ -1074,14 +1114,14 @@ const styles = StyleSheet.create({
     borderColor: '#1e2130',
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
+    padding: theme.spacing.md,
   },
   setupCardActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
     borderColor: theme.colors.primary,
   },
   setupCardText: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.textPrimary,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -1089,56 +1129,23 @@ const styles = StyleSheet.create({
     color: theme.colors.greenLight,
     fontSize: 10,
     fontWeight: '800',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
-  checkboxGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  checkboxItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0a0c12',
-    borderColor: '#1e2130',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    width: '48%',
-  },
-  checkboxActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(99, 102, 241, 0.12)',
-  },
-  box: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: theme.colors.textMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-    backgroundColor: '#181920',
-  },
-  boxChecked: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  checkboxLabel: {
-    color: theme.colors.textPrimary,
+  emptyPlaybookHint: {
+    color: theme.colors.textMuted,
     fontSize: 11,
-    fontWeight: '700',
+    fontStyle: 'italic',
+    paddingVertical: 8,
   },
   screenshotBox: {
     backgroundColor: '#0a0c12',
     borderColor: '#1e2130',
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
+    padding: theme.spacing.md,
   },
   rowBetween: {
     flexDirection: 'row',
@@ -1151,44 +1158,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0a0c12',
-    borderColor: '#262833',
+    backgroundColor: '#12141c',
+    borderColor: '#2a2f42',
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: 10,
-    paddingVertical: 16,
-    marginTop: 8,
+    paddingVertical: 12,
+    marginTop: 4,
   },
   uploadBtnText: {
     color: theme.colors.primaryLight,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
   },
   previewImage: {
     width: '100%',
-    height: 140,
+    height: 130,
     borderRadius: 10,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#1e2130',
+    marginTop: 10,
   },
   submitBtn: {
     backgroundColor: theme.colors.primary,
-    height: 52,
+    height: 50,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: theme.colors.primary,
+    shadowColor: '#6366f1',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
-    marginTop: 4,
+    elevation: 6,
   },
   submitText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 });
