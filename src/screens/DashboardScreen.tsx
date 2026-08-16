@@ -54,7 +54,9 @@ import {
   Square,
   CheckSquare,
   Square as UncheckedBox,
+  Share2,
 } from 'lucide-react-native';
+import { ShareCardModal } from '../components/share/ShareCardModal';
 
 function getMarketSessions(date: Date) {
   const utcHour = date.getUTCHours();
@@ -73,6 +75,7 @@ export const DashboardScreen: React.FC = () => {
   const m = usePerformanceMetrics(trades);
 
   const [now, setNow] = useState(new Date());
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   // Session timer state
   const [sessionActive, setSessionActive] = useState(false);
@@ -183,10 +186,21 @@ export const DashboardScreen: React.FC = () => {
             </Text>
           </View>
 
-          <View style={[styles.healthBadge, { backgroundColor: healthStatus.bg }]}>
-            <Text style={[styles.healthText, { color: healthStatus.color }]}>
-              {healthStatus.label}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.shareCardBtn}
+              onPress={() => setShareModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Share2 size={13} color="#ffffff" />
+              <Text style={styles.shareCardBtnText}>PARTAGER P&L</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.healthBadge, { backgroundColor: healthStatus.bg }]}>
+              <Text style={[styles.healthText, { color: healthStatus.color }]}>
+                {healthStatus.label}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -465,6 +479,14 @@ export const DashboardScreen: React.FC = () => {
           ))
         )}
       </Card>
+
+      {/* Share P&L Card Modal */}
+      <ShareCardModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        trades={trades}
+        accountName={accounts.find(a => a.id === trades[0]?.account_id)?.name || 'Compte Principal'}
+      />
     </ScrollView>
   );
 };
@@ -475,6 +497,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
+  },
+  shareCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  shareCardBtnText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   },
   center: {
     flex: 1,

@@ -221,7 +221,7 @@ export const AccountsScreen: React.FC = () => {
             <View style={styles.targetRuleBox}>
               <Target color={theme.colors.greenLight} size={11} />
               <Text style={styles.targetRuleText}>
-                TP : ${item.profit_target.toLocaleString()}
+                Target : ${item.profit_target.toLocaleString()}
               </Text>
             </View>
           )}
@@ -232,6 +232,29 @@ export const AccountsScreen: React.FC = () => {
             </Text>
           </View>
         </View>
+
+        {/* Prop Firm Target Progress Bar */}
+        {isProp && item.profit_target && item.profit_target > 0 && (
+          <View style={styles.targetProgressContainer}>
+            <View style={styles.targetProgressHeader}>
+              <Text style={styles.targetProgressTitle}>PROGRESSION DE L'OBJECTIF (TARGET)</Text>
+              <Text style={styles.targetProgressPercent}>
+                {Math.min(100, Math.max(0, (cumulativePnl / item.profit_target) * 100)).toFixed(1)}%
+              </Text>
+            </View>
+            <View style={styles.progressBarTrack}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${Math.min(100, Math.max(0, (cumulativePnl / item.profit_target) * 100))}%`,
+                    backgroundColor: cumulativePnl >= 0 ? '#10b981' : '#ef4444',
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -673,6 +696,40 @@ const styles = StyleSheet.create({
     color: '#34d399',
     fontSize: 8,
     fontWeight: '700',
+  },
+  targetProgressContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  targetProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  targetProgressTitle: {
+    color: '#94a3b8',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  targetProgressPercent: {
+    color: '#10b981',
+    fontSize: 9,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  progressBarTrack: {
+    height: 5,
+    backgroundColor: '#0a0c12',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   initialCapBox: {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
