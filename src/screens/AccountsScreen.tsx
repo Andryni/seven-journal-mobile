@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,12 @@ import {
 } from 'react-native';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useTrades } from '../features/trades/useTrades';
+import { formatCurrency } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade } from '../types/domain';
-import { theme } from '../theme';
+import { useTheme } from '../theme';
+import type { AppTheme } from '../theme';
+import { accountTypeLabel, useT } from '../i18n';
 import { Badge } from '../components/ui/Badge';
 import {
   Plus,
@@ -24,21 +27,16 @@ import {
   X,
   Wallet,
   Target,
-  TrendingUp,
-  BarChart2,
-  Percent,
 } from 'lucide-react-native';
 
-const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
-  { id: 'challenge', label: 'CHALLENGE PROP' },
-  { id: 'funded', label: 'FUNDED PROP' },
-  { id: 'personal', label: 'COMPTE PERSONNEL' },
-  { id: 'demo', label: 'COMPTE DEMO' },
-];
+const ACCOUNT_TYPE_IDS: AccountType[] = ['challenge', 'funded', 'personal', 'demo'];
 
 const CURRENCIES = ['USD', 'EUR', 'GBP'];
 
 export const AccountsScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const { t } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
   const { trades } = useTrades();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -50,6 +48,7 @@ export const AccountsScreen: React.FC = () => {
   // Section 1: Identité
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('challenge');
+  const [instrumentType, setInstrumentType] = useState<'CFD' | 'Futures'>('CFD');
   const [currency, setCurrency] = useState('USD');
 
   // Section 2: Capital & Garde-fou
@@ -67,6 +66,7 @@ export const AccountsScreen: React.FC = () => {
     setEditingAcc(null);
     setName('');
     setType('challenge');
+    setInstrumentType('CFD');
     setBalance('100000');
     setInitialBalance('100000');
     setCurrency('USD');
@@ -90,12 +90,13 @@ export const AccountsScreen: React.FC = () => {
     setMaxDrawdownLimit(acc.max_drawdown_limit ? acc.max_drawdown_limit.toString() : '');
     setDrawdownType((acc as any).drawdown_type || 'static');
     setConsistencyRulePercent((acc as any).consistency_rule_percent ? (acc as any).consistency_rule_percent.toString() : '15');
+    setInstrumentType((acc as any).instrument_type || 'CFD');
     setModalVisible(true);
   };
 
   const handleSave = async () => {
     if (!name.trim() || !balance.trim() || !initialBalance.trim()) {
-      alert('Veuillez remplir tous les champs obligatoires (*).');
+      alert(t('requiredFields'));
       return;
     }
 
@@ -111,6 +112,7 @@ export const AccountsScreen: React.FC = () => {
       max_drawdown_limit: maxDrawdownLimit ? Number(maxDrawdownLimit) : null,
       drawdown_type: drawdownType,
       consistency_rule_percent: consistencyRulePercent ? Number(consistencyRulePercent) : null,
+      instrument_type: instrumentType,
     };
 
     if (editingAcc) {
@@ -152,16 +154,35 @@ export const AccountsScreen: React.FC = () => {
             <View style={[styles.activeDot, isSelected && styles.activeDotSelected]} />
             <Text style={styles.accountName} numberOfLines={1}>{item.name}</Text>
             <Badge
-              label={item.type.toUpperCase()}
+              label={accountTypeLabel(t, item.type)}
               variant={item.type === 'funded' ? 'green' : item.type === 'challenge' ? 'gold' : 'blue'}
               size="sm"
             />
+            {(item as any).instrument_type && (
+              <Badge
+                label={(item as any).instrument_type}
+                variant="neutral"
+                size="sm"
+              />
+            )}
           </View>
           <View style={styles.actionButtons}>
-            <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
+            <TouchableOpacity
+              onPress={() => openEditModal(item)}
+              style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('editAccountA11y', item.name)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Edit3 color={theme.colors.textSecondary} size={14} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.iconBtn}>
+            <TouchableOpacity
+              onPress={() => handleDelete(item.id)}
+              style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('deleteAccountA11y', item.name)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Trash2 color={theme.colors.redLight} size={14} />
             </TouchableOpacity>
           </View>
@@ -170,20 +191,20 @@ export const AccountsScreen: React.FC = () => {
         {/* Primary Balances Row */}
         <View style={styles.balanceRow}>
           <View>
-            <Text style={styles.statLabel}>SOLDE ACTUEL</Text>
+            <Text style={styles.statLabel}>{t('currentBalance')}</Text>
             <Text style={styles.balanceValue}>
-              ${computedBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatCurrency(computedBalance, { showPlus: false, thousandsSeparator: true })}
             </Text>
           </View>
           <View style={styles.alignRight}>
-            <Text style={styles.statLabel}>P&L CUMULÉ</Text>
+            <Text style={styles.statLabel}>{t('cumulatedPnl')}</Text>
             <Text
               style={[
                 styles.pnlValue,
                 cumulativePnl >= 0 ? styles.greenText : styles.redText,
               ]}
             >
-              {cumulativePnl >= 0 ? '+' : ''}${cumulativePnl.toFixed(2)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
+              {formatCurrency(cumulativePnl)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
             </Text>
           </View>
         </View>
@@ -191,17 +212,17 @@ export const AccountsScreen: React.FC = () => {
         {/* Multi-metric 3-box Grid (Positions, WR, Cumul R) */}
         <View style={styles.metricsGrid3}>
           <View style={styles.metricBox}>
-            <Text style={styles.metricBoxLabel}>POSITIONS</Text>
+            <Text style={styles.metricBoxLabel}>{t('positions')}</Text>
             <Text style={styles.metricBoxValue}>{closedTrades.length}</Text>
           </View>
           <View style={styles.metricBox}>
-            <Text style={styles.metricBoxLabel}>WIN RATE</Text>
+            <Text style={styles.metricBoxLabel}>{t('winRate')}</Text>
             <Text style={[styles.metricBoxValue, winRate >= 50 ? styles.greenText : styles.redText]}>
               {winRate.toFixed(0)}%
             </Text>
           </View>
           <View style={styles.metricBox}>
-            <Text style={styles.metricBoxLabel}>CUMUL R</Text>
+            <Text style={styles.metricBoxLabel}>{t('cumulR')}</Text>
             <Text style={[styles.metricBoxValue, totalR >= 0 ? styles.cyanText : styles.redText]}>
               {totalR >= 0 ? '+' : ''}{totalR.toFixed(1)}R
             </Text>
@@ -213,7 +234,7 @@ export const AccountsScreen: React.FC = () => {
           <View style={styles.lockRuleBox}>
             <Shield color={theme.colors.goldLight} size={11} />
             <Text style={styles.lockRuleText}>
-              Perte Max/J : ${item.max_daily_loss_limit ?? (item.initial_balance * 0.01).toFixed(0)}
+              {t('maxLossPerDay')} : {formatCurrency(item.max_daily_loss_limit ?? item.initial_balance * 0.01, { showPlus: false, decimals: 0 })}
             </Text>
           </View>
 
@@ -221,14 +242,14 @@ export const AccountsScreen: React.FC = () => {
             <View style={styles.targetRuleBox}>
               <Target color={theme.colors.greenLight} size={11} />
               <Text style={styles.targetRuleText}>
-                Target : ${item.profit_target.toLocaleString()}
+                {t('target')} : {formatCurrency(item.profit_target, { showPlus: false, decimals: 0, thousandsSeparator: true })}
               </Text>
             </View>
           )}
 
           <View style={styles.initialCapBox}>
             <Text style={styles.initialCapText}>
-              Cap: ${item.initial_balance.toLocaleString()} {item.currency}
+              {t('cap')}: {formatCurrency(item.initial_balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} {item.currency}
             </Text>
           </View>
         </View>
@@ -237,7 +258,7 @@ export const AccountsScreen: React.FC = () => {
         {isProp && item.profit_target && item.profit_target > 0 && (
           <View style={styles.targetProgressContainer}>
             <View style={styles.targetProgressHeader}>
-              <Text style={styles.targetProgressTitle}>PROGRESSION DE L'OBJECTIF (TARGET)</Text>
+              <Text style={styles.targetProgressTitle}>{t('targetProgress')}</Text>
               <Text style={styles.targetProgressPercent}>
                 {Math.min(100, Math.max(0, (cumulativePnl / item.profit_target) * 100)).toFixed(1)}%
               </Text>
@@ -248,7 +269,7 @@ export const AccountsScreen: React.FC = () => {
                   styles.progressBarFill,
                   {
                     width: `${Math.min(100, Math.max(0, (cumulativePnl / item.profit_target) * 100))}%`,
-                    backgroundColor: cumulativePnl >= 0 ? '#10b981' : '#ef4444',
+                    backgroundColor: cumulativePnl >= 0 ? theme.colors.green : theme.colors.red,
                   },
                 ]}
               />
@@ -274,12 +295,12 @@ export const AccountsScreen: React.FC = () => {
       {/* ── HEADER ── */}
       <View style={styles.screenHeader}>
         <View>
-          <Text style={styles.screenTitle}>COMPTES DE TRADING</Text>
-          <Text style={styles.screenSubtitle}>Prop Firms, Portefeuilles & Lock Guard</Text>
+          <Text style={styles.screenTitle}>{t('screenTitleAccounts')}</Text>
+          <Text style={styles.screenSubtitle}>{t('screenSubtitleAccounts')}</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.8}>
-          <Plus color="#ffffff" size={16} />
-          <Text style={styles.addBtnText}>AJOUTER</Text>
+          <Plus color={theme.colors.textPrimary} size={16} />
+          <Text style={styles.addBtnText}>{t('addAccount')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -293,8 +314,8 @@ export const AccountsScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Wallet size={36} color={theme.colors.textDark} />
-            <Text style={styles.emptyTitle}>Aucun compte enregistré</Text>
-            <Text style={styles.emptySub}>Ajoutez votre compte Prop Firm ou Personnel.</Text>
+            <Text style={styles.emptyTitle}>{t('noAccounts')}</Text>
+            <Text style={styles.emptySub}>{t('noAccountsSub')}</Text>
           </View>
         }
       />
@@ -307,47 +328,68 @@ export const AccountsScreen: React.FC = () => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>
-                  {editingAcc ? 'MODIFIER LE COMPTE' : 'NOUVEAU COMPTE'}
+                  {editingAcc ? t('editAccount') : t('newAccount')}
                 </Text>
                 <Text style={styles.modalSub}>
-                  {editingAcc ? editingAcc.name : 'Prop Firm / Compte Personnel / Démo'}
+                  {editingAcc ? editingAcc.name : t('newAccountSub')}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-                <X color="#ffffff" size={18} />
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('closeAccountForm')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X color={theme.colors.textPrimary} size={18} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
               {/* ── SECTION 1 : IDENTITÉ DU COMPTE ── */}
               <View style={styles.formSection}>
-                <Text style={styles.sectionHeader}>1. IDENTITÉ DU COMPTE</Text>
+                <Text style={styles.sectionHeader}>{t('accountIdentity')}</Text>
                 
-                <Text style={styles.fieldLabel}>Nom du compte *</Text>
+                <Text style={styles.fieldLabel}>{t('accountNameLabel')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="ex: Challenge FTMO 100K"
+                  placeholder={t('accountNamePlaceholder')}
                   placeholderTextColor={theme.colors.textMuted}
                   value={name}
                   onChangeText={setName}
                 />
 
-                <Text style={styles.fieldLabel}>Type de compte *</Text>
+                <Text style={styles.fieldLabel}>{t('accountInstrumentLabel')}</Text>
                 <View style={styles.typeGrid}>
-                  {ACCOUNT_TYPES.map(t => (
+                  {(['CFD', 'Futures'] as const).map(iType => (
                     <TouchableOpacity
-                      key={t.id}
-                      style={[styles.typeBtn, type === t.id && styles.typeBtnActive]}
-                      onPress={() => setType(t.id)}
+                      key={iType}
+                      style={[styles.typeBtn, instrumentType === iType && styles.typeBtnActive]}
+                      onPress={() => setInstrumentType(iType)}
                     >
-                      <Text style={[styles.typeBtnText, type === t.id && styles.typeBtnTextActive]}>
-                        {t.label}
+                      <Text style={[styles.typeBtnText, instrumentType === iType && styles.typeBtnTextActive]}>
+                        {iType}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                <Text style={styles.fieldLabel}>Devise</Text>
+                <Text style={styles.fieldLabel}>{t('accountTypeLabel')}</Text>
+                <View style={styles.typeGrid}>
+                  {ACCOUNT_TYPE_IDS.map(id => (
+                    <TouchableOpacity
+                      key={id}
+                      style={[styles.typeBtn, type === id && styles.typeBtnActive]}
+                      onPress={() => setType(id)}
+                    >
+                      <Text style={[styles.typeBtnText, type === id && styles.typeBtnTextActive]}>
+                        {accountTypeLabel(t, id)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.fieldLabel}>{t('currencyLabel')}</Text>
                 <View style={styles.currencyRow}>
                   {CURRENCIES.map(curr => (
                     <TouchableOpacity
@@ -366,13 +408,13 @@ export const AccountsScreen: React.FC = () => {
               {/* ── SECTION 2 : CAPITAL & GARDE-FOU ── */}
               <View style={styles.formSection}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeader}>2. CAPITAL & GARDE-FOU</Text>
-                  <Text style={styles.lockBadge}>🔒 Lock Guard</Text>
+                  <Text style={styles.sectionHeader}>{t('capitalSection')}</Text>
+                  <Text style={styles.lockBadge}>{t('lockGuardBadge')}</Text>
                 </View>
 
                 <View style={styles.row2}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Capital Initial ($) *</Text>
+                    <Text style={styles.fieldLabel}>{t('initialBalanceLabel')}</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="100000"
@@ -384,7 +426,7 @@ export const AccountsScreen: React.FC = () => {
                   </View>
 
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Solde Actuel ($) *</Text>
+                    <Text style={styles.fieldLabel}>{t('currentBalanceLabel')}</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="100000"
@@ -396,18 +438,16 @@ export const AccountsScreen: React.FC = () => {
                   </View>
                 </View>
 
-                <Text style={styles.fieldLabel}>Perte Max Quotidienne / Daily Loss ($) *</Text>
+                <Text style={styles.fieldLabel}>{t('maxDailyLossLabel')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="ex: 1000 ($1,000 ou 1% du capital)"
+                  placeholder={t('maxDailyLossPlaceholder')}
                   placeholderTextColor={theme.colors.textMuted}
                   value={maxDailyLoss}
                   onChangeText={setMaxDailyLoss}
                   keyboardType="numeric"
                 />
-                <Text style={styles.fieldHint}>
-                  La session sera automatiquement verrouillée si la perte du jour atteint ce seuil.
-                </Text>
+                <Text style={styles.fieldHint}>{t('maxDailyLossHint')}</Text>
               </View>
 
               {/* ── SECTION 3 : PARAMÈTRES PROP FIRM TRACKER (SI CHALLENGE OU FUNDED) ── */}
@@ -415,14 +455,14 @@ export const AccountsScreen: React.FC = () => {
                 <View style={[styles.formSection, styles.propSection]}>
                   <View style={styles.sectionHeaderRow}>
                     <Text style={[styles.sectionHeader, { color: theme.colors.goldLight }]}>
-                      3. PARAMÈTRES PROP FIRM TRACKER
+                      {t('propParamsSection')}
                     </Text>
-                    <Text style={styles.goldBadge}>Requis</Text>
+                    <Text style={styles.goldBadge}>{t('requiredBadge')}</Text>
                   </View>
 
                   <View style={styles.row2}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Objectif de Profit ($) *</Text>
+                      <Text style={styles.fieldLabel}>{t('profitTargetLabel')}</Text>
                       <TextInput
                         style={styles.input}
                         placeholder="ex: 10000"
@@ -434,7 +474,7 @@ export const AccountsScreen: React.FC = () => {
                     </View>
 
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Max Drawdown Limite ($) *</Text>
+                      <Text style={styles.fieldLabel}>{t('maxDrawdownLimitLabel')}</Text>
                       <TextInput
                         style={styles.input}
                         placeholder="ex: 10000"
@@ -446,14 +486,14 @@ export const AccountsScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  <Text style={styles.fieldLabel}>Type de Drawdown (Calcul) *</Text>
+                  <Text style={styles.fieldLabel}>{t('drawdownTypeLabel')}</Text>
                   <View style={styles.row2}>
                     <TouchableOpacity
                       style={[styles.ddTypeBtn, drawdownType === 'static' && styles.ddTypeBtnActive]}
                       onPress={() => setDrawdownType('static')}
                     >
                       <Text style={[styles.ddTypeText, drawdownType === 'static' && styles.ddTypeTextActive]}>
-                        STATIC (Fixe)
+                        {t('drawdownStatic')}
                       </Text>
                     </TouchableOpacity>
 
@@ -462,15 +502,15 @@ export const AccountsScreen: React.FC = () => {
                       onPress={() => setDrawdownType('trailing')}
                     >
                       <Text style={[styles.ddTypeText, drawdownType === 'trailing' && styles.ddTypeTextActive]}>
-                        TRAILING (Suit l'Equity)
+                        {t('drawdownTrailing')}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
-                  <Text style={styles.fieldLabel}>Règle de Consistance (%)</Text>
+                  <Text style={styles.fieldLabel}>{t('consistencyRuleLabel')}</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="ex: 15 (FTMO 15%, FundedNext 20%)"
+                    placeholder={t('consistencyRulePlaceholder')}
                     placeholderTextColor={theme.colors.textMuted}
                     value={consistencyRulePercent}
                     onChangeText={setConsistencyRulePercent}
@@ -483,7 +523,7 @@ export const AccountsScreen: React.FC = () => {
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.8}>
                   <Text style={styles.saveBtnText}>
-                    {editingAcc ? 'SAUVEGARDER LES MODIFICATIONS' : 'CRÉER LE COMPTE'}
+                    {editingAcc ? t('saveChanges') : t('createAccount')}
                   </Text>
                 </TouchableOpacity>
 
@@ -492,7 +532,7 @@ export const AccountsScreen: React.FC = () => {
                   onPress={() => setModalVisible(false)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.cancelBtnText}>ANNULER</Text>
+                  <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -503,7 +543,7 @@ export const AccountsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -523,15 +563,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1.2,
   },
   screenSubtitle: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   addBtn: {
@@ -544,17 +584,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
   },
   addBtnText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
   },
   listContent: {
     paddingBottom: 40,
   },
   accountCard: {
-    backgroundColor: '#12141c',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 16,
     padding: theme.spacing.md,
@@ -563,7 +603,7 @@ const styles = StyleSheet.create({
   selectedCard: {
     borderColor: theme.colors.primary,
     borderWidth: 1.5,
-    backgroundColor: '#141724',
+    backgroundColor: theme.colors.surface,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -582,15 +622,15 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: theme.colors.surfaceLight,
   },
   activeDotSelected: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.green,
   },
   accountName: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     flexShrink: 1,
   },
   actionButtons: {
@@ -601,7 +641,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     padding: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.surface,
   },
   balanceRow: {
     flexDirection: 'row',
@@ -611,20 +651,20 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     color: theme.colors.textMuted,
-    fontSize: 8,
-    fontWeight: '800',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
   },
   balanceValue: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
   pnlValue: {
     fontSize: 13,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
@@ -639,8 +679,8 @@ const styles = StyleSheet.create({
   },
   metricBox: {
     flex: 1,
-    backgroundColor: '#0a0c12',
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.inputBg,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 6,
@@ -648,15 +688,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricBoxLabel: {
-    color: '#64748b',
-    fontSize: 8,
-    fontWeight: '800',
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   metricBoxValue: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
@@ -666,7 +706,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopColor: theme.colors.cardBorder,
     paddingTop: 8,
   },
   lockRuleBox: {
@@ -679,9 +719,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   lockRuleText: {
-    color: '#fbbf24',
-    fontSize: 8,
-    fontWeight: '700',
+    color: theme.colors.goldLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
   },
   targetRuleBox: {
     flexDirection: 'row',
@@ -693,15 +733,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   targetRuleText: {
-    color: '#34d399',
-    fontSize: 8,
-    fontWeight: '700',
+    color: theme.colors.greenLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
   },
   targetProgressContainer: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopColor: theme.colors.cardBorder,
   },
   targetProgressHeader: {
     flexDirection: 'row',
@@ -710,20 +750,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   targetProgressTitle: {
-    color: '#94a3b8',
-    fontSize: 8,
-    fontWeight: '800',
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   targetProgressPercent: {
-    color: '#10b981',
+    color: theme.colors.green,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   progressBarTrack: {
     height: 5,
-    backgroundColor: '#0a0c12',
+    backgroundColor: theme.colors.inputBg,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -732,16 +772,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   initialCapBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: theme.colors.surface,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
     marginLeft: 'auto',
   },
   initialCapText: {
-    color: '#94a3b8',
-    fontSize: 8,
-    fontWeight: '700',
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   emptyContainer: {
@@ -751,13 +791,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
   },
   emptySub: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontFamily: theme.fonts.sans,
   },
   modalOverlay: {
     flex: 1,
@@ -767,8 +808,8 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
   },
   modalContent: {
-    backgroundColor: '#12141c',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.borderBright,
     borderWidth: 1,
     borderRadius: 18,
     padding: 16,
@@ -779,33 +820,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomColor: theme.colors.cardBorder,
     paddingBottom: 10,
     marginBottom: 12,
   },
   modalTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 1,
   },
   modalSub: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   closeBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.surface,
   },
   modalScroll: {
     paddingBottom: 20,
   },
   formSection: {
-    backgroundColor: '#161922',
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
@@ -813,16 +854,16 @@ const styles = StyleSheet.create({
   },
   propSection: {
     borderColor: 'rgba(245, 158, 11, 0.3)',
-    backgroundColor: '#18171d',
+    backgroundColor: theme.colors.surface,
   },
   sectionHeader: {
-    color: '#818cf8',
+    color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 1,
     marginBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: theme.colors.cardBorder,
     paddingBottom: 4,
   },
   sectionHeaderRow: {
@@ -831,35 +872,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lockBadge: {
-    color: '#fbbf24',
+    color: theme.colors.goldLight,
     fontSize: 9,
     fontWeight: '800',
   },
   goldBadge: {
-    color: '#fbbf24',
+    color: theme.colors.goldLight,
     fontSize: 9,
     fontWeight: '800',
   },
   fieldLabel: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginBottom: 4,
     marginTop: 6,
   },
   fieldHint: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
+    fontFamily: theme.fonts.sans,
     marginTop: 3,
   },
   input: {
-    backgroundColor: '#0e1017',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 8,
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: theme.fonts.sansMedium,
     paddingHorizontal: 10,
     height: 38,
   },
@@ -872,8 +914,8 @@ const styles = StyleSheet.create({
   typeBtn: {
     flex: 1,
     minWidth: '47%',
-    backgroundColor: '#0e1017',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 8,
@@ -884,12 +926,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   typeBtnText: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   typeBtnTextActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
   currencyRow: {
     flexDirection: 'row',
@@ -898,8 +940,8 @@ const styles = StyleSheet.create({
   },
   currBtn: {
     flex: 1,
-    backgroundColor: '#0e1017',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 8,
@@ -910,12 +952,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   currBtnText: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   currBtnTextActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
   row2: {
     flexDirection: 'row',
@@ -923,8 +965,8 @@ const styles = StyleSheet.create({
   },
   ddTypeBtn: {
     flex: 1,
-    backgroundColor: '#0e1017',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 8,
@@ -935,12 +977,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.gold,
   },
   ddTypeText: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   ddTypeTextActive: {
-    color: '#fbbf24',
+    color: theme.colors.goldLight,
   },
   modalActions: {
     gap: 8,
@@ -954,29 +996,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 0.8,
   },
   cancelBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: theme.colors.surface,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
   },
   cancelBtnText: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
   },
   greenText: {
-    color: '#10b981',
+    color: theme.colors.green,
   },
   redText: {
-    color: '#ef4444',
+    color: theme.colors.red,
   },
   cyanText: {
-    color: '#38bdf8',
+    color: theme.colors.cyanLight,
   },
 });

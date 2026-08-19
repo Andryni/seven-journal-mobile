@@ -1,16 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../../theme';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
 }
 
 export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAnimationFinish }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const logoScale = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoRotate = useRef(new Animated.Value(0)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
   const glowPulse = useRef(new Animated.Value(0.4)).current;
   const textFade = useRef(new Animated.Value(0)).current;
@@ -144,10 +145,10 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#07080a',
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -156,8 +157,7 @@ const styles = StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: 'rgba(99, 102, 241, 0.12)',
-    filter: 'blur(40px)',
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
   },
   contentWrap: {
     alignItems: 'center',
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     borderRadius: 85,
     backgroundColor: 'rgba(99, 102, 241, 0.35)',
     top: -15,
-    shadowColor: '#6366f1',
+    shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 35,
@@ -183,12 +183,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(129, 140, 248, 0.7)',
-    shadowColor: '#10b981',
+    shadowColor: theme.colors.green,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.8,
     shadowRadius: 25,
     elevation: 20,
-    backgroundColor: '#0d0e14',
+    backgroundColor: theme.colors.backgroundElevated,
     marginBottom: 24,
   },
   logoImage: {
@@ -204,35 +204,35 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   brandSeven: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 24,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 3,
   },
   brandTracking: {
-    color: '#818cf8',
+    color: theme.colors.primaryLight,
     fontSize: 24,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 3,
   },
   tagline: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 2,
     marginBottom: 24,
   },
   progressBarBg: {
     width: 180,
     height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.cardBorder,
     borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 16,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#818cf8',
+    backgroundColor: theme.colors.primaryLight,
     borderRadius: 2,
   },
   loadingRow: {
@@ -244,12 +244,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.green,
   },
   statusText: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     letterSpacing: 0.8,
   },
 });

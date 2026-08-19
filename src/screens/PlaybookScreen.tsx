@@ -10,10 +10,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
-import type { DailyDebrief, PlaybookSetup } from '../features/playbook/usePlaybook';
+import { formatCurrency } from '../utils/formatCurrency';
+import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
-import { theme } from '../theme';
+import { useTheme } from '../theme';
+import type { AppTheme } from '../theme';
+import type { TFunction } from '../i18n';
+import { useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import {
@@ -24,34 +28,69 @@ import {
   Trash2,
   Edit3,
   X,
-  Star,
-  Check,
-  AlertTriangle,
-  Layers,
 } from 'lucide-react-native';
 
-const COMMON_MISTAKES = [
-  { id: 'revenge', label: 'Revenge Trading' },
-  { id: 'fomo', label: 'FOMO' },
-  { id: 'early_cut', label: 'Coupe anticipée' },
-  { id: 'over_size', label: 'Over-Sizing' },
-  { id: 'no_sl', label: 'No Stop Loss' },
-  { id: 'chasing', label: 'Chasing price' },
-];
+const COMMON_MISTAKES = ['revenge', 'fomo', 'early_cut', 'over_size', 'no_sl', 'chasing'] as const;
 
-const PLAYBOOK_RULES = [
-  { id: 'wait_m15', label: 'Attendre confirmation M15' },
-  { id: 'session_only', label: 'Trader en session seulement' },
-  { id: 'tp_1r', label: 'TP ≥ 1R minimum' },
-  { id: 'no_news', label: 'Éviter les news majeures' },
-  { id: 'journal_before', label: 'Analyser HTF avant session' },
-  { id: 'risk_managed', label: 'Risque ≤ 1% par trade' },
-];
+const PLAYBOOK_RULES = ['wait_m15', 'session_only', 'tp_1r', 'no_news', 'journal_before', 'risk_managed'] as const;
 
-const EMOTIONS = ['Calme', 'Confiant', 'Anxieux', 'Euphorique', 'Frustré', 'Fatigué'];
+function mistakeLabel(t: TFunction, id: string): string {
+  switch (id) {
+    case 'revenge': return t('mistakeRevenge');
+    case 'fomo': return t('mistakeFomo');
+    case 'early_cut': return t('mistakeEarlyCut');
+    case 'over_size': return t('mistakeOverSize');
+    case 'no_sl': return t('mistakeNoSl');
+    case 'chasing': return t('mistakeChasing');
+    default: return id;
+  }
+}
+
+function ruleLabel(t: TFunction, id: string): string {
+  switch (id) {
+    case 'wait_m15': return t('ruleWaitM15');
+    case 'session_only': return t('ruleSessionOnly');
+    case 'tp_1r': return t('ruleTp1r');
+    case 'no_news': return t('ruleNoNews');
+    case 'journal_before': return t('ruleJournalBefore');
+    case 'risk_managed': return t('ruleRiskManaged');
+    default: return id;
+  }
+}
+
+// Émotions : ids stables stockés en DB (compat : anciennes valeurs FR acceptées à la lecture)
+const EMOTION_IDS = ['calm', 'confident', 'anxious', 'euphoric', 'frustrated', 'tired'] as const;
+
+function emotionLabel(t: TFunction, id: string): string {
+  switch (id) {
+    case 'calm': return t('emotionCalm');
+    case 'confident': return t('emotionConfident');
+    case 'anxious': return t('emotionAnxious');
+    case 'euphoric': return t('emotionEuphoric');
+    case 'frustrated': return t('emotionFrustrated');
+    case 'tired': return t('emotionTired');
+    default: return id;
+  }
+}
+
+// Convertit une valeur stockée (id stable OU ancien libellé FR) vers l'id stable
+function emotionIdFromStored(value: string | null | undefined): string {
+  switch (value) {
+    case 'calm': case 'Calme': return 'calm';
+    case 'confident': case 'Confiant': return 'confident';
+    case 'anxious': case 'Anxieux': return 'anxious';
+    case 'euphoric': case 'Euphorique': return 'euphoric';
+    case 'frustrated': case 'Frustré': return 'frustrated';
+    case 'tired': case 'Fatigué': return 'tired';
+    default: return 'calm';
+  }
+}
 
 export const PlaybookScreen: React.FC = () => {
-  const { debriefs, isLoading: debriefsLoading, saveDebrief, deleteDebrief } = usePlaybook();
+  const { theme } = useTheme();
+  const { t } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
   const { setups, isLoading: setupsLoading, saveSetup, deleteSetup } = usePlaybookSetups();
   const { trades } = useTrades();
 
@@ -59,13 +98,14 @@ export const PlaybookScreen: React.FC = () => {
 
   // Debrief Form State
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [editingDebriefId, setEditingDebriefId] = useState<string | null>(null);
   const [marketSentiment, setMarketSentiment] = useState('');
   const [htfAnalysis, setHtfAnalysis] = useState('');
   const [lessonsLearned, setLessonsLearned] = useState('');
   const [objectiveTomorrow, setObjectiveTomorrow] = useState('');
   const [mentalScore, setMentalScore] = useState<number>(8);
   const [dayRating, setDayRating] = useState<number | null>(7);
-  const [emotionBefore, setEmotionBefore] = useState('Calme');
+  const [emotionBefore, setEmotionBefore] = useState('calm');
   const [committedMistakes, setCommittedMistakes] = useState<string[]>([]);
   const [rulesFollowed, setRulesFollowed] = useState<string[]>([]);
 
@@ -100,7 +140,7 @@ export const PlaybookScreen: React.FC = () => {
 
   const handleSaveSetup = async () => {
     if (!setupTitle.trim()) {
-      alert('Veuillez renseigner le nom de la stratégie.');
+      alert(t('setupNameRequired'));
       return;
     }
     const payload = {
@@ -121,6 +161,7 @@ export const PlaybookScreen: React.FC = () => {
 
   const handleSaveDailyDebrief = async () => {
     await saveDebrief({
+      id: editingDebriefId ?? undefined,
       date: selectedDate,
       market_sentiment: marketSentiment || null,
       htf_analysis: htfAnalysis || null,
@@ -133,7 +174,29 @@ export const PlaybookScreen: React.FC = () => {
       mistakes_committed: committedMistakes,
       rules_followed: rulesFollowed,
     });
-    alert('Débriefing enregistré dans votre journal !');
+    setEditingDebriefId(null);
+    alert(editingDebriefId ? t('debriefUpdated') : t('debriefSaved'));
+  };
+
+  const loadDebrief = (d: (typeof debriefs)[number]) => {
+    setEditingDebriefId(d.id);
+    setSelectedDate(d.date);
+    setMarketSentiment(d.market_sentiment || '');
+    setHtfAnalysis(d.htf_analysis || '');
+    setLessonsLearned(d.lessons_learned || '');
+    setObjectiveTomorrow(d.objective_tomorrow || '');
+    setMentalScore(d.mental_score ?? 8);
+    setDayRating(d.day_rating ?? 7);
+    setEmotionBefore(emotionIdFromStored(d.emotion_before));
+    setCommittedMistakes(d.mistakes_committed || []);
+    setRulesFollowed(d.rules_followed || []);
+  };
+
+  const handleDeleteDebrief = async (id: string) => {
+    await deleteDebrief(id);
+    if (editingDebriefId === id) {
+      setEditingDebriefId(null);
+    }
   };
 
   // Real Trade Stats per Setup (100% fidélité à la version web)
@@ -162,6 +225,11 @@ export const PlaybookScreen: React.FC = () => {
     });
   }, [setups, trades]);
 
+  // Débriefings triés par date décroissante (plus récent en premier)
+  const sortedDebriefs = useMemo(() => {
+    return [...debriefs].sort((a, b) => b.date.localeCompare(a.date));
+  }, [debriefs]);
+
   if (debriefsLoading || setupsLoading) {
     return (
       <View style={styles.center}>
@@ -175,8 +243,8 @@ export const PlaybookScreen: React.FC = () => {
       {/* HEADER */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.screenTitle}>PLAYBOOK & STRATÉGIES</Text>
-          <Text style={styles.screenSubtitle}>Gestion des setups, débriefings & discipline</Text>
+          <Text style={styles.screenTitle}>{t('screenTitlePlaybook')}</Text>
+          <Text style={styles.screenSubtitle}>{t('screenSubtitlePlaybook')}</Text>
         </View>
       </View>
 
@@ -188,7 +256,7 @@ export const PlaybookScreen: React.FC = () => {
         >
           <Target color={activeTab === 'setups' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'setups' && styles.tabBtnTextActive]}>
-            Mes Stratégies ({setups.length})
+            {t('myStrategies')} ({setups.length})
           </Text>
         </TouchableOpacity>
 
@@ -198,7 +266,7 @@ export const PlaybookScreen: React.FC = () => {
         >
           <BookOpen color={activeTab === 'debrief' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'debrief' && styles.tabBtnTextActive]}>
-            Débriefing Journalier
+            {t('dailyDebrief')}
           </Text>
         </TouchableOpacity>
 
@@ -208,7 +276,7 @@ export const PlaybookScreen: React.FC = () => {
         >
           <Brain color={activeTab === 'discipline' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'discipline' && styles.tabBtnTextActive]}>
-            Matrice Discipline
+            {t('disciplineMatrix')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -217,27 +285,46 @@ export const PlaybookScreen: React.FC = () => {
       {activeTab === 'setups' && (
         <View style={styles.tabContent}>
           <TouchableOpacity style={styles.addSetupBtn} onPress={openAddSetup}>
-            <Plus size={16} color="#ffffff" />
-            <Text style={styles.addSetupText}>AJOUTER UNE NOUVELLE STRATÉGIE</Text>
+            <Plus size={16} color={theme.colors.textPrimary} />
+            <Text style={styles.addSetupText}>{t('addNewStrategy')}</Text>
           </TouchableOpacity>
 
           {setupStats.length === 0 ? (
-            <Text style={styles.emptyText}>Aucune stratégie enregistrée. Ajoutez vos setups !</Text>
+            <Text style={styles.emptyText}>{t('noStrategy')}</Text>
           ) : (
             setupStats.map(({ setup: s, count, winRate, pnl }) => (
               <View key={s.id} style={styles.setupCard}>
                 <View style={styles.setupHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.setupTitle}>🎯 {s.title}</Text>
+                    <Text style={styles.setupTitle}>{s.title}</Text>
                     {s.description ? (
                       <Text style={styles.setupDesc}>{s.description}</Text>
                     ) : null}
+                    {s.validation_rules.length > 0 && (
+                      <View style={{ marginTop: 4 }}>
+                        {s.validation_rules.map((rule, idx) => (
+                          <Text key={idx} style={styles.ruleItem}>• {rule}</Text>
+                        ))}
+                      </View>
+                    )}
                   </View>
                   <View style={styles.setupActions}>
-                    <TouchableOpacity onPress={() => openEditSetup(s)} style={styles.iconBtn}>
+                    <TouchableOpacity
+                      onPress={() => openEditSetup(s)}
+                      style={styles.iconBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('a11yEditSetup', s.title)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                       <Edit3 size={16} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteSetup(s.id)} style={styles.iconBtn}>
+                    <TouchableOpacity
+                      onPress={() => deleteSetup(s.id)}
+                      style={styles.iconBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('a11yDeleteSetup', s.title)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                       <Trash2 size={16} color={theme.colors.redLight} />
                     </TouchableOpacity>
                   </View>
@@ -257,7 +344,7 @@ export const PlaybookScreen: React.FC = () => {
                     <Text style={[styles.statWr, winRate >= 50 ? styles.greenText : styles.redText]}>
                       {winRate.toFixed(0)}% WR
                     </Text>
-                    <Text style={styles.statCount}>{count} trades ({pnl >= 0 ? '+' : ''}${pnl.toFixed(0)})</Text>
+                    <Text style={styles.statCount}>{count} trades ({formatCurrency(pnl, { decimals: 0 })})</Text>
                   </View>
                 </View>
               </View>
@@ -269,8 +356,8 @@ export const PlaybookScreen: React.FC = () => {
       {/* ── TAB 2 : DÉBRIEFING JOURNALIER ── */}
       {activeTab === 'debrief' && (
         <View style={styles.tabContent}>
-          <Card title="DÉBRIEFING & PSYCHOLOGIE DU JOUR">
-            <Text style={styles.fieldLabel}>DATE DU DÉBRIEFING</Text>
+          <Card title={t('debriefTitle')}>
+            <Text style={styles.fieldLabel}>{t('debriefDate')}</Text>
             <TextInput
               style={styles.input}
               value={selectedDate}
@@ -279,51 +366,203 @@ export const PlaybookScreen: React.FC = () => {
               placeholderTextColor={theme.colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>SENTIMENT DU MARCHÉ (HTF)</Text>
+            <Text style={styles.fieldLabel}>{t('marketSentiment')}</Text>
             <TextInput
               style={styles.input}
               value={marketSentiment}
               onChangeText={setMarketSentiment}
-              placeholder="ex: Bearish structure, zone de rejet H4..."
+              placeholder={t('phMarketSentiment')}
               placeholderTextColor={theme.colors.textMuted}
             />
 
-            <Text style={styles.fieldLabel}>ÉMOTION AVANT LA SESSION</Text>
+            <Text style={styles.fieldLabel}>{t('htfAnalysis')}</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={htfAnalysis}
+              onChangeText={setHtfAnalysis}
+              placeholder={t('phHtfAnalysis')}
+              placeholderTextColor={theme.colors.textMuted}
+              multiline
+              numberOfLines={2}
+            />
+
+            <View style={styles.scoreRow}>
+              <View style={styles.scoreCol}>
+                <Text style={styles.fieldLabel}>{t('mentalScore')}</Text>
+                <View style={styles.stepper}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => setMentalScore(m => Math.max(1, m - 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11yDecMentalScore')}
+                  >
+                    <Text style={styles.stepperBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.stepperValue}>{mentalScore}/10</Text>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => setMentalScore(m => Math.min(10, m + 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11yIncMentalScore')}
+                  >
+                    <Text style={styles.stepperBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.scoreCol}>
+                <Text style={styles.fieldLabel}>{t('dayRating')}</Text>
+                <View style={styles.stepper}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => setDayRating(r => (r === null ? 7 : Math.max(1, r - 1)))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11yDecDayRating')}
+                  >
+                    <Text style={styles.stepperBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.stepperValue}>{dayRating ?? '—'}/10</Text>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => setDayRating(r => (r === null ? 1 : Math.min(10, r + 1)))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('a11yIncDayRating')}
+                  >
+                    <Text style={styles.stepperBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>{t('emotionBefore')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
-              {EMOTIONS.map(em => (
+              {EMOTION_IDS.map(id => (
                 <TouchableOpacity
-                  key={em}
-                  style={[styles.pill, emotionBefore === em && styles.pillActive]}
-                  onPress={() => setEmotionBefore(em)}
+                  key={id}
+                  style={[styles.pill, emotionBefore === id && styles.pillActive]}
+                  onPress={() => setEmotionBefore(id)}
                 >
-                  <Text style={[styles.pillText, emotionBefore === em && styles.whiteText]}>{em}</Text>
+                  <Text style={[styles.pillText, emotionBefore === id && styles.whiteText]}>
+                    {emotionLabel(t, id)}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={styles.fieldLabel}>LEÇONS APPRISES & DISCIPLINE</Text>
+            <Text style={styles.fieldLabel}>{t('lessonsLearned')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={lessonsLearned}
               onChangeText={setLessonsLearned}
-              placeholder="Ce qui a bien fonctionné, ce qu'il faut corriger..."
+              placeholder={t('phLessonsLearned')}
               placeholderTextColor={theme.colors.textMuted}
               multiline
               numberOfLines={3}
             />
 
-            <Text style={styles.fieldLabel}>OBJECTIF POUR DEMAIN</Text>
+            <Text style={styles.fieldLabel}>{t('objectiveTomorrow')}</Text>
             <TextInput
               style={styles.input}
               value={objectiveTomorrow}
               onChangeText={setObjectiveTomorrow}
-              placeholder="ex: Attendre confirmation M15, max 2 trades..."
+              placeholder={t('phObjectiveTomorrow')}
               placeholderTextColor={theme.colors.textMuted}
             />
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDailyDebrief}>
-              <Text style={styles.saveBtnText}>ENREGISTRER LE DÉBRIEFING</Text>
+            <TouchableOpacity
+              style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
+              onPress={handleSaveDailyDebrief}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+              ) : (
+                <Text style={styles.saveBtnText}>
+                  {editingDebriefId ? t('updateDebrief') : t('saveDebrief')}
+                </Text>
+              )}
             </TouchableOpacity>
+          </Card>
+
+          {/* Historique des débriefings */}
+          <Card
+            title={t('debriefHistory', sortedDebriefs.length)}
+            headerAction={
+              sortedDebriefs.length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingDebriefId(null);
+                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                    setMarketSentiment('');
+                    setHtfAnalysis('');
+                    setLessonsLearned('');
+                    setObjectiveTomorrow('');
+                    setMentalScore(8);
+                    setDayRating(7);
+                    setEmotionBefore('calm');
+                    setCommittedMistakes([]);
+                    setRulesFollowed([]);
+                  }}
+                  style={styles.newDebriefBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11yNewDebrief')}
+                >
+                  <Plus size={12} color={theme.colors.primaryLight} />
+                  <Text style={styles.newDebriefText}>{t('newDebrief')}</Text>
+                </TouchableOpacity>
+              ) : undefined
+            }
+          >
+            {sortedDebriefs.length === 0 ? (
+              <Text style={styles.emptyText}>{t('noDebriefYet')}</Text>
+            ) : (
+              sortedDebriefs.map(d => (
+                <View key={d.id} style={styles.debriefRow}>
+                  <View style={styles.debriefMain}>
+                    <View style={styles.debriefTopRow}>
+                      <Text style={styles.debriefDate}>{d.date}</Text>
+                      <View style={styles.debriefScores}>
+                        {d.mental_score !== null && d.mental_score !== undefined && (
+                          <Badge label={`${t('mentalBadge')} ${d.mental_score}/10`} variant="blue" size="sm" />
+                        )}
+                        {d.day_rating !== null && d.day_rating !== undefined && (
+                          <Badge label={`${t('noteBadge')} ${d.day_rating}/10`} variant="gold" size="sm" />
+                        )}
+                      </View>
+                    </View>
+                    {d.market_sentiment ? (
+                      <Text style={styles.debriefSentiment} numberOfLines={2}>
+                        {d.market_sentiment}
+                      </Text>
+                    ) : null}
+                    {d.lessons_learned ? (
+                      <Text style={styles.debriefLessons} numberOfLines={2}>
+                        {d.lessons_learned}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.debriefActions}>
+                    <TouchableOpacity
+                      onPress={() => loadDebrief(d)}
+                      style={styles.iconBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Modifier le débriefing du ${d.date}`}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Edit3 size={15} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteDebrief(d.id)}
+                      style={styles.iconBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Supprimer le débriefing du ${d.date}`}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Trash2 size={15} color={theme.colors.redLight} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
           </Card>
         </View>
       )}
@@ -331,41 +570,41 @@ export const PlaybookScreen: React.FC = () => {
       {/* ── TAB 3 : MATRICE DE DISCIPLINE ── */}
       {activeTab === 'discipline' && (
         <View style={styles.tabContent}>
-          <Card title="ERREURS DE DISCIPLINE (SUIVI RÉCURRENT)">
-            {COMMON_MISTAKES.map(m => {
-              const isChecked = committedMistakes.includes(m.id);
+          <Card title={t('mistakesCard')}>
+            {COMMON_MISTAKES.map(id => {
+              const isChecked = committedMistakes.includes(id);
               return (
                 <TouchableOpacity
-                  key={m.id}
+                  key={id}
                   style={[styles.mistakeRow, isChecked && styles.mistakeRowActive]}
                   onPress={() => {
                     setCommittedMistakes(prev =>
-                      prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id]
+                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
                     );
                   }}
                 >
                   <View style={[styles.checkDot, isChecked && styles.checkDotRed]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.redText]}>{m.label}</Text>
+                  <Text style={[styles.mistakeText, isChecked && styles.redText]}>{mistakeLabel(t, id)}</Text>
                 </TouchableOpacity>
               );
             })}
           </Card>
 
-          <Card title="RÈGLES DE TRADING RESPECTÉES">
-            {PLAYBOOK_RULES.map(r => {
-              const isChecked = rulesFollowed.includes(r.id);
+          <Card title={t('rulesCard')}>
+            {PLAYBOOK_RULES.map(id => {
+              const isChecked = rulesFollowed.includes(id);
               return (
                 <TouchableOpacity
-                  key={r.id}
+                  key={id}
                   style={[styles.mistakeRow, isChecked && styles.ruleRowActive]}
                   onPress={() => {
                     setRulesFollowed(prev =>
-                      prev.includes(r.id) ? prev.filter(x => x !== r.id) : [...prev, r.id]
+                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
                     );
                   }}
                 >
                   <View style={[styles.checkDot, isChecked && styles.checkDotGreen]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.greenText]}>{r.label}</Text>
+                  <Text style={[styles.mistakeText, isChecked && styles.greenText]}>{ruleLabel(t, id)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -379,23 +618,28 @@ export const PlaybookScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {editingSetup ? 'MODIFIER LA STRATÉGIE' : 'NOUVELLE STRATÉGIE PLAYBOOK'}
+                {editingSetup ? t('editSetup') : t('newSetup')}
               </Text>
-              <TouchableOpacity onPress={() => setSetupModalVisible(false)}>
-                <X size={20} color="#ffffff" />
+              <TouchableOpacity
+                onPress={() => setSetupModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel={t('a11yCloseSetupForm')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={20} color={theme.colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>TITRE DU SETUP *</Text>
+            <Text style={styles.fieldLabel}>{t('setupTitleLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="ex: FVG + BOS Reversal M5"
+              placeholder={t('phSetupTitle')}
               placeholderTextColor={theme.colors.textMuted}
               value={setupTitle}
               onChangeText={setSetupTitle}
             />
 
-            <Text style={styles.fieldLabel}>TIMEFRAMES (séparés par virgule)</Text>
+            <Text style={styles.fieldLabel}>{t('setupTimeframesLabel')}</Text>
             <TextInput
               style={styles.input}
               placeholder="M5, M15, H1"
@@ -404,10 +648,10 @@ export const PlaybookScreen: React.FC = () => {
               onChangeText={setSetupTimeframes}
             />
 
-            <Text style={styles.fieldLabel}>RÈGLES DE VALIDATION (une par ligne)</Text>
+            <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="1. Prise de liquidité BSL&#10;2. Cassure BOS&#10;3. Retracement sur FVG"
+              placeholder={t('phSetupRules')}
               placeholderTextColor={theme.colors.textMuted}
               value={setupRules}
               onChangeText={setSetupRules}
@@ -416,7 +660,7 @@ export const PlaybookScreen: React.FC = () => {
             />
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveSetup}>
-              <Text style={styles.saveBtnText}>ENREGISTRER LE SETUP</Text>
+              <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -425,7 +669,7 @@ export const PlaybookScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -442,15 +686,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 18,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1,
   },
   screenSubtitle: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   tabsRow: {
@@ -477,10 +721,10 @@ const styles = StyleSheet.create({
   tabBtnText: {
     color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   tabBtnTextActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
   tabContent: {
     paddingBottom: theme.spacing.xxl,
@@ -496,9 +740,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   addSetupText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
   },
   setupCard: {
@@ -515,14 +759,21 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   setupTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
   },
   setupDesc: {
     color: theme.colors.textSecondary,
     fontSize: 10,
+    fontFamily: theme.fonts.sans,
     marginTop: 2,
+  },
+  ruleItem: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoMedium,
+    lineHeight: 14,
   },
   setupActions: {
     flexDirection: 'row',
@@ -536,7 +787,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.04)',
+    borderTopColor: theme.colors.cardBorder,
     paddingTop: 6,
   },
   tagWrap: {
@@ -548,16 +799,17 @@ const styles = StyleSheet.create({
   },
   statWr: {
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   statCount: {
     color: theme.colors.textMuted,
     fontSize: 9,
+    fontFamily: theme.fonts.sansMedium,
   },
   fieldLabel: {
     color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
     marginBottom: 4,
     marginTop: 6,
@@ -569,8 +821,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     height: 40,
     paddingHorizontal: theme.spacing.md,
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 12,
+    fontFamily: theme.fonts.sansMedium,
   },
   textArea: {
     height: 60,
@@ -596,9 +849,9 @@ const styles = StyleSheet.create({
   pillText: {
     color: theme.colors.textSecondary,
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
-  whiteText: { color: '#ffffff' },
+  whiteText: { color: theme.colors.textPrimary },
   greenText: { color: theme.colors.greenLight },
   redText: { color: theme.colors.redLight },
   saveBtn: {
@@ -610,10 +863,113 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
   },
   saveBtnText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 0.8,
+  },
+  saveBtnDisabled: {
+    opacity: 0.6,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: 4,
+  },
+  scoreCol: {
+    flex: 1,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.xs,
+    height: 40,
+  },
+  stepperBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.sm,
+  },
+  stepperBtnText: {
+    color: theme.colors.textPrimary,
+    fontSize: 16,
+    fontFamily: theme.fonts.monoBold,
+  },
+  stepperValue: {
+    flex: 1,
+    textAlign: 'center',
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    fontFamily: theme.fonts.monoBold,
+  },
+  newDebriefBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: theme.colors.primary,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  newDebriefText: {
+    color: theme.colors.primaryLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+  },
+  debriefRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  debriefMain: {
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  debriefTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.xs,
+    marginBottom: 4,
+  },
+  debriefDate: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontFamily: theme.fonts.monoBold,
+  },
+  debriefScores: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  debriefSentiment: {
+    color: theme.colors.primaryLight,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
+  },
+  debriefLessons: {
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.sans,
+    marginTop: 2,
+  },
+  debriefActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
   },
   mistakeRow: {
     flexDirection: 'row',
@@ -621,7 +977,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   mistakeRowActive: {
     backgroundColor: 'rgba(239, 68, 68, 0.08)',
@@ -640,10 +996,12 @@ const styles = StyleSheet.create({
   mistakeText: {
     color: theme.colors.textPrimary,
     fontSize: 12,
+    fontFamily: theme.fonts.sansMedium,
   },
   emptyText: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontFamily: theme.fonts.sans,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: theme.spacing.lg,
@@ -655,8 +1013,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   modalContent: {
-    backgroundColor: '#181920',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.modalBg,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
@@ -668,8 +1026,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   modalTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
   },
 });

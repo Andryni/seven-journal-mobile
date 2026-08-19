@@ -46,6 +46,9 @@ export function useAccounts() {
       if (newAccount.consistency_rule_percent !== undefined && newAccount.consistency_rule_percent !== null) {
         payload.consistency_rule_percent = newAccount.consistency_rule_percent;
       }
+      if ((newAccount as any).instrument_type) {
+        payload.instrument_type = (newAccount as any).instrument_type;
+      }
 
       const { data, error } = await supabase
         .from('trading_accounts')

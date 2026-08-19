@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { calculateConsistencyScore, calculateRMultiple } from '../../utils/financials';
+import { formatShortDate } from '../../utils/formatDate';
 import type { Trade } from '../../types/domain';
 
 export interface StreakInfo {
@@ -99,10 +100,7 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
         return {
           tradeIndex: i + 1,
           pnl: Number(cumPnL.toFixed(2)),
-          date: new Date(t.entry_time || 0).toLocaleDateString('fr-FR', {
-            month: 'short',
-            day: 'numeric',
-          }),
+          date: formatShortDate(new Date(t.entry_time || 0)),
         };
       });
 
@@ -112,7 +110,7 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
       if (timeStr) {
         const d = new Date(timeStr);
         if (!isNaN(d.getTime())) {
-          const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const dateKey = formatShortDate(d);
           dailyMap[dateKey] = (dailyMap[dateKey] || 0) + (t.pnl || 0);
         }
       }

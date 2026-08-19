@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,17 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { MotiView } from 'moti';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInLeft,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withDelay,
+  interpolate,
+} from 'react-native-reanimated';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
@@ -16,6 +26,8 @@ import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
+import { useT } from '../i18n';
+import { formatShortDate } from '../utils/formatDate';
 import { Card } from '../components/ui/Card';
 import { PieChart } from 'react-native-chart-kit';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
@@ -28,15 +40,10 @@ import {
   Clock,
   Brain,
   Award,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
   Flame,
   Shield,
-  Zap,
-  TrendingDown,
 } from 'lucide-react-native';
-import Svg, { Rect, Line, Circle, G, Defs, LinearGradient, Stop, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -54,53 +61,45 @@ const chartConfig = {
 
 type TabType = 'overview' | 'equity' | 'distribution' | 'breakdown' | 'timing' | 'psychology' | 'propfirm';
 
-const TABS: { id: TabType; label: string; icon: React.FC<{ color?: string; size?: number }> }[] = [
-  { id: 'overview', label: "VUE D'ENSEMBLE", icon: Activity },
-  { id: 'equity', label: 'EQUITY & DRAWDOWN', icon: TrendingUp },
-  { id: 'distribution', label: 'DISTRIBUTION', icon: BarChart3 },
-  { id: 'breakdown', label: 'PAR SETUP/PAIRE', icon: Target },
-  { id: 'timing', label: 'TIMING (H/J)', icon: Clock },
-  { id: 'psychology', label: 'PSYCHOLOGIE', icon: Brain },
-  { id: 'propfirm', label: 'PROP FIRM', icon: Award },
+const TABS: { id: TabType; labelKey: string; icon: React.FC<{ color?: string; size?: number }> }[] = [
+  { id: 'overview', labelKey: 'tabOverview', icon: Activity },
+  { id: 'equity', labelKey: 'tabEquity', icon: TrendingUp },
+  { id: 'distribution', labelKey: 'tabDistribution', icon: BarChart3 },
+  { id: 'breakdown', labelKey: 'tabBreakdown', icon: Target },
+  { id: 'timing', labelKey: 'tabTiming', icon: Clock },
+  { id: 'psychology', labelKey: 'tabPsychology', icon: Brain },
+  { id: 'propfirm', labelKey: 'tabPropFirm', icon: Award },
 ];
-
-// ─── Animated wrapper for staggered list items ───
-const FadeInView: React.FC<{
-  children: React.ReactNode;
-  delay?: number;
-  theme: AppTheme;
-}> = ({ children, delay = 0, theme: t }) => (
-  <MotiView
-    from={{ opacity: 0, translateY: 18 }}
-    animate={{ opacity: 1, translateY: 0 }}
-    transition={{ type: 'timing', duration: 420, delay }}
-  >
-    {children}
-  </MotiView>
-);
 
 // ─── Animated Progress Ring (SVG) for Prop Firm ───
 const ProgressRing: React.FC<{
-  progress: number; // 0-1
+  progress: number;
   size?: number;
   strokeWidth?: number;
   color: string;
   label: string;
   value: string;
   theme: AppTheme;
-}> = ({ progress, size = 80, strokeWidth = 8, color, label, value, theme: t }) => {
+  delay?: number;
+}> = ({ progress, size = 80, strokeWidth = 8, color, label, value, theme: t, delay = 200 }) => {
+  const animProgress = useSharedValue(0);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clampedProgress = Math.min(Math.max(progress, 0), 1);
-  const strokeDashoffset = circumference * (1 - clampedProgress);
+
+  useEffect(() => {
+    animProgress.value = withDelay(delay, withSpring(clampedProgress, { damping: 18, stiffness: 60 }));
+  }, [clampedProgress, delay]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    // We use the animated value in the SVG below
+  }));
+
+  const strokeDashoffset = circumference * (1 - animProgress.value);
 
   return (
     <View style={{ alignItems: 'center', width: 100 }}>
-      <MotiView
-        from={{ opacity: 0, scale: 0.7 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', damping: 14, delay: 200 }}
-      >
+      <Animated.View entering={FadeIn.delay(delay).duration(400)}>
         <Svg width={size} height={size}>
           <Defs>
             <LinearGradient id={`ringGrad-${label}`} x1="0" y1="0" x2="1" y2="1">
@@ -108,7 +107,6 @@ const ProgressRing: React.FC<{
               <Stop offset="1" stopColor={color} stopOpacity="0.5" />
             </LinearGradient>
           </Defs>
-          {/* Background track */}
           <Circle
             cx={size / 2}
             cy={size / 2}
@@ -117,7 +115,6 @@ const ProgressRing: React.FC<{
             stroke={t.colors.cardBorder}
             strokeWidth={strokeWidth}
           />
-          {/* Animated arc */}
           <Circle
             cx={size / 2}
             cy={size / 2}
@@ -130,7 +127,6 @@ const ProgressRing: React.FC<{
             strokeLinecap="round"
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
-          {/* Center value */}
           <SvgText
             x={size / 2}
             y={size / 2 + 4}
@@ -142,7 +138,7 @@ const ProgressRing: React.FC<{
             {value}
           </SvgText>
         </Svg>
-      </MotiView>
+      </Animated.View>
       <Text style={{ color: t.colors.textMuted, fontSize: 9, fontWeight: '800', marginTop: 6, letterSpacing: 0.5, textAlign: 'center' }}>
         {label}
       </Text>
@@ -156,42 +152,50 @@ const AnimatedProgressBar: React.FC<{
   current: number;
   limit: number;
   color: string;
-  invert?: boolean; // true = lower is better (drawdown)
+  invert?: boolean;
   theme: AppTheme;
-}> = ({ label, current, limit, color, invert = false, theme: t }) => {
+}> = ({ label, current, limit, color, invert = false, theme }) => {
+  const { t } = useT();
   const pct = limit > 0 ? Math.min(Math.abs(current) / Math.abs(limit), 1) : 0;
   const isWarning = invert ? pct > 0.7 : pct > 0.85;
   const isDanger = invert ? pct > 0.9 : pct > 0.95;
+  const barWidth = useSharedValue(0);
+
+  useEffect(() => {
+    barWidth.value = withTiming(pct, { duration: 800 });
+  }, [pct]);
+
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${interpolate(barWidth.value, [0, 1], [0, 100])}%` as any,
+  }));
 
   return (
     <View style={{ marginBottom: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ color: t.colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
           {label}
         </Text>
-        <Text style={{ color: isDanger ? t.colors.redLight : isWarning ? t.colors.goldLight : t.colors.textPrimary, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: isDanger ? theme.colors.redLight : isWarning ? theme.colors.goldLight : theme.colors.textPrimary, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
           ${Math.abs(current).toLocaleString()} / ${Math.abs(limit).toLocaleString()}
         </Text>
       </View>
-      {/* Bar background */}
-      <View style={{ height: 8, backgroundColor: t.colors.surface, borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: t.colors.cardBorder }}>
-        <MotiView
-          from={{ width: '0%' }}
-          animate={{ width: `${pct * 100}%` }}
-          transition={{ type: 'spring', damping: 18, delay: 300 }}
-          style={{
-            height: '100%',
-            borderRadius: 4,
-            backgroundColor: isDanger ? t.colors.red : isWarning ? t.colors.gold : color,
-          }}
+      <View style={{ height: 8, backgroundColor: theme.colors.surface, borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.cardBorder }}>
+        <Animated.View
+          style={[
+            {
+              height: '100%',
+              borderRadius: 4,
+              backgroundColor: isDanger ? theme.colors.red : isWarning ? theme.colors.gold : color,
+            },
+            barStyle,
+          ]}
         />
       </View>
-      {/* Percentage */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-        <Text style={{ color: t.colors.textMuted, fontSize: 8, fontWeight: '700' }}>
-          {invert ? (pct > 0.9 ? '⚠️ ALERTE' : pct > 0.7 ? 'ATTENTION' : 'SAFE') : (pct > 0.95 ? '🔥 PRESQUE' : pct > 0.85 ? 'EN COURS' : 'EN PROGRESSION')}
+        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontWeight: '700' }}>
+          {invert ? (pct > 0.9 ? t('progressAlert') : pct > 0.7 ? t('progressWarning') : t('progressSafe')) : (pct > 0.95 ? t('progressAlmost') : pct > 0.85 ? t('progressOngoing') : t('progressAdvancing'))}
         </Text>
-        <Text style={{ color: t.colors.textMuted, fontSize: 8, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
           {(pct * 100).toFixed(1)}%
         </Text>
       </View>
@@ -206,11 +210,10 @@ const StatusChip: React.FC<{
   value: string;
   color: string;
   theme: AppTheme;
-}> = ({ icon, label, value, color, theme: t }) => (
-  <MotiView
-    from={{ opacity: 0, scale: 0.85 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ type: 'spring', damping: 14, delay: 400 }}
+  delay?: number;
+}> = ({ icon, label, value, color, theme: t, delay = 0 }) => (
+  <Animated.View
+    entering={FadeIn.delay(delay).duration(350)}
     style={{
       backgroundColor: t.colors.surface,
       borderColor: t.colors.cardBorder,
@@ -225,12 +228,13 @@ const StatusChip: React.FC<{
     {icon}
     <Text style={{ color: t.colors.textMuted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
     <Text style={{ color, fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{value}</Text>
-  </MotiView>
+  </Animated.View>
 );
 
 export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
+  const { t } = useT();
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
@@ -316,15 +320,15 @@ export const AnalyticsScreen: React.FC = () => {
   const dailyPnL = useMemo(() => {
     const map: Record<string, number> = {};
     closed.forEach(t => {
-      const day = new Date(t.entry_time).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      const day = formatShortDate(new Date(t.entry_time));
       map[day] = (map[day] || 0) + (t.pnl || 0);
     });
     return Object.entries(map)
       .slice(-7)
-      .map(([label, value]) => ({ label: label.slice(0, 6), value }));
+      .map(([label, value]) => ({ label, value }));
   }, [closed]);
 
-  // Win Rate Trend (last N trades rolling)
+  // Win Rate Trend
   const winRateTrend = useMemo(() => {
     const window = 5;
     const result: { label: string; value: number }[] = [];
@@ -338,27 +342,9 @@ export const AnalyticsScreen: React.FC = () => {
 
   // 3. PIE DATA
   const pieData = useMemo(() => [
-    {
-      name: 'Gains',
-      population: wins.length || 1,
-      color: '#10b981',
-      legendFontColor: '#94a3b8',
-      legendFontSize: 11,
-    },
-    {
-      name: 'Pertes',
-      population: losses.length || 1,
-      color: '#ef4444',
-      legendFontColor: '#94a3b8',
-      legendFontSize: 11,
-    },
-    {
-      name: 'BE',
-      population: breakeven.length || 1,
-      color: '#6366f1',
-      legendFontColor: '#94a3b8',
-      legendFontSize: 11,
-    },
+    { name: 'Gains', population: wins.length || 1, color: '#10b981', legendFontColor: '#94a3b8', legendFontSize: 11 },
+    { name: 'Pertes', population: losses.length || 1, color: '#ef4444', legendFontColor: '#94a3b8', legendFontSize: 11 },
+    { name: 'BE', population: breakeven.length || 1, color: '#6366f1', legendFontColor: '#94a3b8', legendFontSize: 11 },
   ], [wins, losses, breakeven]);
 
   // 4. PAR SETUP
@@ -399,7 +385,6 @@ export const AnalyticsScreen: React.FC = () => {
     });
   }, [playbookSetups, closed]);
 
-  // 4b. PAR PAIRE
   const pairBreakdown = useMemo(() => {
     const map: Record<string, { pnl: number; wins: number; total: number }> = {};
     closed.forEach(t => {
@@ -416,7 +401,6 @@ export const AnalyticsScreen: React.FC = () => {
     }));
   }, [closed]);
 
-  // 4c. PAR TIMEFRAME
   const tfBreakdown = useMemo(() => {
     const map: Record<string, { pnl: number; wins: number; total: number }> = {};
     closed.forEach(t => {
@@ -462,7 +446,6 @@ export const AnalyticsScreen: React.FC = () => {
     const wrPct = winRate / 100;
     const dailyLossLimit = selectedAccount?.max_daily_loss_limit || 0;
 
-    // Best & worst day
     const dayMap: Record<string, number> = {};
     closed.forEach(t => {
       const day = new Date(t.entry_time).toISOString().split('T')[0];
@@ -472,30 +455,17 @@ export const AnalyticsScreen: React.FC = () => {
     const bestDay = dayPnls.length > 0 ? Math.max(...dayPnls) : 0;
     const worstDay = dayPnls.length > 0 ? Math.min(...dayPnls) : 0;
 
-    // Consecutive wins/losses
     let maxConsecWins = 0;
     let maxConsecLosses = 0;
     let curWins = 0;
     let curLosses = 0;
     closed.forEach(t => {
-      if ((t.pnl || 0) > 0) {
-        curWins++;
-        curLosses = 0;
-        maxConsecWins = Math.max(maxConsecWins, curWins);
-      } else if ((t.pnl || 0) < 0) {
-        curLosses++;
-        curWins = 0;
-        maxConsecLosses = Math.max(maxConsecLosses, curLosses);
-      } else {
-        curWins = 0;
-        curLosses = 0;
-      }
+      if ((t.pnl || 0) > 0) { curWins++; curLosses = 0; maxConsecWins = Math.max(maxConsecWins, curWins); }
+      else if ((t.pnl || 0) < 0) { curLosses++; curWins = 0; maxConsecLosses = Math.max(maxConsecLosses, curLosses); }
+      else { curWins = 0; curLosses = 0; }
     });
 
-    // Trading days
     const uniqueDays = Object.keys(dayMap).length;
-
-    // Consistency: largest single-day contribution as % of total profit
     const maxDayPnl = dayPnls.length > 0 ? Math.max(...dayPnls) : 0;
     const consistencyPct = totalPnL > 0 ? (maxDayPnl / totalPnL) * 100 : 0;
 
@@ -518,15 +488,10 @@ export const AnalyticsScreen: React.FC = () => {
   return (
     <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
       {/* HEADER */}
-      <MotiView
-        from={{ opacity: 0, translateY: -12 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 350 }}
-        style={s.header}
-      >
-        <Text style={s.screenTitle}>ANALYTICS</Text>
-        <Text style={s.screenSubtitle}>Diagnostic quantitatif · Moteur React Native Chart Kit</Text>
-      </MotiView>
+      <Animated.View entering={FadeInDown.duration(350)} style={s.header}>
+        <Text style={s.screenTitle}>{t('tabAnalytics')}</Text>
+        <Text style={s.screenSubtitle}>{t('screenSubtitleAnalytics')}</Text>
+      </Animated.View>
 
       {/* TABS SELECTOR */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll}>
@@ -540,7 +505,7 @@ export const AnalyticsScreen: React.FC = () => {
               onPress={() => setActiveTab(tab.id)}
             >
               <Icon color={isActive ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
-              <Text style={[s.tabText, isActive && s.tabTextActive]}>{tab.label}</Text>
+              <Text style={[s.tabText, isActive && s.tabTextActive]}>{t(tab.labelKey as any)}</Text>
             </TouchableOpacity>
           );
         })}
@@ -548,527 +513,446 @@ export const AnalyticsScreen: React.FC = () => {
 
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
       {activeTab === 'overview' && (
-          <MotiView
-            key="overview"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="KPI GLOBAUX">
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>NET P&L TOTAL</Text>
-                    <Text style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}>
-                      {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>WIN RATE</Text>
-                    <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{winRate.toFixed(1)}%</Text>
-                  </View>
-                </View>
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>PROFIT FACTOR</Text>
-                    <Text style={[s.kpiVal, { color: theme.colors.primaryLight }]}>
-                      {profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>RATIO GAIN/PERTE</Text>
-                    <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>
-                      {avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : '1.0'}x
-                    </Text>
-                  </View>
-                </View>
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>AVG R-MULTIPLE</Text>
-                    <Text style={[s.kpiVal, avgR >= 0 ? s.greenText : s.redText]}>
-                      {avgR >= 0 ? '+' : ''}{avgR.toFixed(2)}R
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>EXPECTANCY</Text>
-                    <Text style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
-                      {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={100} theme={theme}>
-              <Card title="COURBE D'ÉQUITÉ">
-                <GlowingEquityAreaChart
-                  data={equityKitData.labels.map((l, i) => ({
-                    date: l || `#${i + 1}`,
-                    value: equityKitData.datasets[0].data[i] || 0,
-                  }))}
-                  height={190}
-                />
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={200} theme={theme}>
-              <Card title="P&L JOURNALIER (7 DERNIERS JOURS)">
-                {dailyPnL.length > 0 ? (
-                  <BicolorBarChart data={dailyPnL} height={170} />
-                ) : (
-                  <Text style={s.emptyText}>Pas encore de trades enregistrés.</Text>
-                )}
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 2 : EQUITY & DRAWDOWN ── */}
-        {activeTab === 'equity' && (
-          <MotiView
-            key="equity"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="ÉQUITÉ & DRAWDOWN">
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>MAX DRAWDOWN</Text>
-                    <Text style={[s.kpiVal, styles.redText]}>-${maxDrawdown.toFixed(2)}</Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>DRAWDOWN ACTUEL</Text>
-                    <Text style={[s.kpiVal, currentDrawdown > 0 ? styles.redText : s.greenText]}>
-                      -${currentDrawdown.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-                <GlowingEquityAreaChart
-                  data={equityKitData.labels.map((l, i) => ({
-                    date: l || `#${i + 1}`,
-                    value: equityKitData.datasets[0].data[i] || 0,
-                  }))}
-                  height={190}
-                />
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={100} theme={theme}>
-              <Card title="COURBE DE DRAWDOWN">
-                {drawdownData.length > 0 ? (
-                  <GlowingEquityAreaChart
-                    data={drawdownData.map(d => ({
-                      date: d.label,
-                      value: d.value,
-                    }))}
-                    height={160}
-                  />
-                ) : (
-                  <Text style={s.emptyText}>Aucune donnée de drawdown.</Text>
-                )}
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 3 : DISTRIBUTION ── */}
-        {activeTab === 'distribution' && (
-          <MotiView
-            key="distribution"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="RÉPARTITION GAINS / PERTES">
-                <PieChart
-                  data={pieData}
-                  width={screenWidth - 64}
-                  height={160}
-                  chartConfig={chartConfig}
-                  accessor="population"
-                  backgroundColor="transparent"
-                  paddingLeft="15"
-                  absolute
-                />
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={100} theme={theme}>
-              <Card title="WIN RATE ROLLING (5 TRADES)">
-                {winRateTrend.length > 0 ? (
-                  <BicolorBarChart
-                    data={winRateTrend.map(wr => ({ label: wr.label, value: wr.value - 50 }))}
-                    height={170}
-                  />
-                ) : (
-                  <Text style={s.emptyText}>Pas assez de trades pour un trend.</Text>
-                )}
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={200} theme={theme}>
-              <Card title="P&L DES DERNIÈRES POSITIONS">
-                <BicolorBarChart
-                  data={closed.slice(-7).map((t, idx) => ({
-                    label: `${t.pair.slice(0, 3)}#${idx + 1}`,
-                    value: t.pnl || 0,
-                  }))}
-                  height={170}
-                />
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
-        {activeTab === 'breakdown' && (
-          <MotiView
-            key="breakdown"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="WIN RATE PAR STRATÉGIE">
-                {setupBreakdown.map((st, i) => (
-                  <FadeInView key={st.name} delay={i * 60} theme={theme}>
-                    <View style={s.rowBetween}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.boldWhite}>🎯 {st.name}</Text>
-                        <Text style={s.subMuted}>{st.count} trades exécutés</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
-                          {st.count > 0 ? `${st.winRate.toFixed(1)}% WR` : '—'}
-                        </Text>
-                        <Text style={[s.subMuted, st.pnl >= 0 ? s.greenText : s.redText]}>
-                          {st.count > 0 ? `${st.pnl >= 0 ? '+' : ''}$${st.pnl.toFixed(2)}` : '$0.00'}
-                        </Text>
-                      </View>
-                    </View>
-                  </FadeInView>
-                ))}
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={100} theme={theme}>
-              <Card title="PERFORMANCE PAR INSTRUMENT">
-                {pairBreakdown.map((p, i) => (
-                  <FadeInView key={p.name} delay={i * 60} theme={theme}>
-                    <View style={s.rowBetween}>
-                      <View>
-                        <Text style={s.boldWhite}>{p.name}</Text>
-                        <Text style={s.subMuted}>{p.total} trades</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, p.winRate >= 50 ? s.greenText : s.redText]}>
-                          {p.winRate.toFixed(1)}% WR
-                        </Text>
-                        <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
-                          {p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  </FadeInView>
-                ))}
-              </Card>
-            </FadeInView>
-
-            <FadeInView delay={200} theme={theme}>
-              <Card title="PERFORMANCE PAR TIMEFRAME">
-                {tfBreakdown.map((tf, i) => (
-                  <FadeInView key={tf.name} delay={i * 60} theme={theme}>
-                    <View style={s.rowBetween}>
-                      <View>
-                        <Text style={s.boldWhite}>{tf.name}</Text>
-                        <Text style={s.subMuted}>{tf.total} trades</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, tf.winRate >= 50 ? s.greenText : s.redText]}>
-                          {tf.winRate.toFixed(1)}% WR
-                        </Text>
-                        <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
-                          {tf.pnl >= 0 ? '+' : ''}$${tf.pnl.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  </FadeInView>
-                ))}
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 5 : TIMING ── */}
-        {activeTab === 'timing' && (
-          <MotiView
-            key="timing"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="AMPLITUDE P&L PAR HORAIRE">
-                {timingBreakdown.length > 0 ? (
-                  <BicolorBarChart data={timingBreakdown} height={170} />
-                ) : (
-                  <Text style={s.emptyText}>Aucune donnée horaire disponible.</Text>
-                )}
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 6 : PSYCHOLOGIE ── */}
-        {activeTab === 'psychology' && (
-          <MotiView
-            key="psychology"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            <FadeInView theme={theme}>
-              <Card title="IMPACT DU MENTAL SUR LE P&L">
-                {mentalBreakdown.map((mb, i) => (
-                  <FadeInView key={mb.state} delay={i * 60} theme={theme}>
-                    <View style={s.rowBetween}>
-                      <View>
-                        <Text style={s.boldWhite}>{mb.state}</Text>
-                        <Text style={s.subMuted}>{mb.count} sessions</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, mb.winRate >= 50 ? s.greenText : s.redText]}>
-                          {mb.winRate.toFixed(0)}% WR
-                        </Text>
-                        <Text style={[s.subMuted, mb.pnl >= 0 ? s.greenText : s.redText]}>
-                          {mb.pnl >= 0 ? '+' : ''}${mb.pnl.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  </FadeInView>
-                ))}
-              </Card>
-            </FadeInView>
-          </MotiView>
-        )}
-
-        {/* ── TAB 7 : PROP FIRM TRACKER ── */}
-        {activeTab === 'propfirm' && (
-          <MotiView
-            key="propfirm"
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            exit={{ opacity: 0, translateX: 20 }}
-            transition={{ type: 'timing', duration: 250 }}
-            style={s.tabContent}
-          >
-            {/* ── Status Chips Row ── */}
-            <FadeInView theme={theme}>
-              <View style={[s.grid3, { marginBottom: 12 }]}>
-                <StatusChip
-                  icon={propFirmData.profitPct >= 1 ?
-                    <CheckCircle color={theme.colors.green} size={18} /> :
-                    <Flame color={theme.colors.gold} size={18} />
-                  }
-                  label="STATUS"
-                  value={propFirmData.profitPct >= 1 ? 'PASSÉ' : 'EN COURS'}
-                  color={propFirmData.profitPct >= 1 ? theme.colors.greenLight : theme.colors.goldLight}
-                  theme={theme}
-                />
-                <StatusChip
-                  icon={<Target color={theme.colors.primaryLight} size={18} />}
-                  label="TRADES"
-                  value={`${closed.length}`}
-                  color={theme.colors.primaryLight}
-                  theme={theme}
-                />
-                <StatusChip
-                  icon={<Shield color={propFirmData.drawdownPct > 0.9 ? theme.colors.red : theme.colors.cyan} size={18} />}
-                  label="DRAWDOWN"
-                  value={`${(propFirmData.drawdownPct * 100).toFixed(0)}%`}
-                  color={propFirmData.drawdownPct > 0.9 ? theme.colors.redLight : theme.colors.cyanLight}
-                  theme={theme}
-                />
-              </View>
-            </FadeInView>
-
-            {/* ── Progress Rings ── */}
-            <FadeInView delay={80} theme={theme}>
-              <Card title="PROGRESSION DES OBJECTIFS">
-                <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
-                  <ProgressRing
-                    progress={propFirmData.profitPct}
-                    color={theme.colors.green}
-                    label="PROFIT TARGET"
-                    value={`$${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(0)}`}
-                    theme={theme}
-                  />
-                  <ProgressRing
-                    progress={1 - propFirmData.drawdownPct}
-                    color={propFirmData.drawdownPct > 0.9 ? theme.colors.red : theme.colors.cyan}
-                    label="DRAWDOWN LIMIT"
-                    value={`${(propFirmData.drawdownPct * 100).toFixed(0)}%`}
-                    theme={theme}
-                  />
-                  <ProgressRing
-                    progress={propFirmData.wrPct}
-                    color={theme.colors.primaryLight}
-                    label="WIN RATE"
-                    value={`${winRate.toFixed(0)}%`}
-                    theme={theme}
-                  />
-                </View>
-              </Card>
-            </FadeInView>
-
-            {/* ── Progress Bars ── */}
-            <FadeInView delay={160} theme={theme}>
-              <Card title="MÈTRES DE LIMITES">
-                <AnimatedProgressBar
-                  label="📈 PROFIT TARGET"
-                  current={totalPnL}
-                  limit={profitTarget}
-                  color={theme.colors.green}
-                  theme={theme}
-                />
-                <AnimatedProgressBar
-                  label="📉 MAX DRAWDOWN"
-                  current={maxDrawdown}
-                  limit={maxDrawdownLimit}
-                  color={theme.colors.red}
-                  invert
-                  theme={theme}
-                />
-                {propFirmData.dailyLossLimit > 0 && (
-                  <AnimatedProgressBar
-                    label="⚡ DAILY LOSS LIMIT"
-                    current={propFirmData.worstDay < 0 ? Math.abs(propFirmData.worstDay) : 0}
-                    limit={propFirmData.dailyLossLimit}
-                    color={theme.colors.gold}
-                    invert
-                    theme={theme}
-                  />
-                )}
-              </Card>
-            </FadeInView>
-
-            {/* ── Stats Grid ── */}
-            <FadeInView delay={240} theme={theme}>
-              <Card title="STATISTIQUES DU CHALLENGE">
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>MEILLEURE JOURNÉE</Text>
-                    <Text style={[s.kpiVal, s.greenText]}>
-                      +${propFirmData.bestDay.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>PIRE JOURNÉE</Text>
-                    <Text style={[s.kpiVal, s.redText]}>
-                      ${propFirmData.worstDay.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>MAX WIN STREAK</Text>
-                    <Text style={[s.kpiVal, s.greenText]}>
-                      🔥 {propFirmData.maxConsecWins}
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>MAX LOSS STREAK</Text>
-                    <Text style={[s.kpiVal, s.redText]}>
-                      💀 {propFirmData.maxConsecLosses}
-                    </Text>
-                  </View>
-                </View>
-                <View style={s.grid2}>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>JOURS DE TRADING</Text>
-                    <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>
-                      {propFirmData.uniqueDays}
-                    </Text>
-                  </View>
-                  <View style={s.kpiBox}>
-                    <Text style={s.kpiLabel}>CONSISTENCY</Text>
-                    <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>
-                      {propFirmData.consistencyPct.toFixed(0)}%
-                    </Text>
-                  </View>
-                </View>
-              </Card>
-            </FadeInView>
-
-            {/* ── Challenge Parameters ── */}
-            <FadeInView delay={320} theme={theme}>
-              <Card title="PARAMÈTRES DU CHALLENGE">
-                <View style={s.rowBetween}>
-                  <Text style={s.subMuted}>Objectif de Profit :</Text>
-                  <Text style={s.boldWhite}>${profitTarget.toLocaleString()}</Text>
-                </View>
-                <View style={s.rowBetween}>
-                  <Text style={s.subMuted}>Max Drawdown Limite :</Text>
-                  <Text style={s.boldWhite}>${maxDrawdownLimit.toLocaleString()}</Text>
-                </View>
-                <View style={s.rowBetween}>
-                  <Text style={s.subMuted}>Balance Initiale :</Text>
-                  <Text style={s.boldWhite}>${initialBalance.toLocaleString()}</Text>
-                </View>
-                {selectedAccount?.max_daily_loss_limit && (
-                  <View style={s.rowBetween}>
-                    <Text style={s.subMuted}>Max Daily Loss :</Text>
-                    <Text style={s.boldWhite}>${selectedAccount.max_daily_loss_limit.toLocaleString()}</Text>
-                  </View>
-                )}
-                <View style={s.rowBetween}>
-                  <Text style={s.subMuted}>Type :</Text>
-                  <Text style={[s.boldWhite, { color: theme.colors.primaryLight }]}>
-                    {selectedAccount?.type?.toUpperCase() || 'CHALLENGE'}
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('kpiGlobal')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
+                  <Text style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}>
+                    {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
                   </Text>
                 </View>
-              </Card>
-            </FadeInView>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('winRate')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{winRate.toFixed(1)}%</Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('profitFactor')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.primaryLight }]}>
+                    {profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('profitLossRatio')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>
+                    {avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : '1.0'}x
+                  </Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('avgRMultiple')}</Text>
+                  <Text style={[s.kpiVal, avgR >= 0 ? s.greenText : s.redText]}>
+                    {avgR >= 0 ? '+' : ''}{avgR.toFixed(2)}R
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('expectancy')}</Text>
+                  <Text style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
+                    {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
 
-            {/* ── Drawdown Chart ── */}
-            <FadeInView delay={400} theme={theme}>
-              <Card title="COURBE DE DRAWDOWN">
-                {drawdownData.length > 0 ? (
-                  <GlowingEquityAreaChart
-                    data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
-                    height={160}
-                  />
-                ) : (
-                  <Text style={s.emptyText}>Aucune donnée de drawdown.</Text>
-                )}
-              </Card>
-            </FadeInView>
-          </MotiView>
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+            <Card title={t('equityGlowing')}>
+              <GlowingEquityAreaChart
+                data={equityKitData.labels.map((l, i) => ({
+                  date: l || `#${i + 1}`,
+                  value: equityKitData.datasets[0].data[i] || 0,
+                }))}
+                height={190}
+              />
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+            <Card title={t('dailyPnl')}>
+              {dailyPnL.length > 0 ? (
+                <BicolorBarChart data={dailyPnL} height={170} />
+              ) : (
+                <Text style={s.emptyText}>{t('noTradesYet')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 2 : EQUITY & DRAWDOWN ── */}
+      {activeTab === 'equity' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('equityDrawdown')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('maxDrawdown')}</Text>
+                  <Text style={[s.kpiVal, s.redText]}>-${maxDrawdown.toFixed(2)}</Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('currentDrawdown')}</Text>
+                  <Text style={[s.kpiVal, currentDrawdown > 0 ? s.redText : s.greenText]}>
+                    -${currentDrawdown.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+              <GlowingEquityAreaChart
+                data={equityKitData.labels.map((l, i) => ({
+                  date: l || `#${i + 1}`,
+                  value: equityKitData.datasets[0].data[i] || 0,
+                }))}
+                height={190}
+              />
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+            <Card title={t('drawdownCurve')}>
+              {drawdownData.length > 0 ? (
+                <GlowingEquityAreaChart
+                  data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
+                  height={160}
+                />
+              ) : (
+                <Text style={s.emptyText}>{t('noDrawdownData')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 3 : DISTRIBUTION ── */}
+      {activeTab === 'distribution' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('gainLossSplit')}>
+              <PieChart
+                data={pieData}
+                width={screenWidth - 64}
+                height={160}
+                chartConfig={chartConfig}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                absolute
+              />
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+            <Card title={t('rollingWinRate')}>
+              {winRateTrend.length > 0 ? (
+                <BicolorBarChart
+                  data={winRateTrend.map(wr => ({ label: wr.label, value: wr.value - 50 }))}
+                  height={170}
+                />
+              ) : (
+                <Text style={s.emptyText}>{t('notEnoughTrades')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+            <Card title={t('lastPositionsPnl')}>
+              <BicolorBarChart
+                data={closed.slice(-7).map((t, idx) => ({
+                  label: `${t.pair.slice(0, 3)}#${idx + 1}`,
+                  value: t.pnl || 0,
+                }))}
+                height={170}
+              />
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
+      {activeTab === 'breakdown' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('winRateBySetup')}>
+              {setupBreakdown.map((st, i) => (
+                <Animated.View key={st.name} entering={FadeIn.delay(i * 60).duration(300)}>
+                  <View style={s.rowBetween}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.boldWhite}>🎯 {st.name}</Text>
+                      <Text style={s.subMuted}>{st.count} trades exécutés</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                        {st.count > 0 ? `${st.winRate.toFixed(1)}% WR` : '—'}
+                      </Text>
+                      <Text style={[s.subMuted, st.pnl >= 0 ? s.greenText : s.redText]}>
+                        {st.count > 0 ? `${st.pnl >= 0 ? '+' : ''}$${st.pnl.toFixed(2)}` : '$0.00'}
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))}
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+            <Card title={t('perfByInstrument')}>
+              {pairBreakdown.map((p, i) => (
+                <Animated.View key={p.name} entering={FadeIn.delay(i * 60).duration(300)}>
+                  <View style={s.rowBetween}>
+                    <View>
+                      <Text style={s.boldWhite}>{p.name}</Text>
+                      <Text style={s.subMuted}>{p.total} trades</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.boldVal, p.winRate >= 50 ? s.greenText : s.redText]}>
+                        {p.winRate.toFixed(1)}% WR
+                      </Text>
+                      <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
+                        {p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))}
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+            <Card title={t('perfByTimeframe')}>
+              {tfBreakdown.map((tf, i) => (
+                <Animated.View key={tf.name} entering={FadeIn.delay(i * 60).duration(300)}>
+                  <View style={s.rowBetween}>
+                    <View>
+                      <Text style={s.boldWhite}>{tf.name}</Text>
+                      <Text style={s.subMuted}>{tf.total} trades</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.boldVal, tf.winRate >= 50 ? s.greenText : s.redText]}>
+                        {tf.winRate.toFixed(1)}% WR
+                      </Text>
+                      <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
+                        {tf.pnl >= 0 ? '+' : ''}$${tf.pnl.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))}
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 5 : TIMING ── */}
+      {activeTab === 'timing' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('hourlyPnlAmplitude')}>
+              {timingBreakdown.length > 0 ? (
+                <BicolorBarChart data={timingBreakdown} height={170} />
+              ) : (
+                <Text style={s.emptyText}>{t('noHourlyData')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 6 : PSYCHOLOGIE ── */}
+      {activeTab === 'psychology' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+            <Card title={t('mentalImpact')}>
+              {mentalBreakdown.map((mb, i) => (
+                <Animated.View key={mb.state} entering={FadeIn.delay(i * 60).duration(300)}>
+                  <View style={s.rowBetween}>
+                    <View>
+                      <Text style={s.boldWhite}>{mb.state}</Text>
+                      <Text style={s.subMuted}>{mb.count} sessions</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[s.boldVal, mb.winRate >= 50 ? s.greenText : s.redText]}>
+                        {mb.winRate.toFixed(0)}% WR
+                      </Text>
+                      <Text style={[s.subMuted, mb.pnl >= 0 ? s.greenText : s.redText]}>
+                        {mb.pnl >= 0 ? '+' : ''}${mb.pnl.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))}
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* ── TAB 7 : PROP FIRM TRACKER ── */}
+      {activeTab === 'propfirm' && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          {/* Status Chips */}
+          <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: 12 }}>
+            <StatusChip
+              icon={propFirmData.profitPct >= 1 ?
+                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: theme.colors.greenLight, fontSize: 10 }}>✓</Text>
+                </View> :
+                <Flame color={theme.colors.gold} size={18} />
+              }
+              label={t('propFirmStatus')}
+              value={propFirmData.profitPct >= 1 ? t('propFirmPassed') : t('propFirmInProgress')}
+              color={propFirmData.profitPct >= 1 ? theme.colors.greenLight : theme.colors.goldLight}
+              theme={theme}
+              delay={0}
+            />
+            <StatusChip
+              icon={<Target color={theme.colors.primaryLight} size={18} />}
+              label={t('totalTrades')}
+              value={`${closed.length}`}
+              color={theme.colors.primaryLight}
+              theme={theme}
+              delay={80}
+            />
+            <StatusChip
+              icon={<Shield color={propFirmData.drawdownPct > 0.9 ? theme.colors.red : theme.colors.cyan} size={18} />}
+              label={t('maxDrawdownKpi')}
+              value={`${(propFirmData.drawdownPct * 100).toFixed(0)}%`}
+              color={propFirmData.drawdownPct > 0.9 ? theme.colors.redLight : theme.colors.cyanLight}
+              theme={theme}
+              delay={160}
+            />
+          </View>
+
+          {/* Progress Rings */}
+          <Animated.View entering={FadeIn.delay(80).duration(350)}>
+            <Card title={t('challengeProgress')}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
+                <ProgressRing
+                  progress={propFirmData.profitPct}
+                  color={theme.colors.green}
+                  label={t('target')}
+                  value={`$${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(0)}`}
+                  theme={theme}
+                  delay={200}
+                />
+                <ProgressRing
+                  progress={1 - propFirmData.drawdownPct}
+                  color={propFirmData.drawdownPct > 0.9 ? theme.colors.red : theme.colors.cyan}
+                  label={t('cap')}
+                  value={`${(propFirmData.drawdownPct * 100).toFixed(0)}%`}
+                  theme={theme}
+                  delay={300}
+                />
+                <ProgressRing
+                  progress={propFirmData.wrPct}
+                  color={theme.colors.primaryLight}
+                  label={t('winRate')}
+                  value={`${winRate.toFixed(0)}%`}
+                  theme={theme}
+                  delay={400}
+                />
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* Progress Bars */}
+          <Animated.View entering={FadeIn.delay(160).duration(350)}>
+            <Card title={t('meters')}>
+              <AnimatedProgressBar label={'📈 ' + t('target')} current={totalPnL} limit={profitTarget} color={theme.colors.green} theme={theme} />
+              <AnimatedProgressBar label={'📉 ' + t('maxDrawdownLabel')} current={maxDrawdown} limit={maxDrawdownLimit} color={theme.colors.red} invert theme={theme} />
+              {propFirmData.dailyLossLimit > 0 && (
+                <AnimatedProgressBar label={'⚡ ' + t('maxLossPerDay')} current={propFirmData.worstDay < 0 ? Math.abs(propFirmData.worstDay) : 0} limit={propFirmData.dailyLossLimit} color={theme.colors.gold} invert theme={theme} />
+              )}
+            </Card>
+          </Animated.View>
+
+          {/* Stats Grid */}
+          <Animated.View entering={FadeIn.delay(240).duration(350)}>
+            <Card title={t('challengeStats')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('bestDay')}</Text>
+                  <Text style={[s.kpiVal, s.greenText]}>+${propFirmData.bestDay.toFixed(2)}</Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('worstDay')}</Text>
+                  <Text style={[s.kpiVal, s.redText]}>${propFirmData.worstDay.toFixed(2)}</Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('maxWinStreak')}</Text>
+                  <Text style={[s.kpiVal, s.greenText]}>🔥 {propFirmData.maxConsecWins}</Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('maxLossStreak')}</Text>
+                  <Text style={[s.kpiVal, s.redText]}>💀 {propFirmData.maxConsecLosses}</Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('tradingDays')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{propFirmData.uniqueDays}</Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('consistencyScore')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>{propFirmData.consistencyPct.toFixed(0)}%</Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* Challenge Parameters */}
+          <Animated.View entering={FadeIn.delay(320).duration(350)}>
+            <Card title={t('challengeParams')}>
+              <View style={s.rowBetween}>
+                <Text style={s.subMuted}>{t('profitTargetLabelStat')}</Text>
+                <Text style={s.boldWhite}>${profitTarget.toLocaleString()}</Text>
+              </View>
+              <View style={s.rowBetween}>
+                <Text style={s.subMuted}>{t('maxDrawdownLimitStat')}</Text>
+                <Text style={s.boldWhite}>${maxDrawdownLimit.toLocaleString()}</Text>
+              </View>
+              <View style={s.rowBetween}>
+                <Text style={s.subMuted}>{t('initialBalanceLabel2')}</Text>
+                <Text style={s.boldWhite}>${initialBalance.toLocaleString()}</Text>
+              </View>
+              {selectedAccount?.max_daily_loss_limit && (
+                <View style={s.rowBetween}>
+                  <Text style={s.subMuted}>{t('maxDailyLossLabel2')}</Text>
+                  <Text style={s.boldWhite}>${selectedAccount.max_daily_loss_limit.toLocaleString()}</Text>
+                </View>
+              )}
+              <View style={s.rowBetween}>
+                <Text style={s.subMuted}>{t('accountTypeLabel2')}</Text>
+                <Text style={[s.boldWhite, { color: theme.colors.primaryLight }]}>
+                  {selectedAccount?.type?.toUpperCase() || 'CHALLENGE'}
+                  {/* @ts-ignore - type is a valid account type */}
+                </Text>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* Drawdown Chart */}
+          <Animated.View entering={FadeIn.delay(400).duration(350)}>
+            <Card title={t('drawdownCurve')}>
+              {drawdownData.length > 0 ? (
+                <GlowingEquityAreaChart
+                  data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
+                  height={160}
+                />
+              ) : (
+                <Text style={s.emptyText}>{t('noDrawdownData')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+        </Animated.View>
       )}
 
       <View style={{ height: 40 }} />
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  redText: { color: '#f87171' },
-});
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
@@ -1133,10 +1017,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.md,
     marginBottom: theme.spacing.sm,
-  },
-  grid3: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
   },
   kpiBox: {
     flex: 1,

@@ -6,57 +6,37 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  FlatList,
-  Dimensions,
 } from 'react-native';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useDailyLock } from '../features/guard/useDailyLock';
 import { usePerformanceMetrics } from '../features/dashboard/usePerformanceMetrics';
 import type { Trade } from '../types/domain';
-import { theme } from '../theme';
+import { useTheme } from '../theme';
+import type { AppTheme } from '../theme';
+import { localeFor, useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { LiveTickerBanner } from '../components/common/LiveTickerBanner';
 
-const chartConfig = {
-  backgroundColor: '#14161f',
-  backgroundGradientFrom: '#181920',
-  backgroundGradientTo: '#101217',
-  decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
-  labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
-  propsForDots: {
-    r: '4',
-    strokeWidth: '2',
-    stroke: '#818cf8',
-  },
-  propsForBackgroundLines: {
-    strokeDasharray: '',
-    stroke: 'rgba(255, 255, 255, 0.05)',
-  },
-};
 import {
   Sparkles,
   Globe,
-  Flame,
-  Target,
-  Zap,
-  TrendingDown,
-  Activity,
-  Brain,
-  Calendar,
-  History,
   ShieldAlert,
   Play,
   Square,
-  CheckSquare,
-  Square as UncheckedBox,
   Share2,
+  Flame,
+  Snowflake,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { ShareCardModal } from '../components/share/ShareCardModal';
+import { ChecklistCard } from '../components/dashboard/ChecklistCard';
+import { formatCurrency } from '../utils/formatCurrency';
+import { KpiCard } from '../components/ui/KpiCard';
+import { StatRow } from '../components/ui/StatRow';
 
 function getMarketSessions(date: Date) {
   const utcHour = date.getUTCHours();
@@ -69,6 +49,9 @@ function getMarketSessions(date: Date) {
 }
 
 export const DashboardScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const { t, lang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { isLocked, lock } = useDailyLock();
@@ -77,23 +60,9 @@ export const DashboardScreen: React.FC = () => {
   const [now, setNow] = useState(new Date());
   const [shareModalVisible, setShareModalVisible] = useState(false);
 
-  // Session timer state
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [sessionElapsed, setSessionElapsed] = useState(0);
-
-  // Pre-session checklist
-  const [activeTabWidget, setActiveTabWidget] = useState<'checklist' | 'ratio'>('checklist');
-  const [checklist, setChecklist] = useState([
-    { id: '1', text: 'Vérifier le calendrier économique (News high impact)', done: false },
-    { id: '2', text: 'Valider le biais H4/H1 & Key Levels', done: false },
-    { id: '3', text: 'Respecter le Stop Loss & Max 1% de risque', done: false },
-    { id: '4', text: 'Pas de revenge trading après 1 perte', done: false },
-  ]);
-
-  const toggleChecklistItem = (id: string) => {
-    setChecklist(prev => prev.map(i => (i.id === id ? { ...i, done: !i.done } : i)));
-  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -129,31 +98,18 @@ export const DashboardScreen: React.FC = () => {
   // Account Health
   const healthStatus = useMemo(() => {
     if (m.maxDrawdown > 12 || m.consistency.alert) {
-      return { label: 'CRITIQUE', color: theme.colors.redLight, bg: 'rgba(239, 68, 68, 0.15)' };
+      return { label: t('healthCritical'), color: theme.colors.redLight, bg: 'rgba(239, 68, 68, 0.15)' };
     }
     if (m.maxDrawdown > 6 || m.winRate < 40) {
-      return { label: 'PRUDENCE', color: theme.colors.goldLight, bg: 'rgba(245, 158, 11, 0.15)' };
+      return { label: t('healthCaution'), color: theme.colors.goldLight, bg: 'rgba(245, 158, 11, 0.15)' };
     }
-    return { label: 'EXCELLENT', color: theme.colors.greenLight, bg: 'rgba(16, 185, 129, 0.15)' };
-  }, [m]);
+    return { label: t('healthExcellent'), color: theme.colors.greenLight, bg: 'rgba(16, 185, 129, 0.15)' };
+  }, [m, t]);
 
   // Today trades count
   const todayTradesCount = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     return trades.filter(t => t.entry_time && t.entry_time.startsWith(todayStr)).length;
-  }, [trades]);
-
-  // Long vs Short distribution
-  const longVsShort = useMemo(() => {
-    const longs = trades.filter(t => t.direction === 'BUY').length;
-    const shorts = trades.filter(t => t.direction === 'SELL').length;
-    const total = longs + shorts || 1;
-    return {
-      longs,
-      shorts,
-      longPct: Math.round((longs / total) * 100),
-      shortPct: Math.round((shorts / total) * 100),
-    };
   }, [trades]);
 
   const isPositive = m.netPnL >= 0;
@@ -176,13 +132,13 @@ export const DashboardScreen: React.FC = () => {
         <View style={styles.heroHeader}>
           <View>
             <View style={styles.flexRow}>
-              <Text style={styles.greetingTitle}>Bons trades, Trader</Text>
+              <Text style={styles.greetingTitle}>{t('greetingTitle')}</Text>
               <Sparkles color={theme.colors.goldLight} size={16} />
             </View>
             <Text style={styles.greetingSub}>
               {todayTradesCount === 0
-                ? "Aucun trade pris aujourd'hui."
-                : `${todayTradesCount} trade(s) exécuté(s) aujourd'hui.`}
+                ? t('greetingNoTrades')
+                : t('greetingTrades', todayTradesCount)}
             </Text>
           </View>
 
@@ -192,8 +148,8 @@ export const DashboardScreen: React.FC = () => {
               onPress={() => setShareModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Share2 size={13} color="#ffffff" />
-              <Text style={styles.shareCardBtnText}>PARTAGER P&L</Text>
+              <Share2 size={13} color={theme.colors.textPrimary} />
+              <Text style={styles.shareCardBtnText}>{t('sharePnl')}</Text>
             </TouchableOpacity>
 
             <View style={[styles.healthBadge, { backgroundColor: healthStatus.bg }]}>
@@ -236,11 +192,16 @@ export const DashboardScreen: React.FC = () => {
             ]}
             onPress={toggleSession}
           >
-            {sessionActive ? <Square color="#ffffff" size={12} /> : <Play color="#ffffff" size={12} />}
+            {sessionActive ? <Square color={theme.colors.textPrimary} size={12} /> : <Play color={theme.colors.textPrimary} size={12} />}
             <Text style={styles.sessionTimerText}>
               {sessionActive ? formatElapsed(sessionElapsed) : 'Session'}
             </Text>
-            {sessionOverLimit && <Text style={styles.alertMini}>⚠️ 4H+</Text>}
+            {sessionOverLimit && (
+              <View style={styles.alertMiniRow}>
+                <AlertTriangle size={10} color={theme.colors.gold} />
+                <Text style={styles.alertMini}>4H+</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -252,7 +213,7 @@ export const DashboardScreen: React.FC = () => {
           <View style={styles.lockContent}>
             <Text style={styles.lockTitle}>SESSION QUOTIDIENNE VERROUILLÉE</Text>
             <Text style={styles.lockDesc}>
-              {lock?.lock_reason || 'Seuil de perte journalière atteint. Aucun trade autorisé jusqu\'à demain.'}
+              {lock?.lock_reason || t('lockReasonFallback')}
             </Text>
           </View>
         </View>
@@ -260,49 +221,41 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 4. KPI SUMMARY CARDS GRID ── */}
       <View style={styles.kpiGrid}>
-        {/* Net P&L */}
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>NET P&L TOTAL</Text>
-          <Text style={[styles.kpiValueLarge, isPositive ? styles.greenText : styles.redText]}>
-            {m.netPnL >= 0 ? '+' : ''}${m.netPnL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </Text>
-          <Text style={styles.kpiSub}>{m.totalTrades} positions</Text>
-        </View>
-
-        {/* Win Rate */}
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>WIN RATE GLOBAL</Text>
-          <Text style={[styles.kpiValueLarge, m.winRate >= 50 ? styles.greenText : styles.redText]}>
-            {m.winRate.toFixed(1)}%
-          </Text>
-          <Text style={styles.kpiSub}>
-            <Text style={styles.greenText}>{m.winCount}W</Text> · <Text style={styles.redText}>{m.lossCount}L</Text>
-          </Text>
-        </View>
+        <KpiCard
+          label={t('netPnlTotal')}
+          value={formatCurrency(m.netPnL, { thousandsSeparator: true })}
+          valueColor={isPositive ? theme.colors.greenLight : theme.colors.redLight}
+          sub={`${m.totalTrades} ${t('positions')}`}
+        />
+        <KpiCard
+          label={t('winRateGlobal')}
+          value={`${m.winRate.toFixed(1)}%`}
+          valueColor={m.winRate >= 50 ? theme.colors.greenLight : theme.colors.redLight}
+          sub={
+            <Text>
+              <Text style={styles.greenText}>{m.winCount}W</Text> · <Text style={styles.redText}>{m.lossCount}L</Text>
+            </Text>
+          }
+        />
       </View>
 
       <View style={styles.kpiGrid}>
-        {/* Profit Factor */}
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>PROFIT FACTOR</Text>
-          <Text style={[styles.kpiValue, { color: theme.colors.primaryLight }]}>
-            {m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
-          </Text>
-          <Text style={styles.kpiSub}>G: ${m.grossProfit.toFixed(0)} · P: ${m.grossLoss.toFixed(0)}</Text>
-        </View>
-
-        {/* Ratio Gain/Perte */}
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>RATIO GAIN/PERTE</Text>
-          <Text style={[styles.kpiValue, { color: theme.colors.cyan }]}>
-            {m.avgLoss !== 0 ? (m.avgWin / m.avgLoss).toFixed(2) : '1.00'}x
-          </Text>
-          <Text style={styles.kpiSub}>+${m.avgWin.toFixed(0)} / -${m.avgLoss.toFixed(0)}</Text>
-        </View>
+        <KpiCard
+          label={t('profitFactor')}
+          value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
+          valueColor={theme.colors.primaryLight}
+          sub={`G: ${formatCurrency(m.grossProfit, { showPlus: false, decimals: 0 })} · P: ${formatCurrency(m.grossLoss, { showPlus: false, decimals: 0 })}`}
+        />
+        <KpiCard
+          label={t('profitLossRatio')}
+          value={`${m.avgLoss !== 0 ? (m.avgWin / m.avgLoss).toFixed(2) : '1.00'}x`}
+          valueColor={theme.colors.cyan}
+          sub={`${formatCurrency(m.avgWin, { decimals: 0 })} / ${formatCurrency(-m.avgLoss, { decimals: 0 })}`}
+        />
       </View>
 
       {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS BICOLORE ── */}
-      <Card title="COURBE D'ÉQUITÉ LIVE">
+      <Card title={t('equityLive')}>
         <GlowingEquityAreaChart
           data={m.equityCurve.length > 0 ? m.equityCurve.map(e => ({ date: e.date, value: e.pnl })) : [{ date: '0', value: 0 }]}
           height={190}
@@ -310,10 +263,10 @@ export const DashboardScreen: React.FC = () => {
       </Card>
 
       {m.dailyPnL.length > 0 && (
-        <Card title="P&L QUOTIDIEN — GAINS (VERT) / PERTES (ROUGE)">
+        <Card title={t('dailyPnl')}>
           <BicolorBarChart
             data={m.dailyPnL.slice(-7).map(d => ({
-              label: d.date.slice(5),
+              label: d.date,
               value: d.pnl,
             }))}
             height={160}
@@ -329,118 +282,64 @@ export const DashboardScreen: React.FC = () => {
             m.streak.type === 'win' ? styles.streakWin : styles.streakLoss,
           ]}
         >
-          <Text style={styles.streakEmoji}>{m.streak.type === 'win' ? '🔥' : '❄️'}</Text>
+          <View style={styles.streakIconWrap}>
+            {m.streak.type === 'win' ? (
+              <Flame size={18} color={theme.colors.gold} />
+            ) : (
+              <Snowflake size={18} color={theme.colors.cyan} />
+            )}
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.streakTitle}>
-              {m.streak.type === 'win' ? 'WIN STREAK' : 'LOSS STREAK'}
+              {m.streak.type === 'win' ? t('winStreak') : t('lossStreak')}
             </Text>
             <Text style={[styles.streakCount, m.streak.type === 'win' ? styles.goldText : styles.redText]}>
-              {m.streak.current} <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>jours consécutifs</Text>
+              {m.streak.current} <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>{t('consecutiveDays')}</Text>
             </Text>
           </View>
           {m.streak.best > 0 && (
-            <Badge label={`RECORD: ${m.streak.best}J`} variant="gold" />
+            <Badge label={t('recordDays', m.streak.best)} variant="gold" />
           )}
         </View>
       )}
 
-      {/* ── 6. MULTI-TAB WIDGET (CHECKLIST & LONG VS SHORT) ── */}
-      <Card title="DISCIPLINE & RATIO DE SESSION">
-        <View style={styles.tabHeaders}>
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTabWidget === 'checklist' && styles.tabBtnActive]}
-            onPress={() => setActiveTabWidget('checklist')}
-          >
-            <Text style={[styles.tabBtnText, activeTabWidget === 'checklist' && styles.tabBtnTextActive]}>
-              Checklist Pré-Session
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTabWidget === 'ratio' && styles.tabBtnActive]}
-            onPress={() => setActiveTabWidget('ratio')}
-          >
-            <Text style={[styles.tabBtnText, activeTabWidget === 'ratio' && styles.tabBtnTextActive]}>
-              Long vs Short
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeTabWidget === 'checklist' ? (
-          <View style={styles.checklistGroup}>
-            {checklist.map(item => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.checkItem}
-                onPress={() => toggleChecklistItem(item.id)}
-              >
-                {item.done ? (
-                  <CheckSquare color={theme.colors.primaryLight} size={18} />
-                ) : (
-                  <UncheckedBox color={theme.colors.textMuted} size={18} />
-                )}
-                <Text style={[styles.checkLabel, item.done && styles.checkDone]}>
-                  {item.text}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.ratioContainer}>
-            <View style={styles.ratioHeader}>
-              <Text style={styles.greenText}>BUY / LONG ({longVsShort.longs})</Text>
-              <Text style={{ color: theme.colors.primaryLight }}>SELL / SHORT ({longVsShort.shorts})</Text>
-            </View>
-            <View style={styles.ratioTrack}>
-              <View style={[styles.ratioBarLong, { width: `${longVsShort.longPct}%` }]} />
-              <View style={[styles.ratioBarShort, { width: `${longVsShort.shortPct}%` }]} />
-            </View>
-            <View style={styles.ratioHeader}>
-              <Text style={styles.ratioSub}>{longVsShort.longPct}% Longs</Text>
-              <Text style={styles.ratioSub}>{longVsShort.shortPct}% Shorts</Text>
-            </View>
-          </View>
-        )}
-      </Card>
+      {/* ── 6. CHECKLIST PRÉ-SESSION (PERSONNALISABLE & SYNCHRONISÉE) ── */}
+      <ChecklistCard />
 
       {/* ── 7. DETAILED METRICS BREAKDOWN ── */}
-      <Card title="DÉTAIL DES MÉTRIQUES FINANCIÈRES">
-        <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Meilleur Trade</Text>
-          <Text style={[styles.breakdownVal, styles.greenText]}>
-            {m.bestTrade?.pnl ? `+$${m.bestTrade.pnl.toFixed(2)}` : '—'}
-          </Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Pire Trade</Text>
-          <Text style={[styles.breakdownVal, styles.redText]}>
-            {m.worstTrade?.pnl ? `$${m.worstTrade.pnl.toFixed(2)}` : '—'}
-          </Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>R-Multiple Moyen</Text>
-          <Text style={[styles.breakdownVal, m.avgRMultiple >= 0 ? styles.greenText : styles.redText]}>
-            {m.avgRMultiple >= 0 ? '+' : ''}{m.avgRMultiple.toFixed(2)} R
-          </Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Consistency Score</Text>
-          <Text style={[styles.breakdownVal, m.consistency.alert ? styles.redText : styles.greenText]}>
-            {m.consistency.score.toFixed(1)}% {m.consistency.alert ? '⚠️ >15%' : '✓ Conforme'}
-          </Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.breakdownLabel}>Max Drawdown</Text>
-          <Text style={[styles.breakdownVal, styles.redText]}>
-            -${m.maxDrawdown.toFixed(2)}
-          </Text>
-        </View>
+      <Card title={t('financialMetrics')}>
+        <StatRow
+          label={t('bestTrade')}
+          value={m.bestTrade?.pnl ? formatCurrency(m.bestTrade.pnl) : '—'}
+          valueColor={theme.colors.greenLight}
+        />
+        <StatRow
+          label={t('worstTrade')}
+          value={m.worstTrade?.pnl ? formatCurrency(m.worstTrade.pnl) : '—'}
+          valueColor={theme.colors.redLight}
+        />
+        <StatRow
+          label={t('avgRMultiple')}
+          value={`${m.avgRMultiple >= 0 ? '+' : ''}${m.avgRMultiple.toFixed(2)} R`}
+          valueColor={m.avgRMultiple >= 0 ? theme.colors.greenLight : theme.colors.redLight}
+        />
+        <StatRow
+          label={t('consistencyScoreKpi')}
+          value={`${m.consistency.score.toFixed(1)}% ${m.consistency.alert ? '>15%' : t('conform')}`}
+          valueColor={m.consistency.alert ? theme.colors.redLight : theme.colors.greenLight}
+        />
+        <StatRow
+          label={t('maxDrawdownLabel')}
+          value={formatCurrency(-m.maxDrawdown)}
+          valueColor={theme.colors.redLight}
+          showBorder={false}
+        />
       </Card>
 
       {/* ── 8. PERFORMANCE MENSUELLE (100% PARITÉ WEB) ── */}
-      <Card title="PERFORMANCE MENSUELLE">
+      <Card title={t('monthlyPerformance')}>
         {m.monthlyPerformance.length === 0 ? (
-          <Text style={styles.emptyText}>Aucune donnée mensuelle disponible.</Text>
+          <Text style={styles.emptyText}>{t('noDataAvailable')}</Text>
         ) : (
           <BicolorBarChart
             data={m.monthlyPerformance.map(e => ({
@@ -453,9 +352,9 @@ export const DashboardScreen: React.FC = () => {
       </Card>
 
       {/* ── 9. RECENT TRADES SECTION ── */}
-      <Card title="DERNIERS TRADES EXÉCUTÉS">
+      <Card title={t('lastTrades')}>
         {m.recentTrades.length === 0 ? (
-          <Text style={styles.emptyText}>Aucun trade récent enregistré.</Text>
+          <Text style={styles.emptyText}>{t('noRecentTrades')}</Text>
         ) : (
           m.recentTrades.map((t: Trade) => (
             <View key={t.id} style={styles.recentRow}>
@@ -465,13 +364,13 @@ export const DashboardScreen: React.FC = () => {
                   <Badge label={t.direction} variant={t.direction === 'BUY' ? 'blue' : 'gold'} />
                 </View>
                 <Text style={styles.recentDate}>
-                  {new Date(t.entry_time).toLocaleDateString('fr-FR')} {new Date(t.entry_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(t.entry_time).toLocaleDateString(localeFor(lang))} {new Date(t.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
 
               <View style={styles.alignRight}>
                 <Text style={[styles.recentPnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
-                  {t.pnl !== null ? `${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}` : 'OPEN'}
+                  {t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN'}
                 </Text>
                 <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} />
               </View>
@@ -491,7 +390,7 @@ export const DashboardScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -502,15 +401,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
   },
   shareCardBtnText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   center: {
@@ -533,7 +432,7 @@ const styles = StyleSheet.create({
   tickerLabel: {
     color: theme.colors.primaryLight,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
     marginRight: theme.spacing.sm,
   },
@@ -549,9 +448,9 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
   },
   tickerPair: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   tickerBuy: {
     color: theme.colors.primaryLight,
@@ -583,14 +482,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   greetingTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 17,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     marginRight: 6,
   },
   greetingSub: {
     color: theme.colors.textSecondary,
     fontSize: 11,
+    fontFamily: theme.fonts.sansMedium,
     marginTop: 2,
   },
   healthBadge: {
@@ -600,7 +500,7 @@ const styles = StyleSheet.create({
   },
   healthText: {
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   sessionsRow: {
@@ -627,12 +527,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16, 185, 129, 0.4)',
   },
   sessionClosed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.cardBorder,
   },
   sessionText: {
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   sessionTextOpen: {
     color: theme.colors.greenLight,
@@ -660,15 +560,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   sessionTimerText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
+  alertMiniRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
   alertMini: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   lockBanner: {
     flexDirection: 'row',
@@ -687,11 +592,12 @@ const styles = StyleSheet.create({
   lockTitle: {
     color: theme.colors.redLight,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
   },
   lockDesc: {
     color: theme.colors.textSecondary,
     fontSize: 10,
+    fontFamily: theme.fonts.sans,
     marginTop: 2,
   },
   kpiGrid: {
@@ -710,25 +616,26 @@ const styles = StyleSheet.create({
   kpiLabel: {
     color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
     marginBottom: 4,
   },
   kpiValueLarge: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 20,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
   },
   kpiValue: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 17,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
   },
   kpiSub: {
     color: theme.colors.textMuted,
     fontSize: 10,
+    fontFamily: theme.fonts.sansMedium,
     marginTop: 4,
   },
   greenText: {
@@ -757,18 +664,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
     borderColor: 'rgba(239, 68, 68, 0.35)',
   },
-  streakEmoji: {
-    fontSize: 24,
+  streakIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
   },
   streakTitle: {
     color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
   },
   streakCount: {
     fontSize: 18,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
   },
   tabHeaders: {
@@ -792,44 +705,10 @@ const styles = StyleSheet.create({
   tabBtnText: {
     color: theme.colors.textMuted,
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoBold,
   },
   tabBtnTextActive: {
     color: theme.colors.primaryLight,
-  },
-  checklistGroup: {
-    gap: theme.spacing.sm,
-  },
-  checkItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: 4,
-  },
-  checkLabel: {
-    color: theme.colors.textPrimary,
-    fontSize: 12,
-    flex: 1,
-  },
-  checkDone: {
-    color: theme.colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  ratioContainer: {
-    paddingVertical: theme.spacing.xs,
-  },
-  ratioHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  ratioTrack: {
-    height: 10,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 5,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    marginBottom: 6,
   },
   ratioBarLong: {
     backgroundColor: theme.colors.green,
@@ -842,6 +721,7 @@ const styles = StyleSheet.create({
   ratioSub: {
     color: theme.colors.textMuted,
     fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -853,10 +733,11 @@ const styles = StyleSheet.create({
   breakdownLabel: {
     color: theme.colors.textSecondary,
     fontSize: 12,
+    fontFamily: theme.fonts.sansMedium,
   },
   breakdownVal: {
     fontSize: 13,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   recentRow: {
@@ -868,24 +749,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   recentPair: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
     marginRight: theme.spacing.sm,
   },
   recentDate: {
     color: theme.colors.textMuted,
     fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   recentPnl: {
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   emptyText: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontFamily: theme.fonts.sans,
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: theme.spacing.md,
