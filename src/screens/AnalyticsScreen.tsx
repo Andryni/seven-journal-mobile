@@ -577,6 +577,69 @@ export const AnalyticsScreen: React.FC = () => {
     };
   }, [closed, totalPnL, profitTarget, maxDrawdownLimit, winRate, selectedAccount]);
 
+  // 12. DRAWDOWN PROJECTION
+  const ddProjection = useMemo(() => {
+    const dayMap: Record<string, number> = {};
+    closed.forEach(t => {
+      const day = new Date(t.entry_time).toISOString().split('T')[0];
+      dayMap[day] = (dayMap[day] || 0) + (t.pnl || 0);
+    });
+    const dayPnls = Object.values(dayMap);
+    const uniqueDays = dayPnls.length;
+
+    // Calculate running daily drawdown
+    let cumDd = 0;
+    let peakDd = 0;
+    const dailyDds = dayPnls.map(pnl => {
+      cumDd += pnl;
+      if (cumDd > peakDd) peakDd = cumDd;
+      return peakDd - cumDd;
+    });
+
+    const avgDailyDd = dailyDds.length > 0 ? dailyDds.reduce((s, v) => s + v, 0) / dailyDds.length : 0;
+    const remainingDd = Math.max(0, maxDrawdownLimit - maxDrawdown);
+    const daysUntilMaxDd = avgDailyDd > 0 ? Math.floor(remainingDd / avgDailyDd) : 999;
+
+    const ddLevel = daysUntilMaxDd > 20 ? 'safe' : daysUntilMaxDd > 7 ? 'warning' : 'danger';
+
+    return { avgDailyDd, remainingDd, daysUntilMaxDd, ddLevel };
+  }, [closed, maxDrawdown, maxDrawdownLimit]);
+
+  // 13. CONSISTENCY TRACKER (daily PnL contribution as % of total)
+  const consistencyData = useMemo(() => {
+    const dayMap: Record<string, number> = {};
+    closed.forEach(t => {
+      const day = new Date(t.entry_time).toISOString().split('T')[0];
+      dayMap[day] = (dayMap[day] || 0) + (t.pnl || 0);
+    });
+    const dayPnls = Object.entries(dayMap).map(([date, pnl]) => ({ date, pnl })).sort((a, b) => a.date.localeCompare(b.date));
+    const totalAbs = dayPnls.reduce((s, d) => s + Math.abs(d.pnl), 0);
+    const maxDayPnl = dayPnls.length > 0 ? Math.max(...dayPnls.map(d => d.pnl)) : 0;
+    const consistencyRule = selectedAccount?.consistency_rule_percent || 15;
+    const maxDayContrib = totalAbs > 0 ? (maxDayPnl / totalAbs) * 100 : 0;
+    const isCompliant = maxDayContrib <= consistencyRule;
+
+    const dailyContributions = dayPnls.map(d => ({
+      date: formatShortDate(new Date(d.date + 'T12:00:00Z')),
+      pct: totalAbs > 0 ? (d.pnl / totalAbs) * 100 : 0,
+      pnl: d.pnl,
+    }));
+
+    return { consistencyRule, maxDayContrib, isCompliant, dailyContributions };
+  }, [closed, selectedAccount]);
+
+  // 14. CHALLENGE COUNTDOWN
+  const challengeCountdown = useMemo(() => {
+    const endDateStr = (selectedAccount as any)?.challenge_end_date;
+    if (!endDateStr) return null;
+    const endDate = new Date(endDateStr);
+    if (isNaN(endDate.getTime())) return null;
+    const now = new Date();
+    const diffMs = endDate.getTime() - now.getTime();
+    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return { daysLeft, isExpired: daysLeft <= 0, endDate };
+  }, [selectedAccount]);
+
   if (tradesLoading || accountsLoading || setupsLoading) {
     return (
       <View style={s.center}>
@@ -1163,8 +1226,109 @@ export const AnalyticsScreen: React.FC = () => {
             </Card>
           </Animated.View>
 
+          {/* Challenge Countdown */}
+          {challengeCountdown && (
+            <Animated.View entering={FadeIn.delay(400).duration(350)}>
+              <Card title={t('challengeCountdown')}>
+                <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                  <View style={{
+                    width: 90, height: 90, borderRadius: 45,
+                    borderWidth: 3,
+                    borderColor: challengeCountdown.isExpired ? theme.colors.red : challengeCountdown.daysLeft <= 7 ? theme.colors.goldLight : theme.colors.green,
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: challengeCountdown.isExpired ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                  }}>
+                    <Text style={{
+                      fontSize: 28, fontWeight: '900',
+                      color: challengeCountdown.isExpired ? theme.colors.red : challengeCountdown.daysLeft <= 7 ? theme.colors.goldLight : theme.colors.green,
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                      {challengeCountdown.isExpired ? '0' : challengeCountdown.daysLeft}
+                    </Text>
+                  </View>
+                  <Text style={{
+                    marginTop: 8, fontSize: 12, fontWeight: '800',
+                    color: challengeCountdown.isExpired ? theme.colors.redLight : theme.colors.textPrimary,
+                    letterSpacing: 0.8,
+                  }}>
+                    {challengeCountdown.isExpired ? t('challengeExpired') : t('daysRemaining')}
+                  </Text>
+                  <Text style={{ marginTop: 4, fontSize: 10, color: theme.colors.textMuted, fontFamily: theme.fonts.monoBold }}>
+                    {challengeCountdown.endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </Text>
+                </View>
+              </Card>
+            </Animated.View>
+          )}
+
+          {/* Drawdown Projection */}
+          <Animated.View entering={FadeIn.delay(450).duration(350)}>
+            <Card title={t('drawdownProjection')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('projectionDaysLeft')}</Text>
+                  <Text style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText]}>
+                    {ddProjection.daysUntilMaxDd >= 999 ? '∞' : `${ddProjection.daysUntilMaxDd}J`}
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('projectionAvgDailyDD')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>-${ddProjection.avgDailyDd.toFixed(2)}</Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('maxDrawdownLabel')} restant</Text>
+                  <Text style={[s.kpiVal, s.redText]}>-${ddProjection.remainingDd.toFixed(2)}</Text>
+                </View>
+                <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(16, 185, 129, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)' }]}>
+                  <Text style={s.kpiLabel}>STATUS</Text>
+                  <Text style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText, { fontSize: 11 }]}>
+                    {ddProjection.ddLevel === 'safe' ? t('projectionSafe') : ddProjection.ddLevel === 'warning' ? t('projectionWarning') : t('projectionDanger')}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* Consistency Tracker */}
+          <Animated.View entering={FadeIn.delay(500).duration(350)}>
+            <Card title={t('consistencyTracker')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('consistencyRule')}</Text>
+                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>{consistencyData.consistencyRule}%</Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('consistencyMaxDay')}</Text>
+                  <Text style={[s.kpiVal, consistencyData.isCompliant ? s.greenText : s.redText]}>{consistencyData.maxDayContrib.toFixed(1)}%</Text>
+                </View>
+              </View>
+              <View style={{
+                marginTop: 8, marginBottom: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+                backgroundColor: consistencyData.isCompliant ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                borderWidth: 1, borderColor: consistencyData.isCompliant ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                alignItems: 'center',
+              }}>
+                <Text style={{ color: consistencyData.isCompliant ? theme.colors.greenLight : theme.colors.redLight, fontSize: 12, fontWeight: '800' }}>
+                  {consistencyData.isCompliant ? t('consistencyCompliant') : t('consistencyViolation')}
+                </Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 9, marginTop: 2 }}>
+                  {t('dailyPnlContrib')}: {consistencyData.maxDayContrib.toFixed(1)}% / {consistencyData.consistencyRule}%
+                </Text>
+              </View>
+              {/* Mini bar chart of daily contributions */}
+              {consistencyData.dailyContributions.length > 0 && (
+                <BicolorBarChart
+                  data={consistencyData.dailyContributions.map(d => ({ label: d.date, value: d.pct }))}
+                  height={140}
+                />
+              )}
+            </Card>
+          </Animated.View>
+
           {/* Drawdown Chart */}
-          <Animated.View entering={FadeIn.delay(400).duration(350)}>
+          <Animated.View entering={FadeIn.delay(550).duration(350)}>
             <Card title={t('drawdownCurve')}>
               {drawdownData.length > 0 ? (
                 <GlowingEquityAreaChart

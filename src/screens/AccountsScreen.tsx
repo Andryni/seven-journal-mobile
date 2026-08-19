@@ -66,6 +66,7 @@ export const AccountsScreen: React.FC = () => {
   const [maxDrawdownLimit, setMaxDrawdownLimit] = useState('10000');
   const [drawdownType, setDrawdownType] = useState<'static' | 'trailing'>('static');
   const [consistencyRulePercent, setConsistencyRulePercent] = useState('15');
+  const [challengeEndDate, setChallengeEndDate] = useState('');
 
   const openAddModal = () => {
     setEditingAcc(null);
@@ -80,6 +81,7 @@ export const AccountsScreen: React.FC = () => {
     setMaxDrawdownLimit('10000');
     setDrawdownType('static');
     setConsistencyRulePercent('15');
+    setChallengeEndDate('');
     setModalVisible(true);
   };
 
@@ -95,6 +97,7 @@ export const AccountsScreen: React.FC = () => {
     setMaxDrawdownLimit(acc.max_drawdown_limit ? acc.max_drawdown_limit.toString() : '');
     setDrawdownType((acc as any).drawdown_type || 'static');
     setConsistencyRulePercent((acc as any).consistency_rule_percent ? (acc as any).consistency_rule_percent.toString() : '15');
+    setChallengeEndDate((acc as any).challenge_end_date || '');
     setInstrumentType((acc as any).instrument_type || 'CFD');
     setModalVisible(true);
   };
@@ -118,6 +121,7 @@ export const AccountsScreen: React.FC = () => {
       drawdown_type: drawdownType,
       consistency_rule_percent: consistencyRulePercent ? Number(consistencyRulePercent) : null,
       instrument_type: instrumentType,
+      challenge_end_date: challengeEndDate || null,
     };
 
     if (editingAcc) {
@@ -535,6 +539,15 @@ export const AccountsScreen: React.FC = () => {
                     value={consistencyRulePercent}
                     onChangeText={setConsistencyRulePercent}
                     keyboardType="numeric"
+                  />
+
+                  <Text style={styles.fieldLabel}>{t('challengeEndDateLabel')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={challengeEndDate}
+                    onChangeText={setChallengeEndDate}
                   />
                 </View>
               )}

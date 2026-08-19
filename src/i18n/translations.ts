@@ -416,6 +416,26 @@ export const translations = {
     avgHoldingTime: 'Durée moy.',
     winRateInPeriod: 'WR période',
 
+    // Prop Firm Sprint 3
+    challengeEndDateLabel: 'Date de fin du challenge',
+    challengeCountdown: 'COUNTDOWN',
+    daysRemaining: 'jours restants',
+    challengeExpired: 'EXPIRÉ',
+    challengeActive: 'EN COURS',
+    drawdownProjection: 'PROJECTION DRAWDOWN',
+    projectionDaysLeft: 'Jours avant DD max',
+    projectionAvgDailyDD: 'DD moyen / jour',
+    projectionSafe: '✓ MARGE SÛRE',
+    projectionWarning: '⚠ ATTENTION',
+    projectionDanger: '🚨 DANGER',
+    consistencyTracker: 'TRACKER DE CONSISTANCE',
+    consistencyRule: 'Règle',
+    consistencyCurrent: 'Actuel',
+    consistencyMaxDay: 'Jour max',
+    consistencyCompliant: '✓ Conforme',
+    consistencyViolation: '✗ Violation',
+    dailyPnlContrib: 'Contribution journalière (%)',
+
     // Auth
     emailLabel: 'ADRESSE EMAIL',
     emailPlaceholder: 'trader@seven.com',
@@ -895,6 +915,26 @@ export const translations = {
     tradesInPeriod: 'trades in period',
     avgHoldingTime: 'Avg hold',
     winRateInPeriod: 'WR period',
+
+    // Prop Firm Sprint 3
+    challengeEndDateLabel: 'Challenge end date',
+    challengeCountdown: 'COUNTDOWN',
+    daysRemaining: 'days remaining',
+    challengeExpired: 'EXPIRED',
+    challengeActive: 'IN PROGRESS',
+    drawdownProjection: 'DRAWDOWN PROJECTION',
+    projectionDaysLeft: 'Days before max DD',
+    projectionAvgDailyDD: 'Avg DD / day',
+    projectionSafe: '✓ SAFE MARGIN',
+    projectionWarning: '⚠ WARNING',
+    projectionDanger: '🚨 DANGER',
+    consistencyTracker: 'CONSISTENCY TRACKER',
+    consistencyRule: 'Rule',
+    consistencyCurrent: 'Current',
+    consistencyMaxDay: 'Max day',
+    consistencyCompliant: '✓ Compliant',
+    consistencyViolation: '✗ Violation',
+    dailyPnlContrib: 'Daily P&L contribution (%)',
 
     // Auth
     emailLabel: 'EMAIL ADDRESS',

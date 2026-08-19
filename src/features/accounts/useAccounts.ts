@@ -49,6 +49,9 @@ export function useAccounts() {
       if ((newAccount as any).instrument_type) {
         payload.instrument_type = (newAccount as any).instrument_type;
       }
+      if ((newAccount as any).challenge_end_date) {
+        payload.challenge_end_date = (newAccount as any).challenge_end_date;
+      }
 
       const { data, error } = await supabase
         .from('trading_accounts')
