@@ -104,20 +104,27 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
         };
       });
 
-    const dailyMap: Record<string, number> = {};
+    // Use ISO date keys for chronological sorting, then format for display
+    const dailyMapISO: Record<string, { pnl: number; isoKey: string }> = {};
     closedTrades.forEach((t) => {
       const timeStr = t.entry_time || t.exit_time;
       if (timeStr) {
         const d = new Date(timeStr);
         if (!isNaN(d.getTime())) {
-          const dateKey = formatShortDate(d);
-          dailyMap[dateKey] = (dailyMap[dateKey] || 0) + (t.pnl || 0);
+          const isoKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (!dailyMapISO[isoKey]) {
+            dailyMapISO[isoKey] = { pnl: 0, isoKey };
+          }
+          dailyMapISO[isoKey].pnl += (t.pnl || 0);
         }
       }
     });
-    const dailyPnL = Object.entries(dailyMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, pnl]) => ({ date, pnl: Number(pnl.toFixed(2)) }));
+    const dailyPnL = Object.values(dailyMapISO)
+      .sort((a, b) => a.isoKey.localeCompare(b.isoKey))
+      .map((entry) => ({
+        date: formatShortDate(new Date(entry.isoKey + 'T12:00:00Z')),
+        pnl: Number(entry.pnl.toFixed(2)),
+      }));
 
     const greenDays = dailyPnL.filter(d => d.pnl > 0).length;
     const dayWinRate = dailyPnL.length > 0 ? (greenDays / dailyPnL.length) * 100 : 0;

@@ -265,7 +265,7 @@ export const DashboardScreen: React.FC = () => {
       {m.dailyPnL.length > 0 && (
         <Card title={t('dailyPnl')}>
           <BicolorBarChart
-            data={m.dailyPnL.slice(-7).map(d => ({
+            data={m.dailyPnL.map(d => ({
               label: d.date,
               value: d.pnl,
             }))}

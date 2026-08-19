@@ -9,7 +9,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Alert,
+  RefreshControl,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useTrades } from '../features/trades/useTrades';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -37,8 +40,10 @@ export const AccountsScreen: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const queryClient = useQueryClient();
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
   const { trades } = useTrades();
+  const [refreshing, setRefreshing] = useState(false);
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
   const setActiveAccountId = useUIStore((state: { setActiveAccountId: (id: string | null) => void }) => state.setActiveAccountId);
 
@@ -123,8 +128,22 @@ export const AccountsScreen: React.FC = () => {
     setModalVisible(false);
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteAccount(id);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+    await queryClient.invalidateQueries({ queryKey: ['trades'] });
+    setRefreshing(false);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      t('confirmTitle'),
+      t('confirmDeleteAccount'),
+      [
+        { text: t('confirmNo'), style: 'cancel' },
+        { text: t('confirmYes'), style: 'destructive', onPress: async () => { await deleteAccount(id); } },
+      ],
+    );
   };
 
   const renderAccountItem = ({ item }: { item: TradingAccount }) => {
@@ -311,6 +330,7 @@ export const AccountsScreen: React.FC = () => {
         renderItem={renderAccountItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} colors={[theme.colors.primary]} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Wallet size={36} color={theme.colors.textDark} />

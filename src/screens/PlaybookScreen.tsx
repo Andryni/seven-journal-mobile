@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { formatCurrency } from '../utils/formatCurrency';
@@ -192,11 +193,24 @@ export const PlaybookScreen: React.FC = () => {
     setRulesFollowed(d.rules_followed || []);
   };
 
-  const handleDeleteDebrief = async (id: string) => {
-    await deleteDebrief(id);
-    if (editingDebriefId === id) {
-      setEditingDebriefId(null);
-    }
+  const handleDeleteDebrief = (id: string) => {
+    Alert.alert(
+      t('confirmTitle'),
+      t('confirmDeleteDebrief'),
+      [
+        { text: t('confirmNo'), style: 'cancel' },
+        {
+          text: t('confirmYes'),
+          style: 'destructive',
+          onPress: async () => {
+            await deleteDebrief(id);
+            if (editingDebriefId === id) {
+              setEditingDebriefId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   // Real Trade Stats per Setup (100% fidélité à la version web)

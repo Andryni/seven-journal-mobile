@@ -7,26 +7,43 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
-import { theme } from '../theme';
+import { formatCurrency } from '../utils/formatCurrency';
+import { useTheme } from '../theme';
+import type { AppTheme } from '../theme';
+import { localeFor, useT } from '../i18n';
 import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
-import { Plus, Search, Filter, ArrowUpRight, ArrowDownRight, TrendingUp } from 'lucide-react-native';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, TrendingUp } from 'lucide-react-native';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
 export const TradesScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const { t, lang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const queryClient = useQueryClient();
   const { trades, deleteTrade, isLoading } = useTrades();
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['trades'] });
+    setRefreshing(false);
+  };
 
   const handleAddTrade = () => {
     setSelectedTrade(null);
@@ -43,8 +60,15 @@ export const TradesScreen: React.FC = () => {
     setFormModalVisible(true);
   };
 
-  const handleDeleteTrade = async (id: string) => {
-    await deleteTrade(id);
+  const handleDeleteTrade = (id: string) => {
+    Alert.alert(
+      t('confirmTitle'),
+      t('confirmDeleteTrade'),
+      [
+        { text: t('confirmNo'), style: 'cancel' },
+        { text: t('confirmYes'), style: 'destructive', onPress: async () => { await deleteTrade(id); } },
+      ],
+    );
   };
 
   // Filtered & Searched Trades
@@ -106,7 +130,7 @@ export const TradesScreen: React.FC = () => {
                 variant={item.direction === 'BUY' ? 'green' : 'blue'}
                 size="sm"
               />
-              <Text style={styles.lotText}>{item.size || 1} lots</Text>
+              <Text style={styles.lotText}>{item.size || 1} {t('lots')}</Text>
             </View>
 
             <View style={styles.pnlWrap}>
@@ -118,7 +142,7 @@ export const TradesScreen: React.FC = () => {
                   isOpen && styles.openPnl,
                 ]}
               >
-                {!isOpen ? `${item.pnl! >= 0 ? '+' : ''}$${item.pnl!.toFixed(2)}` : 'EN COURS'}
+                {!isOpen ? formatCurrency(item.pnl!) : t('openTradeStatus')}
               </Text>
               {isWin ? (
                 <ArrowUpRight size={14} color={theme.colors.greenLight} />
@@ -135,7 +159,7 @@ export const TradesScreen: React.FC = () => {
                 ? item.setup_structures.join(' · ')
                 : item.timeframe
                 ? `TF : ${item.timeframe}`
-                : 'Setup Standard'}
+                : t('setupStandard')}
             </Text>
             {item.r_multiple !== null && (
               <Badge
@@ -149,7 +173,7 @@ export const TradesScreen: React.FC = () => {
           {/* Footer: Date & Result */}
           <View style={styles.tradeFooter}>
             <Text style={styles.dateText}>
-              {new Date(item.entry_time).toLocaleDateString('fr-FR')} · {new Date(item.entry_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(item.entry_time).toLocaleDateString(localeFor(lang))} · {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
             </Text>
             <Badge
               label={item.result || (isOpen ? 'OPEN' : 'CLOSED')}
@@ -175,18 +199,18 @@ export const TradesScreen: React.FC = () => {
       {/* ── 1. SCREEN HEADER ── */}
       <View style={styles.screenHeader}>
         <View>
-          <Text style={styles.screenTitle}>JOURNAL DES POSITIONS</Text>
-          <Text style={styles.screenSubtitle}>Registre quantitatif & exécutions</Text>
+          <Text style={styles.screenTitle}>{t('screenTitleTrades')}</Text>
+          <Text style={styles.screenSubtitle}>{t('screenSubtitleTrades')}</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={handleAddTrade} activeOpacity={0.8}>
           <LinearGradient
-            colors={['#6366f1', '#4f46e5']}
+            colors={[theme.colors.primary, theme.colors.primaryDeep]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.addBtnGrad}
           >
-            <Plus color="#ffffff" size={16} />
-            <Text style={styles.addBtnText}>NOUVEAU</Text>
+            <Plus color={theme.colors.textPrimary} size={16} />
+            <Text style={styles.addBtnText}>{t('newTradeBtn')}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -194,21 +218,21 @@ export const TradesScreen: React.FC = () => {
       {/* ── 2. QUICK STATS SUMMARY STRIP ── */}
       <View style={styles.summaryBar}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>TRADES</Text>
+          <Text style={styles.summaryLabel}>{t('tradesCount')}</Text>
           <Text style={styles.summaryVal}>{stats.count}</Text>
         </View>
         <View style={styles.dividerV} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>WIN RATE</Text>
+          <Text style={styles.summaryLabel}>{t('winRate')}</Text>
           <Text style={[styles.summaryVal, stats.wr >= 50 ? styles.greenText : styles.redText]}>
             {stats.wr.toFixed(1)}%
           </Text>
         </View>
         <View style={styles.dividerV} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>NET P&L</Text>
+          <Text style={styles.summaryLabel}>{t('netPnl')}</Text>
           <Text style={[styles.summaryVal, stats.totalPnl >= 0 ? styles.greenText : styles.redText]}>
-            {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toFixed(2)}
+            {formatCurrency(stats.totalPnl)}
           </Text>
         </View>
       </View>
@@ -218,7 +242,7 @@ export const TradesScreen: React.FC = () => {
         <Search size={14} color={theme.colors.textMuted} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Rechercher par actif (XAUUSD, NAS100...)..."
+          placeholder={t('searchPlaceholder')}
           placeholderTextColor={theme.colors.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -235,7 +259,7 @@ export const TradesScreen: React.FC = () => {
               onPress={() => setActiveFilter(f)}
             >
               <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-                {f === 'ALL' ? 'TOUS' : f === 'WIN' ? 'GAINS (TP)' : f === 'LOSS' ? 'PERTES (SL)' : 'EN COURS'}
+                {f === 'ALL' ? t('filterAll') : f === 'WIN' ? t('filterWin') : f === 'LOSS' ? t('filterLoss') : t('filterOpen')}
               </Text>
             </TouchableOpacity>
           );
@@ -249,12 +273,13 @@ export const TradesScreen: React.FC = () => {
         renderItem={renderTradeItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} colors={[theme.colors.primary]} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <TrendingUp size={36} color={theme.colors.textDark} />
-            <Text style={styles.emptyTitle}>Aucune position trouvée</Text>
+            <Text style={styles.emptyTitle}>{t('noPositionFound')}</Text>
             <Text style={styles.emptySub}>
-              {searchQuery ? 'Modifiez votre recherche.' : 'Ajoutez votre premier trade !'}
+              {searchQuery ? t('modifySearch') : t('addFirstTrade')}
             </Text>
           </View>
         }
@@ -272,13 +297,13 @@ export const TradesScreen: React.FC = () => {
         trade={selectedTrade}
         onClose={() => setDetailModalVisible(false)}
         onEdit={handleEditTrade}
-        onDelete={handleDeleteTrade}
+        onDelete={(id: string) => handleDeleteTrade(id)}
       />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -298,15 +323,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1.2,
   },
   screenSubtitle: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   addBtn: {
@@ -321,15 +346,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   addBtnText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
   },
   summaryBar: {
     flexDirection: 'row',
-    backgroundColor: '#12141c',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: theme.borderRadius.md,
     paddingVertical: 10,
@@ -345,27 +370,27 @@ const styles = StyleSheet.create({
   dividerV: {
     width: 1,
     height: '70%',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.surface,
   },
   summaryLabel: {
     color: theme.colors.textMuted,
-    fontSize: 8,
-    fontWeight: '800',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
     marginBottom: 2,
   },
   summaryVal: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
   },
   searchBarWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#12141c',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 12,
@@ -374,9 +399,9 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: theme.fonts.sansMedium,
   },
   filterRow: {
     flexDirection: 'row',
@@ -387,9 +412,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
   },
   filterPillActive: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -398,20 +423,20 @@ const styles = StyleSheet.create({
   filterText: {
     color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   filterTextActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
   listContent: {
     paddingBottom: 40,
   },
   tradeCard: {
     flexDirection: 'row',
-    backgroundColor: '#12141c',
+    backgroundColor: theme.colors.card,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: theme.colors.cardBorder,
     marginBottom: theme.spacing.sm,
     overflow: 'hidden',
   },
@@ -419,9 +444,9 @@ const styles = StyleSheet.create({
     width: 4,
     backgroundColor: theme.colors.primaryLight,
   },
-  stripWin: { backgroundColor: '#10b981' },
-  stripLoss: { backgroundColor: '#ef4444' },
-  stripOpen: { backgroundColor: '#f59e0b' },
+  stripWin: { backgroundColor: theme.colors.green },
+  stripLoss: { backgroundColor: theme.colors.red },
+  stripOpen: { backgroundColor: theme.colors.gold },
   cardContent: {
     flex: 1,
     padding: 12,
@@ -438,15 +463,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pairText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 0.5,
   },
   lotText: {
     color: theme.colors.textMuted,
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: theme.fonts.monoMedium,
   },
   pnlWrap: {
     flexDirection: 'row',
@@ -455,7 +480,7 @@ const styles = StyleSheet.create({
   },
   pnlText: {
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   winPnl: { color: theme.colors.greenLight },
@@ -469,7 +494,7 @@ const styles = StyleSheet.create({
   setupText: {
     color: theme.colors.textSecondary,
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: theme.fonts.sansMedium,
     flex: 1,
     marginRight: 8,
   },
@@ -478,14 +503,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+    borderTopColor: theme.colors.cardBorder,
     paddingTop: 6,
     marginTop: 2,
   },
   dateText: {
     color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '600',
+    fontFamily: theme.fonts.monoMedium,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -494,13 +519,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
   },
   emptySub: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontFamily: theme.fonts.sans,
   },
   greenText: { color: theme.colors.greenLight },
   redText: { color: theme.colors.redLight },
