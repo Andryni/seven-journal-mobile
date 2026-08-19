@@ -241,6 +241,26 @@ export const AnalyticsScreen: React.FC = () => {
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
+
+  const dateRangeOptions = [
+    { key: '7d' as const, labelKey: 'dateRange7d' as const },
+    { key: '30d' as const, labelKey: 'dateRange30d' as const },
+    { key: '90d' as const, labelKey: 'dateRange90d' as const },
+    { key: 'all' as const, labelKey: 'dateRangeAll' as const },
+  ];
+
+  const closedAll = useMemo(
+    () => trades.filter((t: Trade) => t.pnl !== null && (!activeAccountId || t.account_id === activeAccountId)),
+    [trades, activeAccountId]
+  );
+
+  const closed = useMemo(() => {
+    if (dateRange === 'all') return closedAll;
+    const now = Date.now();
+    const ms = { '7d': 7 * 86400000, '30d': 30 * 86400000, '90d': 90 * 86400000 }[dateRange];
+    return closedAll.filter(t => new Date(t.entry_time).getTime() >= now - ms);
+  }, [closedAll, dateRange]);
 
   const selectedAccount = useMemo(() => {
     if (activeAccountId) return accounts.find(a => a.id === activeAccountId);
@@ -250,11 +270,6 @@ export const AnalyticsScreen: React.FC = () => {
   const initialBalance = selectedAccount?.initial_balance || 100000;
   const profitTarget = selectedAccount?.profit_target || 10000;
   const maxDrawdownLimit = selectedAccount?.max_drawdown_limit || 10000;
-
-  const closed = useMemo(
-    () => trades.filter((t: Trade) => t.pnl !== null && (!activeAccountId || t.account_id === activeAccountId)),
-    [trades, activeAccountId]
-  );
 
   // 1. OVERVIEW & KPI
   const wins = closed.filter(t => (t.pnl || 0) > 0);
@@ -324,7 +339,6 @@ export const AnalyticsScreen: React.FC = () => {
       map[day] = (map[day] || 0) + (t.pnl || 0);
     });
     return Object.entries(map)
-      .slice(-7)
       .map(([label, value]) => ({ label, value }));
   }, [closed]);
 
@@ -439,7 +453,93 @@ export const AnalyticsScreen: React.FC = () => {
     });
   }, [closed]);
 
-  // 7. PROP FIRM SPECIFIC
+  // 7. SESSION PERFORMANCE BREAKDOWN
+  const sessionBreakdown = useMemo(() => {
+    const sessions: Record<string, { pnl: number; wins: number; total: number; totalR: number }> = {};
+    const sessionIds = ['Asia', 'London', 'New York', 'Over Session'];
+    sessionIds.forEach(s => { sessions[s] = { pnl: 0, wins: 0, total: 0, totalR: 0 } });
+    closed.forEach(t => {
+      const s = t.session || 'Over Session';
+      if (!sessions[s]) sessions[s] = { pnl: 0, wins: 0, total: 0, totalR: 0 };
+      sessions[s].total++;
+      sessions[s].pnl += (t.pnl || 0);
+      sessions[s].totalR += (t.r_multiple || 0);
+      if ((t.pnl || 0) > 0) sessions[s].wins++;
+    });
+    return sessionIds.map(s => ({
+      name: s,
+      labelKey: s === 'Over Session' ? 'sessionOverSessionLabel' : (`session${s.replace(' ', '')}` as any),
+      count: sessions[s].total,
+      winRate: sessions[s].total > 0 ? (sessions[s].wins / sessions[s].total) * 100 : 0,
+      pnl: sessions[s].pnl,
+      avgR: sessions[s].total > 0 ? sessions[s].totalR / sessions[s].total : 0,
+    }));
+  }, [closed]);
+
+  // 8. DAY OF WEEK ANALYSIS
+  const dayOfWeekAnalysis = useMemo(() => {
+    const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const dayNamesEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayMap: Record<number, { pnl: number; wins: number; total: number }> = {};
+    for (let i = 0; i < 7; i++) dayMap[i] = { pnl: 0, wins: 0, total: 0 };
+    closed.forEach(t => {
+      const d = new Date(t.entry_time);
+      const dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1; // Monday=0
+      dayMap[dayIdx].total++;
+      dayMap[dayIdx].pnl += (t.pnl || 0);
+      if ((t.pnl || 0) > 0) dayMap[dayIdx].wins++;
+    });
+    return dayNames.map((name, i) => ({
+      name,
+      nameEn: dayNamesEn[i],
+      count: dayMap[i].total,
+      winRate: dayMap[i].total > 0 ? (dayMap[i].wins / dayMap[i].total) * 100 : 0,
+      pnl: dayMap[i].pnl,
+    }));
+  }, [closed]);
+
+  // 9. HOLDING TIME ANALYSIS
+  const holdingTimeData = useMemo(() => {
+    const getMinutes = (t: Trade): number => {
+      if (!t.entry_time || !t.exit_time) return 0;
+      return (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / 60000;
+    };
+    const buckets = [
+      { label: '<5m', min: 0, max: 5 },
+      { label: '5-15m', min: 5, max: 15 },
+      { label: '15-30m', min: 15, max: 30 },
+      { label: '30m-1h', min: 30, max: 60 },
+      { label: '1-4h', min: 60, max: 240 },
+      { label: '4h+', min: 240, max: Infinity },
+    ];
+    return buckets.map(b => {
+      const inBucket = closed.filter(t => {
+        const mins = getMinutes(t);
+        return mins >= b.min && mins < b.max;
+      });
+      const winsInBucket = inBucket.filter(t => (t.pnl || 0) > 0);
+      return {
+        label: b.label,
+        count: inBucket.length,
+        winRate: inBucket.length > 0 ? (winsInBucket.length / inBucket.length) * 100 : 0,
+        pnl: inBucket.reduce((s, t) => s + (t.pnl || 0), 0),
+      };
+    });
+  }, [closed]);
+
+  // 10. EXPECTANCY R-SCORE
+  const expectancyR = useMemo(() => {
+    const wins = closed.filter(t => (t.pnl || 0) > 0);
+    const losses = closed.filter(t => (t.pnl || 0) < 0);
+    const winPct = closed.length > 0 ? wins.length / closed.length : 0;
+    const lossPct = closed.length > 0 ? losses.length / closed.length : 0;
+    const avgWinR = wins.length > 0 ? wins.reduce((s, t) => s + (t.r_multiple || 0), 0) / wins.length : 0;
+    const avgLossR = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + (t.r_multiple || 0), 0) / losses.length) : 0;
+    const er = (winPct * avgWinR) - (lossPct * avgLossR);
+    return { value: er, winPct, lossPct, avgWinR, avgLossR };
+  }, [closed]);
+
+  // 11. PROP FIRM SPECIFIC
   const propFirmData = useMemo(() => {
     const profitPct = profitTarget > 0 ? Math.min(totalPnL / profitTarget, 1) : 0;
     const drawdownPct = maxDrawdownLimit > 0 ? Math.min(maxDrawdown / maxDrawdownLimit, 1) : 0;
@@ -511,6 +611,25 @@ export const AnalyticsScreen: React.FC = () => {
         })}
       </ScrollView>
 
+      {/* DATE RANGE FILTER */}
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+        {dateRangeOptions.map(opt => (
+          <TouchableOpacity
+            key={opt.key}
+            style={[s.dateRangeBtn, dateRange === opt.key && s.dateRangeBtnActive]}
+            onPress={() => setDateRange(opt.key)}
+          >
+            <Text style={[s.dateRangeText, dateRange === opt.key && s.dateRangeTextActive]}>
+              {t(opt.labelKey as any)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <View style={{ flex: 1 }} />
+        <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold, alignSelf: 'center' }}>
+          {closed.length} {t('tradesInPeriod')}
+        </Text>
+      </View>
+
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
       {activeTab === 'overview' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
@@ -554,6 +673,33 @@ export const AnalyticsScreen: React.FC = () => {
                   <Text style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
                     {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
                   </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(60).duration(350)}>
+            <Card title={t('expectancyR')} subtitle={t('expectancyDesc')}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={[s.kpiBox, { flex: 0, minWidth: 80, alignItems: 'center' }]}>
+                  <Text style={[s.kpiVal, expectancyR.value >= 0 ? s.greenText : s.redText, { fontSize: 22 }]}>
+                    {expectancyR.value >= 0 ? '+' : ''}{expectancyR.value.toFixed(2)}R
+                  </Text>
+                  <Text style={[s.kpiLabel, { marginTop: 4 }]}>{t('expectancyR')}</Text>
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={s.rowBetween}>
+                    <Text style={s.subMuted}>{t('winRate')} ({t('holdingTimeWins')})</Text>
+                    <Text style={[s.boldVal, s.greenText]}>{expectancyR.winPct > 0 ? `${(expectancyR.winPct * 100).toFixed(0)}%` : '—'}</Text>
+                  </View>
+                  <View style={s.rowBetween}>
+                    <Text style={s.subMuted}>Avg Win R</Text>
+                    <Text style={[s.boldVal, s.greenText]}>+{expectancyR.avgWinR.toFixed(2)}R</Text>
+                  </View>
+                  <View style={s.rowBetween}>
+                    <Text style={s.subMuted}>Avg Loss R</Text>
+                    <Text style={[s.boldVal, s.redText]}>{expectancyR.avgLossR.toFixed(2)}R</Text>
+                  </View>
                 </View>
               </View>
             </Card>
@@ -667,6 +813,34 @@ export const AnalyticsScreen: React.FC = () => {
               />
             </Card>
           </Animated.View>
+
+          {/* Holding Time Analysis */}
+          <Animated.View entering={FadeIn.delay(300).duration(350)}>
+            <Card title={t('holdingTimeAnalysis')}>
+              {holdingTimeData.filter(h => h.count > 0).length === 0 ? (
+                <Text style={s.emptyText}>{t('noTradesYet')}</Text>
+              ) : (
+                holdingTimeData.filter(h => h.count > 0).map((ht, i) => (
+                  <Animated.View key={ht.label} entering={FadeIn.delay(i * 60).duration(300)}>
+                    <View style={s.rowBetween}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.boldWhite}>⏱️ {ht.label}</Text>
+                        <Text style={s.subMuted}>{ht.count} trades</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[s.boldVal, ht.winRate >= 50 ? s.greenText : ht.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                          {ht.count > 0 ? `${ht.winRate.toFixed(1)}% WR` : '—'}
+                        </Text>
+                        <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>
+                          {ht.count > 0 ? `${ht.pnl >= 0 ? '+' : ''}$${ht.pnl.toFixed(2)}` : '$0.00'}
+                        </Text>
+                      </View>
+                    </View>
+                  </Animated.View>
+                ))
+              )}
+            </Card>
+          </Animated.View>
         </Animated.View>
       )}
 
@@ -753,6 +927,62 @@ export const AnalyticsScreen: React.FC = () => {
                 <BicolorBarChart data={timingBreakdown} height={170} />
               ) : (
                 <Text style={s.emptyText}>{t('noHourlyData')}</Text>
+              )}
+            </Card>
+          </Animated.View>
+
+          {/* Session Performance Breakdown */}
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+            <Card title={t('sessionBreakdown')}>
+              {sessionBreakdown.filter(s => s.count > 0).length === 0 ? (
+                <Text style={s.emptyText}>{t('noTradesYet')}</Text>
+              ) : (
+                sessionBreakdown.filter(s => s.count > 0).map((sb, i) => (
+                  <Animated.View key={sb.name} entering={FadeIn.delay(i * 60).duration(300)}>
+                    <View style={s.rowBetween}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.boldWhite}>{t(sb.labelKey as any)}</Text>
+                        <Text style={s.subMuted}>{sb.count} {t('tradesCount').toLowerCase()} · Avg R: {sb.avgR >= 0 ? '+' : ''}{sb.avgR.toFixed(2)}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[s.boldVal, sb.winRate >= 50 ? s.greenText : sb.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                          {sb.count > 0 ? `${sb.winRate.toFixed(1)}% WR` : '—'}
+                        </Text>
+                        <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>
+                          {sb.count > 0 ? `${sb.pnl >= 0 ? '+' : ''}$${sb.pnl.toFixed(2)}` : '$0.00'}
+                        </Text>
+                      </View>
+                    </View>
+                  </Animated.View>
+                ))
+              )}
+            </Card>
+          </Animated.View>
+
+          {/* Day of Week Analysis */}
+          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+            <Card title={t('dayOfWeekAnalysis')}>
+              {dayOfWeekAnalysis.filter(d => d.count > 0).length === 0 ? (
+                <Text style={s.emptyText}>{t('noTradesYet')}</Text>
+              ) : (
+                dayOfWeekAnalysis.filter(d => d.count > 0).map((dw, i) => (
+                  <Animated.View key={dw.name} entering={FadeIn.delay(i * 60).duration(300)}>
+                    <View style={s.rowBetween}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.boldWhite}>{dw.name}</Text>
+                        <Text style={s.subMuted}>{dw.count} trades</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[s.boldVal, dw.winRate >= 50 ? s.greenText : dw.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                          {dw.count > 0 ? `${dw.winRate.toFixed(1)}% WR` : '—'}
+                        </Text>
+                        <Text style={[s.subMuted, dw.pnl >= 0 ? s.greenText : s.redText]}>
+                          {dw.count > 0 ? `${dw.pnl >= 0 ? '+' : ''}$${dw.pnl.toFixed(2)}` : '$0.00'}
+                        </Text>
+                      </View>
+                    </View>
+                  </Animated.View>
+                ))
               )}
             </Card>
           </Animated.View>
@@ -1067,6 +1297,27 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 10,
     marginTop: 2,
+  },
+  dateRangeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
+    borderWidth: 1,
+  },
+  dateRangeBtnActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderColor: theme.colors.primary,
+  },
+  dateRangeText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  dateRangeTextActive: {
+    color: theme.colors.primaryLight,
   },
   emptyText: {
     color: theme.colors.textMuted,

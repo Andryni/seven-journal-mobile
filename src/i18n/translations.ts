@@ -397,6 +397,25 @@ export const translations = {
     noTradeThatDay: 'Aucun trade exécuté ce jour-là.',
     noDataAvailable: 'Aucune donnée mensuelle disponible.',
 
+    // Analytics Sprint 2
+    expectancyR: 'EXPECTANCY (R)',
+    expectancyDesc: 'Moyenne R par trade = edge attendu',
+    sessionBreakdown: 'PERFORMANCE PAR SESSION',
+    sessionOverSessionLabel: 'OVER SESSION',
+    dayOfWeekAnalysis: 'PERFORMANCE PAR JOUR',
+    holdingTimeAnalysis: 'ANALYSE DURÉE DE DÉTENTION',
+    holdingTimeWins: 'Wins',
+    holdingTimeLosses: 'Losses',
+    holdingTimeBucket: 'Durée',
+    dateRangeAll: 'TOUT',
+    dateRange7d: '7J',
+    dateRange30d: '30J',
+    dateRange90d: '90J',
+    dateRangeCustom: 'PERSO',
+    tradesInPeriod: 'trades sur la période',
+    avgHoldingTime: 'Durée moy.',
+    winRateInPeriod: 'WR période',
+
     // Auth
     emailLabel: 'ADRESSE EMAIL',
     emailPlaceholder: 'trader@seven.com',
@@ -857,6 +876,25 @@ export const translations = {
     losses: 'LOSSES',
     noTradeThatDay: 'No trade executed on that day.',
     noDataAvailable: 'No monthly data available.',
+
+    // Analytics Sprint 2
+    expectancyR: 'EXPECTANCY (R)',
+    expectancyDesc: 'Avg R per trade = expected edge',
+    sessionBreakdown: 'PERFORMANCE BY SESSION',
+    sessionOverSessionLabel: 'OVER SESSION',
+    dayOfWeekAnalysis: 'PERFORMANCE BY DAY',
+    holdingTimeAnalysis: 'HOLDING TIME ANALYSIS',
+    holdingTimeWins: 'Wins',
+    holdingTimeLosses: 'Losses',
+    holdingTimeBucket: 'Duration',
+    dateRangeAll: 'ALL',
+    dateRange7d: '7D',
+    dateRange30d: '30D',
+    dateRange90d: '90D',
+    dateRangeCustom: 'CUSTOM',
+    tradesInPeriod: 'trades in period',
+    avgHoldingTime: 'Avg hold',
+    winRateInPeriod: 'WR period',
 
     // Auth
     emailLabel: 'EMAIL ADDRESS',
