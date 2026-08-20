@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -39,3 +40,19 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# IDE / tool configs
+.agents/
+.claude/settings.local.json
+.claude/skills/
+.context-bridge/
+.freebuff/
+.v3code/
+
+# Impeccable ephemeral files
+.impeccable/config.local.json
+.impeccable/*.png
+.impeccable/live/
+.impeccable/critique/
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json

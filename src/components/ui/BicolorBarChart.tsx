@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
 import Svg, { Rect, Line, G } from 'react-native-svg';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 interface BicolorBarChartProps {
   data: { label: string; value: number }[];
@@ -9,12 +12,17 @@ interface BicolorBarChartProps {
   yAxisPrefix?: string;
 }
 
+const MIN_BAR_WIDTH = 28; // minimum px per bar (bar + gap)
+const MIN_CHART_WIDTH = Dimensions.get('window').width - 64;
+
 export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   data,
   height = 160,
-  width = Dimensions.get('window').width - 64,
+  width = MIN_CHART_WIDTH,
   yAxisPrefix = '$',
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
   if (!data || data.length === 0) return null;
@@ -22,11 +30,17 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const yAxisWidth = 52;
   const paddingRight = 12;
   const paddingTop = 20;
-  const paddingBottom = 4; // bars end here, X labels go below
-  const xLabelHeight = 20; // reserved space for X-axis labels
+  const paddingBottom = 4;
+  const xLabelHeight = 20;
   const totalHeight = height + xLabelHeight;
 
-  const chartWidth = width - yAxisWidth - paddingRight;
+  // Calculate ideal chart width: enough room for each bar
+  const idealChartWidth = data.length * MIN_BAR_WIDTH;
+  const needsScroll = idealChartWidth > MIN_CHART_WIDTH;
+
+  // Use the wider of screen width or ideal width
+  const effectiveChartWidth = needsScroll ? idealChartWidth : MIN_CHART_WIDTH;
+  const chartWidth = effectiveChartWidth - yAxisWidth - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
 
   const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 100);
@@ -35,14 +49,11 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
 
-  const formatCompact = (val: number) => {
-    if (val >= 1000000) return `${yAxisPrefix}${(val / 1000000).toFixed(1)}M`;
-    if (val >= 1000) return `${yAxisPrefix}${(val / 1000).toFixed(1)}k`;
-    return `${yAxisPrefix}${val.toFixed(0)}`;
-  };
+  const formatCompact = (val: number) =>
+    formatCurrency(val, { symbol: yAxisPrefix, compact: true, showPlus: false, decimals: 0 });
 
-  return (
-    <View style={[styles.container, { height: totalHeight, width }]}>
+  const chartContent = (
+    <View style={[styles.container, { height: totalHeight, width: effectiveChartWidth + yAxisWidth }]}>
       {/* Interactive Tooltip */}
       {activeItem && (
         <View style={styles.tooltipBadge}>
@@ -53,7 +64,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               activeItem.value >= 0 ? styles.greenText : styles.redText,
             ]}
           >
-            {activeItem.value >= 0 ? '+' : ''}${activeItem.value.toFixed(2)}
+            {formatCurrency(activeItem.value)}
           </Text>
         </View>
       )}
@@ -79,18 +90,18 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
             <Line
               x1={0} y1={zeroY}
               x2={chartWidth} y2={zeroY}
-              stroke="rgba(255, 255, 255, 0.15)"
+              stroke={theme.colors.borderBright}
               strokeWidth="1" strokeDasharray="4 4"
             />
             <Line
               x1={0} y1={paddingTop}
               x2={chartWidth} y2={paddingTop}
-              stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1"
+              stroke={theme.colors.cardBorder} strokeWidth="1"
             />
             <Line
               x1={0} y1={height - paddingBottom}
               x2={chartWidth} y2={height - paddingBottom}
-              stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1"
+              stroke={theme.colors.cardBorder} strokeWidth="1"
             />
 
             {/* Bars */}
@@ -107,9 +118,9 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
                     x={x} y={y}
                     width={barWidth}
                     height={Math.max(barHeight, 2)}
-                    fill={isPositive ? '#10b981' : '#ef4444'}
+                    fill={isPositive ? theme.colors.green : theme.colors.red}
                     opacity={isSelected ? 1 : 0.7}
-                    stroke={isSelected ? '#ffffff' : 'none'}
+                    stroke={isSelected ? theme.colors.textPrimary : 'none'}
                     strokeWidth={isSelected ? 1.5 : 0}
                     rx={3}
                   />
@@ -154,17 +165,32 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
       </View>
     </View>
   );
+
+  // Wrap in horizontal ScrollView if data is too wide
+  if (needsScroll) {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -theme.spacing.md }}
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}
+      >
+        {chartContent}
+      </ScrollView>
+    );
+  }
+
+  return chartContent;
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
-    backgroundColor: '#12141c',
+    backgroundColor: theme.colors.chartBg,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: theme.colors.cardBorder,
     position: 'relative',
     paddingVertical: 4,
-    // NO overflow: 'hidden' — X labels must be visible
   },
   chartRow: {
     flexDirection: 'row',
@@ -177,8 +203,8 @@ const styles = StyleSheet.create({
   },
   yAxisLabel: {
     fontSize: 9,
-    fontWeight: '800',
-    color: '#94a3b8',
+    fontFamily: theme.fonts.monoBold,
+    color: theme.colors.textSecondary,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
@@ -190,11 +216,11 @@ const styles = StyleSheet.create({
   yAxisMid: {
     position: 'absolute',
     right: 4,
-    color: '#64748b',
+    color: theme.colors.textMuted,
   },
   yAxisBottom: {
     position: 'absolute',
-    bottom: 36, // account for xLabelHeight
+    bottom: 36,
     right: 4,
   },
   xAxisRow: {
@@ -202,22 +228,22 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   xAxisLabel: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoBold,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
   xAxisLabelActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontWeight: '900',
   },
   tooltipBadge: {
     position: 'absolute',
     top: 6,
     right: 12,
-    backgroundColor: '#0d0f15',
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.borderBright,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -228,15 +254,15 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   tooltipDate: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
   },
   tooltipVal: {
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
-  greenText: { color: '#10b981' },
-  redText: { color: '#ef4444' },
+  greenText: { color: theme.colors.green },
+  redText: { color: theme.colors.red },
 });

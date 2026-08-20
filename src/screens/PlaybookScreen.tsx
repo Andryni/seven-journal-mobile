@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
   Trash2,
   Edit3,
   X,
+  Check,
 } from 'lucide-react-native';
 
 const COMMON_MISTAKES = ['revenge', 'fomo', 'early_cut', 'over_size', 'no_sl', 'chasing'] as const;
@@ -111,6 +112,9 @@ export const PlaybookScreen: React.FC = () => {
   const [rulesFollowed, setRulesFollowed] = useState<string[]>([]);
 
   // Setup Modal State
+  const [setupSearch, setSetupSearch] = useState('');
+  const [setupFilterTimeframe, setSetupFilterTimeframe] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [setupModalVisible, setSetupModalVisible] = useState(false);
   const [editingSetup, setEditingSetup] = useState<PlaybookSetup | null>(null);
   const [setupTitle, setSetupTitle] = useState('');
@@ -176,7 +180,8 @@ export const PlaybookScreen: React.FC = () => {
       rules_followed: rulesFollowed,
     });
     setEditingDebriefId(null);
-    alert(editingDebriefId ? t('debriefUpdated') : t('debriefSaved'));
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   const loadDebrief = (d: (typeof debriefs)[number]) => {
@@ -240,6 +245,42 @@ export const PlaybookScreen: React.FC = () => {
   }, [setups, trades]);
 
   // Débriefings triés par date décroissante (plus récent en premier)
+  // Filtered setups
+  const filteredSetups = useMemo(() => {
+    return setupStats.filter(({ setup: s }) => {
+      if (setupSearch && !s.title.toLowerCase().includes(setupSearch.toLowerCase()) && !(s.description || '').toLowerCase().includes(setupSearch.toLowerCase())) return false;
+      if (setupFilterTimeframe && !s.timeframes.some(tf => tf.toLowerCase() === setupFilterTimeframe.toLowerCase())) return false;
+      return true;
+    });
+  }, [setupStats, setupSearch, setupFilterTimeframe]);
+
+  // Discipline analytics
+  const mistakesAnalytics = useMemo(() => {
+    const counts: Record<string, number> = {};
+    COMMON_MISTAKES.forEach(m => counts[m] = 0);
+    debriefs.forEach(d => {
+      (d.mistakes_committed || []).forEach(mId => {
+        counts[mId] = (counts[mId] || 0) + 1;
+      });
+    });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+    return COMMON_MISTAKES.map(m => ({
+      id: m, label: mistakeLabel(t, m),
+      count: counts[m] || 0,
+      pct: Math.round(((counts[m] || 0) / total) * 100)
+    })).sort((a, b) => b.count - a.count);
+  }, [debriefs, t]);
+
+  // Auto-load existing debrief for selected date
+  useEffect(() => {
+    if (!editingDebriefId && selectedDate) {
+      const existing = debriefs.find(d => d.date === selectedDate);
+      if (existing) {
+        loadDebrief(existing);
+      }
+    }
+  }, [selectedDate, debriefs]);
+
   const sortedDebriefs = useMemo(() => {
     return [...debriefs].sort((a, b) => b.date.localeCompare(a.date));
   }, [debriefs]);
@@ -303,10 +344,10 @@ export const PlaybookScreen: React.FC = () => {
             <Text style={styles.addSetupText}>{t('addNewStrategy')}</Text>
           </TouchableOpacity>
 
-          {setupStats.length === 0 ? (
+          {filteredSetups.length === 0 ? (
             <Text style={styles.emptyText}>{t('noStrategy')}</Text>
           ) : (
-            setupStats.map(({ setup: s, count, winRate, pnl }) => (
+            filteredSetups.map(({ setup: s, count, winRate, pnl }) => (
               <View key={s.id} style={styles.setupCard}>
                 <View style={styles.setupHeader}>
                   <View style={{ flex: 1 }}>
@@ -495,6 +536,12 @@ export const PlaybookScreen: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
+            {saveSuccess && (
+              <View style={styles.saveSuccess}>
+                <Check size={14} color={theme.colors.green} />
+                <Text style={styles.saveSuccessText}>{t('debriefSaved')}</Text>
+              </View>
+            )}
           </Card>
 
           {/* Historique des débriefings */}
@@ -581,9 +628,27 @@ export const PlaybookScreen: React.FC = () => {
         </View>
       )}
 
-      {/* ── TAB 3 : MATRICE DE DISCIPLINE ── */}
+
       {activeTab === 'discipline' && (
         <View style={styles.tabContent}>
+          {/* Discipline Analytics */}
+          <Card title={t('disciplineMatrix')}>
+            {mistakesAnalytics.map(item => (
+              <View key={item.id} style={styles.analyticsRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.analyticsLabel}>{item.label}</Text>
+                  <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { width: (item.pct + '%' as any), backgroundColor: theme.colors.red }]} />
+                  </View>
+                </View>
+                <View style={styles.analyticsStats}>
+                  <Text style={styles.analyticsCount}>{item.count}</Text>
+                  <Text style={styles.analyticsPct}>{item.pct}%</Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+
           <Card title={t('mistakesCard')}>
             {COMMON_MISTAKES.map(id => {
               const isChecked = committedMistakes.includes(id);
@@ -1044,4 +1109,21 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 14,
     fontFamily: theme.fonts.sansBold,
   },
+  searchBarRow: { marginBottom: theme.spacing.sm },
+  searchInput: { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: theme.borderRadius.md, height: 38, paddingHorizontal: 12, color: theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.sansMedium, marginBottom: 6 },
+  filterRow: { flexDirection: 'row', gap: 6 },
+  filterPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.cardBorder },
+  filterPillActive: { backgroundColor: 'rgba(99, 102, 241, 0.2)', borderColor: theme.colors.primary },
+  filterPillText: { color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold },
+  filterPillTextActive: { color: theme.colors.textPrimary },
+  saveSuccess: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' },
+  saveSuccessText: { color: theme.colors.green, fontSize: 11, fontFamily: theme.fonts.monoBold },
+  analyticsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
+  analyticsLabel: { color: theme.colors.textSecondary, fontSize: 10, fontFamily: theme.fonts.sansMedium, marginBottom: 4 },
+  progressBarBg: { height: 5, backgroundColor: theme.colors.surface, borderRadius: 3, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 3 },
+  analyticsStats: { alignItems: 'flex-end', minWidth: 40 },
+  analyticsCount: { color: theme.colors.red, fontSize: 14, fontFamily: theme.fonts.monoBold },
+  analyticsPct: { color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoMedium },
+
 });

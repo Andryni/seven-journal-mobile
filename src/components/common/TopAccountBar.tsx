@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
-import { theme } from '../../theme';
-import { Wallet, ChevronDown, Check, LogOut, Sparkles } from 'lucide-react-native';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { accountTypeLabel, useT } from '../../i18n';
+import { Wallet, ChevronDown, Check, LogOut, Sun, Moon, Languages } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 export const TopAccountBar: React.FC = () => {
+  const { theme, mode, toggleTheme } = useTheme();
+  const { t, lang, toggleLang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
   const setActiveAccountId = useUIStore((state: { setActiveAccountId: (id: string | null) => void }) => state.setActiveAccountId);
   const { accounts } = useAccounts();
@@ -38,7 +44,7 @@ export const TopAccountBar: React.FC = () => {
         <View>
           <View style={styles.flexRow}>
             <Text style={styles.brandTextSeven}>SEVEN </Text>
-            <Text style={styles.brandTextTerminal}>TRACKING</Text>
+            <Text style={styles.brandTextTerminal}>JOURNAL</Text>
           </View>
           <View style={styles.liveIndicatorRow}>
             <View style={styles.liveDot} />
@@ -59,26 +65,56 @@ export const TopAccountBar: React.FC = () => {
           </View>
           <View style={{ maxWidth: 120 }}>
             <Text style={styles.accountTitle} numberOfLines={1}>
-              {activeAccount ? activeAccount.name.toUpperCase() : 'TOUS COMPTES'}
+              {activeAccount ? activeAccount.name.toUpperCase() : t('allAccounts')}
             </Text>
             <Text style={styles.accountSub} numberOfLines={1}>
               {activeAccount
-                ? `$${activeAccount.balance.toLocaleString()} ${activeAccount.currency}`
-                : `${accounts.length} COMPTES`}
+                ? `${formatCurrency(activeAccount.balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} ${activeAccount.currency}`
+                : t('accountsCount', accounts.length)}
             </Text>
           </View>
         </View>
         <ChevronDown size={14} color={theme.colors.textSecondary} />
       </TouchableOpacity>
 
-      {/* Logout button quick access */}
-      <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={() => supabase.auth.signOut()}
-        activeOpacity={0.8}
-      >
-        <LogOut size={14} color={theme.colors.textMuted} />
-      </TouchableOpacity>
+      {/* Theme + Language + Logout quick access */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={toggleTheme}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('switchTheme')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {mode === 'dark' ? (
+            <Sun size={14} color={theme.colors.goldLight} />
+          ) : (
+            <Moon size={14} color={theme.colors.primaryLight} />
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={toggleLang}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('switchLanguage')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Languages size={14} color={theme.colors.textSecondary} />
+          <Text style={styles.langText}>{lang.toUpperCase()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => supabase.auth.signOut()}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('logout')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <LogOut size={14} color={theme.colors.textMuted} />
+        </TouchableOpacity>
+      </View>
 
       {/* Account Selection Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">
@@ -96,10 +132,8 @@ export const TopAccountBar: React.FC = () => {
             />
 
             <View style={styles.modalHeader}>
-              <Text style={styles.modalHeading}>SÉLECTIONNER LE COMPTE ACTIF</Text>
-              <Text style={styles.modalSubheading}>
-                Filtre instantanément l'intégralité du terminal (trades, KPIs, graphiques).
-              </Text>
+              <Text style={styles.modalHeading}>{t('selectActiveAccount')}</Text>
+              <Text style={styles.modalSubheading}>{t('selectActiveAccountSub')}</Text>
             </View>
 
             <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
@@ -113,11 +147,9 @@ export const TopAccountBar: React.FC = () => {
               >
                 <View>
                   <Text style={[styles.accountItemName, !activeAccountId && styles.whiteText]}>
-                    🌐 TOUS LES COMPTES (VUE GLOBALE)
+                    {t('allAccountsGlobal')}
                   </Text>
-                  <Text style={styles.accountItemSub}>
-                    Cumul de l'ensemble de vos positions
-                  </Text>
+                  <Text style={styles.accountItemSub}>{t('allAccountsSub')}</Text>
                 </View>
                 {!activeAccountId && <Check size={16} color={theme.colors.primaryLight} />}
               </TouchableOpacity>
@@ -136,10 +168,10 @@ export const TopAccountBar: React.FC = () => {
                   >
                     <View>
                       <Text style={[styles.accountItemName, isSelected && styles.whiteText]}>
-                        💼 {acc.name.toUpperCase()}
+                        {acc.name.toUpperCase()}
                       </Text>
                       <Text style={styles.accountItemSub}>
-                        Solde: ${acc.balance.toLocaleString()} {acc.currency} · {acc.type.toUpperCase()}
+                        {t('balance')}: {formatCurrency(acc.balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} {acc.currency} · {accountTypeLabel(t, acc.type)}
                       </Text>
                     </View>
                     {isSelected && <Check size={16} color={theme.colors.primaryLight} />}
@@ -154,14 +186,14 @@ export const TopAccountBar: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#07080a',
+    backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomColor: theme.colors.cardBorder,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 8,
     gap: 8,
@@ -172,35 +204,36 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.5)',
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
   },
   logoImg: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
   },
   flexRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   brandTextSeven: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 0.8,
   },
   brandTextTerminal: {
     color: theme.colors.primaryLight,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 0.8,
   },
   liveIndicatorRow: {
@@ -216,8 +249,8 @@ const styles = StyleSheet.create({
   },
   terminalSub: {
     color: theme.colors.textMuted,
-    fontSize: 8,
-    fontWeight: '800',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
   },
   selectorBtn: {
@@ -225,8 +258,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#14161f',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 8,
@@ -246,23 +279,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   accountTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 10,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 0.4,
   },
   accountSub: {
     color: theme.colors.textSecondary,
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
-  logoutBtn: {
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     padding: 8,
-    backgroundColor: '#14161f',
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: 10,
+  },
+  langText: {
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
   },
   modalOverlay: {
     flex: 1,
@@ -271,8 +318,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   modalContent: {
-    backgroundColor: '#181920',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.modalBg,
+    borderColor: theme.colors.borderBright,
     borderWidth: 1,
     borderRadius: 20,
     overflow: 'hidden',
@@ -294,14 +341,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   modalHeading: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
     letterSpacing: 0.8,
   },
   modalSubheading: {
     color: theme.colors.textSecondary,
     fontSize: 10,
+    fontFamily: theme.fonts.sans,
     marginTop: 3,
   },
   accountItem: {
@@ -309,8 +357,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#121318',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     borderRadius: 12,
     marginBottom: 8,
@@ -322,15 +370,16 @@ const styles = StyleSheet.create({
   accountItemName: {
     color: theme.colors.textSecondary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
   },
   accountItemSub: {
     color: theme.colors.textMuted,
     fontSize: 9,
+    fontFamily: theme.fonts.sansMedium,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
   whiteText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
 });

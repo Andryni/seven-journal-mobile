@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { formatCurrency } from '../../utils/formatCurrency';
 import Svg, {
   Path,
   Defs,
@@ -21,6 +24,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   height = 200,
   width = Dimensions.get('window').width - 64,
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   if (!data || data.length === 0) return null;
@@ -39,7 +44,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   const range = maxVal - minVal || 1;
 
   const isOverallPositive = (values[values.length - 1] ?? 0) >= 0;
-  const mainColor = isOverallPositive ? '#10b981' : '#ef4444';
+  const mainColor = isOverallPositive ? theme.colors.green : theme.colors.red;
 
   const points = data.map((d, i) => {
     const x = (i / Math.max(data.length - 1, 1)) * chartW;
@@ -67,22 +72,19 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
 
   // Pick 4-5 well-spaced indices for X-axis labels
   const sampleIndices = new Set<number>();
-  if (points.length <= 4) {
+  // Show max 5 labels, well-spaced
+  const maxLabels = Math.min(5, points.length);
+  if (points.length <= maxLabels) {
     points.forEach((_, i) => sampleIndices.add(i));
   } else {
-    sampleIndices.add(0);
-    sampleIndices.add(Math.floor(points.length * 0.33));
-    sampleIndices.add(Math.floor(points.length * 0.66));
-    sampleIndices.add(points.length - 1);
+    const step = Math.floor((points.length - 1) / (maxLabels - 1));
+    for (let i = 0; i < maxLabels; i++) {
+      const idx = i === maxLabels - 1 ? points.length - 1 : i * step;
+      sampleIndices.add(idx);
+    }
   }
 
-  const formatCompact = (val: number) => {
-    const abs = Math.abs(val);
-    const sign = val > 0 ? '+' : val < 0 ? '-' : '';
-    if (abs >= 1000000) return `${sign}$${(abs / 1000000).toFixed(1)}M`;
-    if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
-    return `${sign}$${abs.toFixed(0)}`;
-  };
+  const formatCompact = (val: number) => formatCurrency(val, { compact: true, decimals: 0 });
 
   return (
     <View style={[styles.container, { width, height }]}>
@@ -98,7 +100,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               activePoint.value >= 0 ? styles.greenText : styles.redText,
             ]}
           >
-            {activePoint.value >= 0 ? '+' : ''}${activePoint.value.toFixed(2)}
+            {formatCurrency(activePoint.value)}
           </Text>
         </View>
       )}
@@ -124,12 +126,12 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           <Svg width={chartW + paddingRight} height={height}>
             <Defs>
               <LinearGradient id="equityGradGreen" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#10b981" stopOpacity="0.45" />
-                <Stop offset="0.8" stopColor="#10b981" stopOpacity="0.02" />
+                <Stop offset="0" stopColor={theme.colors.green} stopOpacity="0.45" />
+                <Stop offset="0.8" stopColor={theme.colors.green} stopOpacity="0.02" />
               </LinearGradient>
               <LinearGradient id="equityGradRed" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#ef4444" stopOpacity="0.45" />
-                <Stop offset="0.8" stopColor="#ef4444" stopOpacity="0.02" />
+                <Stop offset="0" stopColor={theme.colors.red} stopOpacity="0.45" />
+                <Stop offset="0.8" stopColor={theme.colors.red} stopOpacity="0.02" />
               </LinearGradient>
             </Defs>
 
@@ -139,7 +141,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               y1={paddingTop}
               x2={chartW}
               y2={paddingTop}
-              stroke="rgba(255, 255, 255, 0.05)"
+              stroke={theme.colors.cardBorder}
               strokeWidth="1"
             />
             <Line
@@ -147,7 +149,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               y1={zeroY}
               x2={chartW}
               y2={zeroY}
-              stroke="rgba(255, 255, 255, 0.12)"
+              stroke={theme.colors.borderBright}
               strokeWidth="1"
               strokeDasharray="4 4"
             />
@@ -156,7 +158,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               y1={bottomY}
               x2={chartW}
               y2={bottomY}
-              stroke="rgba(255, 255, 255, 0.05)"
+              stroke={theme.colors.cardBorder}
               strokeWidth="1"
             />
 
@@ -193,8 +195,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
                         cx={p.x}
                         cy={p.y}
                         r={5}
-                        fill={p.value >= 0 ? '#10b981' : '#ef4444'}
-                        stroke="#07080a"
+                        fill={p.value >= 0 ? theme.colors.green : theme.colors.red}
+                        stroke={theme.colors.background}
                         strokeWidth="2"
                       />
                     </>
@@ -203,7 +205,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
                       cx={p.x}
                       cy={p.y}
                       r={2.5}
-                      fill={p.value >= 0 ? '#10b981' : '#ef4444'}
+                      fill={p.value >= 0 ? theme.colors.green : theme.colors.red}
                       opacity={0.6}
                     />
                   ) : null}
@@ -222,7 +224,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
                   style={[
                     styles.xAxisLabel,
                     {
-                      left: Math.max(0, Math.min(chartW - 36, p.x - 18)),
+                      left: Math.max(0, Math.min(chartW - 30, p.x - 15)),
                     },
                   ]}
                 >
@@ -249,12 +251,12 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
-    backgroundColor: '#12141c',
+    backgroundColor: theme.colors.chartBg,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: theme.colors.cardBorder,
     overflow: 'hidden',
     position: 'relative',
     paddingVertical: 4,
@@ -271,8 +273,8 @@ const styles = StyleSheet.create({
   },
   yAxisLabel: {
     fontSize: 9,
-    fontWeight: '800',
-    color: '#94a3b8',
+    fontFamily: theme.fonts.monoBold,
+    color: theme.colors.textSecondary,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
@@ -280,12 +282,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 22,
     right: 6,
-    color: '#34d399',
+    color: theme.colors.greenLight,
   },
   yAxisZero: {
     position: 'absolute',
     right: 6,
-    color: '#64748b',
+    color: theme.colors.textMuted,
   },
   yAxisBottom: {
     position: 'absolute',
@@ -299,18 +301,18 @@ const styles = StyleSheet.create({
   },
   xAxisLabel: {
     position: 'absolute',
-    color: '#64748b',
-    fontSize: 8,
-    fontWeight: '700',
+    color: theme.colors.textMuted,
+    fontSize: 7,
+    fontFamily: theme.fonts.monoBold,
     textAlign: 'center',
-    width: 36,
+    width: 42,
   },
   tooltipBadge: {
     position: 'absolute',
     top: 6,
     right: 12,
-    backgroundColor: '#0d0f15',
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: theme.colors.backgroundElevated,
+    borderColor: theme.colors.borderBright,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -321,15 +323,15 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   tooltipDate: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
   },
   tooltipVal: {
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
-  greenText: { color: '#10b981' },
-  redText: { color: '#ef4444' },
+  greenText: { color: theme.colors.green },
+  redText: { color: theme.colors.red },
 });

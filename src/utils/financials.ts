@@ -1,4 +1,4 @@
-export interface CalculateRMultipleParams {
+interface CalculateRMultipleParams {
   direction: 'BUY' | 'SELL';
   entryPrice: number;
   exitPrice: number;
@@ -18,12 +18,12 @@ export function calculateRMultiple(params: CalculateRMultipleParams): number {
   return Number((reward / risk).toFixed(2));
 }
 
-export interface TradePnLEntry {
+interface TradePnLEntry {
   pnl: number;
   exit_time: string;
 }
 
-export interface ConsistencyResult {
+interface ConsistencyResult {
   score: number;
   alert: boolean;
 }

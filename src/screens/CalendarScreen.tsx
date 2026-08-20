@@ -11,7 +11,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
-import { theme } from '../theme';
+import { formatCurrency } from '../utils/formatCurrency';
+import { useTheme } from '../theme';
+import type { AppTheme } from '../theme';
+import { localeFor, useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -20,10 +23,14 @@ const screenWidth = Dimensions.get('window').width;
 const CALENDAR_PADDING = 16; // horizontal padding inside the calendar frame
 const CELL_GAP = 3;
 const COLS = 7;
-const calendarInnerWidth = screenWidth - (theme.spacing.lg * 2) - (CALENDAR_PADDING * 2);
+const CALENDAR_SCREEN_PADDING = 16; // theme.spacing.lg
+const calendarInnerWidth = screenWidth - (CALENDAR_SCREEN_PADDING * 2) - (CALENDAR_PADDING * 2);
 const CELL_SIZE = Math.floor((calendarInnerWidth - CELL_GAP * (COLS - 1)) / COLS);
 
 export const CalendarScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const { t, lang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading } = useTrades();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
@@ -58,7 +65,7 @@ export const CalendarScreen: React.FC = () => {
   const firstDayIndex = new Date(year, month, 1).getDay();
   const adjustedStartDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
 
-  const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const monthName = currentDate.toLocaleDateString(localeFor(lang), { month: 'long', year: 'numeric' });
 
   // Monthly stats
   const monthlyStats = useMemo(() => {
@@ -98,14 +105,14 @@ export const CalendarScreen: React.FC = () => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* ── HEADER ── */}
       <View style={styles.header}>
-        <Text style={styles.screenTitle}>CALENDRIER QUANTITATIF</Text>
-        <Text style={styles.screenSubtitle}>Heatmap journalier & amplitude P&L</Text>
+        <Text style={styles.screenTitle}>{t('screenTitleCalendar')}</Text>
+        <Text style={styles.screenSubtitle}>{t('screenSubtitleCalendar')}</Text>
       </View>
 
       {/* ── MONTHLY HERO METRICS ── */}
       <View style={styles.heroMonthCard}>
         <LinearGradient
-          colors={['#141724', '#0f111a']}
+          colors={[theme.colors.surface, theme.colors.background]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.heroMonthGrad}
@@ -114,18 +121,18 @@ export const CalendarScreen: React.FC = () => {
             <View>
               <Text style={styles.heroMonthLabel}>{monthName.toUpperCase()}</Text>
               <Text style={[styles.heroMonthPnl, monthlyStats.monthPnl >= 0 ? styles.greenText : styles.redText]}>
-                {monthlyStats.monthPnl >= 0 ? '+' : ''}${monthlyStats.monthPnl.toFixed(2)}
+                {formatCurrency(monthlyStats.monthPnl)}
               </Text>
             </View>
 
             <View style={styles.daysBreakdown}>
               <View style={styles.dayStatBox}>
-                <Text style={styles.greenDayText}>+{monthlyStats.greenDays}J</Text>
-                <Text style={styles.statSubText}>GAINS</Text>
+                <Text style={styles.greenDayText}>+{monthlyStats.greenDays}{t('calDaySuffix')}</Text>
+                <Text style={styles.statSubText}>{t('gains')}</Text>
               </View>
               <View style={styles.dayStatBox}>
-                <Text style={styles.redDayText}>-{monthlyStats.redDays}J</Text>
-                <Text style={styles.statSubText}>PERTES</Text>
+                <Text style={styles.redDayText}>-{monthlyStats.redDays}{t('calDaySuffix')}</Text>
+                <Text style={styles.statSubText}>{t('losses')}</Text>
               </View>
             </View>
           </View>
@@ -136,12 +143,24 @@ export const CalendarScreen: React.FC = () => {
       <View style={styles.calendarFrame}>
         {/* Month Navigation (inside frame) */}
         <View style={styles.monthNav}>
-          <TouchableOpacity onPress={prevMonth} style={styles.navBtn} activeOpacity={0.7}>
-            <ChevronLeft color="#ffffff" size={16} />
+          <TouchableOpacity
+            onPress={prevMonth}
+            style={styles.navBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11yPrevMonth')}
+          >
+            <ChevronLeft color={theme.colors.textPrimary} size={16} />
           </TouchableOpacity>
           <Text style={styles.monthTitle}>{monthName.toUpperCase()}</Text>
-          <TouchableOpacity onPress={nextMonth} style={styles.navBtn} activeOpacity={0.7}>
-            <ChevronRight color="#ffffff" size={16} />
+          <TouchableOpacity
+            onPress={nextMonth}
+            style={styles.navBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={t('a11yNextMonth')}
+          >
+            <ChevronRight color={theme.colors.textPrimary} size={16} />
           </TouchableOpacity>
         </View>
 
@@ -150,7 +169,7 @@ export const CalendarScreen: React.FC = () => {
 
         {/* Days Header */}
         <View style={styles.daysHeader}>
-          {['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'].map(d => (
+          {[t('calWeekdayMon'), t('calWeekdayTue'), t('calWeekdayWed'), t('calWeekdayThu'), t('calWeekdayFri'), t('calWeekdaySat'), t('calWeekdaySun')].map(d => (
             <View key={d} style={[styles.dayColHeaderBox, { width: CELL_SIZE }]}>
               <Text style={styles.dayColHeaderText}>{d}</Text>
             </View>
@@ -210,8 +229,10 @@ export const CalendarScreen: React.FC = () => {
                         isLoss && styles.redText,
                       ]}
                       numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
                     >
-                      {isWin ? '+' : ''}${Math.abs(ds.pnl) >= 1000 ? `${(ds.pnl / 1000).toFixed(1)}k` : ds.pnl.toFixed(0)}
+                      {formatCurrency(ds.pnl, { compact: true, decimals: 0 })}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -224,10 +245,10 @@ export const CalendarScreen: React.FC = () => {
         <View style={styles.separator} />
         <View style={styles.calendarFooter}>
           <Text style={styles.footerLabel}>
-            {monthlyStats.totalTradesMonth} trades · {monthlyStats.greenDays + monthlyStats.redDays} jours actifs
+            {t('calFooterSummary', monthlyStats.totalTradesMonth, monthlyStats.greenDays + monthlyStats.redDays)}
           </Text>
           <Text style={[styles.footerPnl, monthlyStats.monthPnl >= 0 ? styles.greenText : styles.redText]}>
-            {monthlyStats.monthPnl >= 0 ? '+' : ''}${monthlyStats.monthPnl.toFixed(2)}
+            {formatCurrency(monthlyStats.monthPnl)}
           </Text>
         </View>
       </View>
@@ -235,12 +256,12 @@ export const CalendarScreen: React.FC = () => {
       {/* ── SELECTED DATE DETAILS ── */}
       {selectedDateStr && (
         <Card
-          title={`TRADES DU ${new Date(selectedDateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}`}
-          badge={tradesByDate[selectedDateStr] ? `${tradesByDate[selectedDateStr].trades.length} POSITIONS` : 'AUCUN TRADE'}
+          title={`${t('tradesOfDay')} ${new Date(selectedDateStr).toLocaleDateString(localeFor(lang), { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}`}
+          badge={tradesByDate[selectedDateStr] ? `${tradesByDate[selectedDateStr].trades.length} ${t('positions')}` : t('noPositions')}
           badgeVariant={tradesByDate[selectedDateStr]?.pnl! >= 0 ? 'green' : 'red'}
         >
           {selectedTrades.length === 0 ? (
-            <Text style={styles.emptyText}>Aucun trade exécuté ce jour-là.</Text>
+            <Text style={styles.emptyText}>{t('noTradeThatDay')}</Text>
           ) : (
             selectedTrades.map((t: Trade) => (
               <View key={t.id} style={styles.tradeRow}>
@@ -250,13 +271,13 @@ export const CalendarScreen: React.FC = () => {
                     <Badge label={t.direction} variant={t.direction === 'BUY' ? 'green' : 'blue'} size="sm" />
                   </View>
                   <Text style={styles.tradeTime}>
-                    {new Date(t.entry_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(t.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
 
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={[styles.tradePnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
-                    {t.pnl !== null ? `${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}` : 'OPEN'}
+                    {t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN'}
                   </Text>
                   <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} size="sm" />
                 </View>
@@ -271,7 +292,7 @@ export const CalendarScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -288,15 +309,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1.2,
   },
   screenSubtitle: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
 
@@ -305,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
     marginBottom: theme.spacing.md,
   },
   heroMonthGrad: {
@@ -319,12 +340,12 @@ const styles = StyleSheet.create({
   heroMonthLabel: {
     color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 1,
   },
   heroMonthPnl: {
     fontSize: 22,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
@@ -333,9 +354,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dayStatBox: {
-    backgroundColor: '#181b26',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: theme.colors.cardBorder,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -344,26 +365,26 @@ const styles = StyleSheet.create({
   greenDayText: {
     color: theme.colors.greenLight,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   redDayText: {
     color: theme.colors.redLight,
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   statSubText: {
     color: theme.colors.textMuted,
-    fontSize: 8,
-    fontWeight: '700',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
 
   // ── Framed Calendar ──
   calendarFrame: {
-    backgroundColor: '#0e1017',
+    backgroundColor: theme.colors.backgroundElevated,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
     padding: CALENDAR_PADDING,
     marginBottom: theme.spacing.lg,
   },
@@ -377,19 +398,19 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   monthTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1.5,
   },
   separator: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.surface,
     marginBottom: 10,
   },
   daysHeader: {
@@ -402,9 +423,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   dayColHeaderText: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
 
@@ -419,10 +440,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dayCell: {
-    backgroundColor: '#161923',
+    backgroundColor: theme.colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: theme.colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 2,
@@ -440,26 +461,26 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   dayCellSelected: {
-    borderColor: '#ffffff',
+    borderColor: theme.colors.textPrimary,
     borderWidth: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: theme.colors.surface,
   },
   dayNum: {
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoBold,
   },
   dayNumToday: {
-    color: '#818cf8',
+    color: theme.colors.primaryLight,
     fontWeight: '900',
   },
   dayNumSelected: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontWeight: '900',
   },
   dayPnl: {
-    fontSize: 7,
-    fontWeight: '900',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
     marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
@@ -472,13 +493,13 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   footerLabel: {
-    color: '#64748b',
+    color: theme.colors.textMuted,
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
   },
   footerPnl: {
     fontSize: 12,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
 
@@ -489,7 +510,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   flexRow: {
     flexDirection: 'row',
@@ -497,23 +518,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tradePair: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansBold,
   },
   tradeTime: {
     color: theme.colors.textMuted,
     fontSize: 9,
+    fontFamily: theme.fonts.monoMedium,
     marginTop: 2,
   },
   tradePnl: {
     fontSize: 13,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   emptyText: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontFamily: theme.fonts.sans,
     textAlign: 'center',
     paddingVertical: 12,
   },

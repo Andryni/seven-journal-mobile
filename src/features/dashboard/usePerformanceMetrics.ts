@@ -35,7 +35,7 @@ export interface PerformanceMetrics {
   streak: StreakInfo;
 }
 
-export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
+export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr'): PerformanceMetrics {
   return useMemo(() => {
     const closedTrades = trades.filter(
       (t): t is Trade & { exit_time: string; pnl: number } =>
@@ -100,7 +100,7 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
         return {
           tradeIndex: i + 1,
           pnl: Number(cumPnL.toFixed(2)),
-          date: formatShortDate(new Date(t.entry_time || 0)),
+          date: formatShortDate(new Date(t.entry_time || 0), lang),
         };
       });
 
@@ -122,7 +122,7 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
     const dailyPnL = Object.values(dailyMapISO)
       .sort((a, b) => a.isoKey.localeCompare(b.isoKey))
       .map((entry) => ({
-        date: formatShortDate(new Date(entry.isoKey + 'T12:00:00Z')),
+        date: formatShortDate(new Date(entry.isoKey + 'T12:00:00Z'), lang),
         pnl: Number(entry.pnl.toFixed(2)),
       }));
 
@@ -136,7 +136,7 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
         const d = new Date(timeStr);
         if (!isNaN(d.getTime())) {
           const sortKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-          const monthLabel = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }).toUpperCase();
+          const monthLabel = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'short', year: '2-digit' }).toUpperCase();
           if (!monthlyMap[sortKey]) {
             monthlyMap[sortKey] = { label: monthLabel, pnl: 0, count: 0, wins: 0, sortKey };
           }
@@ -225,5 +225,5 @@ export function usePerformanceMetrics(trades: Trade[]): PerformanceMetrics {
       dailyPnL,
       streak,
     };
-  }, [trades]);
+  }, [trades, lang]);
 }

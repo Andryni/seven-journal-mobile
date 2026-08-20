@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../../theme';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
 
 interface BadgeProps {
   label: string | null | undefined;
@@ -15,6 +16,8 @@ export const Badge: React.FC<BadgeProps> = ({
   size = 'md',
   pulse = false,
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   if (!label) return null;
 
   return (
@@ -59,7 +62,7 @@ export const Badge: React.FC<BadgeProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -79,10 +82,10 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 2.5,
   },
-  dotGreen: { backgroundColor: '#10b981' },
-  dotRed: { backgroundColor: '#ef4444' },
-  dotGold: { backgroundColor: '#f59e0b' },
-  dotBlue: { backgroundColor: '#818cf8' },
+  dotGreen: { backgroundColor: theme.colors.green },
+  dotRed: { backgroundColor: theme.colors.red },
+  dotGold: { backgroundColor: theme.colors.gold },
+  dotBlue: { backgroundColor: theme.colors.primaryLight },
 
   badgeGreen: {
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
@@ -105,23 +108,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(6, 182, 212, 0.35)',
   },
   badgeNeutral: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderBright,
   },
 
   text: {
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
     fontVariant: ['tabular-nums'],
   },
   textSm: {
     fontSize: 9,
   },
-  textGreen: { color: '#34d399' },
-  textRed: { color: '#f87171' },
-  textGold: { color: '#fbbf24' },
-  textBlue: { color: '#818cf8' },
-  textCyan: { color: '#67e8f9' },
-  textNeutral: { color: '#94a3b8' },
+  textGreen: { color: theme.colors.greenLight },
+  textRed: { color: theme.colors.redLight },
+  textGold: { color: theme.colors.goldLight },
+  textBlue: { color: theme.colors.primaryLight },
+  textCyan: { color: theme.colors.cyanLight },
+  textNeutral: { color: theme.colors.textSecondary },
 });

@@ -26,12 +26,14 @@ import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
-import { useT } from '../i18n';
+import { useT, useI18nStore } from '../i18n';
 import { formatShortDate } from '../utils/formatDate';
 import { Card } from '../components/ui/Card';
 import { PieChart } from 'react-native-chart-kit';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
+import { ShareCardModal } from '../components/share/ShareCardModal';
+import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import {
   Activity,
   TrendingUp,
@@ -42,22 +44,12 @@ import {
   Award,
   Flame,
   Shield,
+  Share2,
 } from 'lucide-react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 const screenWidth = Dimensions.get('window').width;
 
-const chartConfig = {
-  backgroundColor: '#14161f',
-  backgroundGradientFrom: '#181920',
-  backgroundGradientTo: '#101217',
-  decimalPlaces: 1,
-  color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
-  labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
-  style: { borderRadius: 16 },
-  propsForDots: { r: '4', strokeWidth: '2', stroke: '#818cf8' },
-  propsForBackgroundLines: { strokeDasharray: '', stroke: 'rgba(255, 255, 255, 0.05)' },
-};
 
 type TabType = 'overview' | 'equity' | 'distribution' | 'breakdown' | 'timing' | 'psychology' | 'propfirm';
 
@@ -156,6 +148,7 @@ const AnimatedProgressBar: React.FC<{
   theme: AppTheme;
 }> = ({ label, current, limit, color, invert = false, theme }) => {
   const { t } = useT();
+  const lang = useI18nStore(s => s.lang);
   const pct = limit > 0 ? Math.min(Math.abs(current) / Math.abs(limit), 1) : 0;
   const isWarning = invert ? pct > 0.7 : pct > 0.85;
   const isDanger = invert ? pct > 0.9 : pct > 0.95;
@@ -234,7 +227,20 @@ const StatusChip: React.FC<{
 export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
+  const chartConfig = useMemo(() => ({
+    backgroundColor: theme.colors.chartBg,
+    backgroundGradientFrom: theme.colors.modalBg,
+    backgroundGradientTo: theme.colors.background,
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+    style: { borderRadius: 16 },
+    propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primaryLight },
+    propsForBackgroundLines: { strokeDasharray: '', stroke: theme.colors.cardBorder },
+  }), [theme]);
+
   const { t } = useT();
+  const lang = useI18nStore(s => s.lang);
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
@@ -242,6 +248,7 @@ export const AnalyticsScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   const dateRangeOptions = [
     { key: '7d' as const, labelKey: 'dateRange7d' as const },
@@ -316,10 +323,10 @@ export const AnalyticsScreen: React.FC = () => {
     const currDd = peakSoFar - cum;
     return {
       equityKitData: {
-        labels: labels.slice(0, 7),
+        labels,
         datasets: [
           {
-            data: values.slice(0, 7),
+            data: values,
             color: (opacity = 1) => totalPnL >= 0 ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
             strokeWidth: 3,
           },
@@ -335,12 +342,12 @@ export const AnalyticsScreen: React.FC = () => {
   const dailyPnL = useMemo(() => {
     const map: Record<string, number> = {};
     closed.forEach(t => {
-      const day = formatShortDate(new Date(t.entry_time));
+      const day = formatShortDate(new Date(t.entry_time), lang);
       map[day] = (map[day] || 0) + (t.pnl || 0);
     });
     return Object.entries(map)
       .map(([label, value]) => ({ label, value }));
-  }, [closed]);
+  }, [closed, lang]);
 
   // Win Rate Trend
   const winRateTrend = useMemo(() => {
@@ -356,9 +363,9 @@ export const AnalyticsScreen: React.FC = () => {
 
   // 3. PIE DATA
   const pieData = useMemo(() => [
-    { name: 'Gains', population: wins.length || 1, color: '#10b981', legendFontColor: '#94a3b8', legendFontSize: 11 },
-    { name: 'Pertes', population: losses.length || 1, color: '#ef4444', legendFontColor: '#94a3b8', legendFontSize: 11 },
-    { name: 'BE', population: breakeven.length || 1, color: '#6366f1', legendFontColor: '#94a3b8', legendFontSize: 11 },
+    { name: t('gainsLabel'), population: wins.length || 1, color: '#10b981', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
+    { name: t('lossesLabel'), population: losses.length || 1, color: '#ef4444', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
+    { name: 'BE', population: breakeven.length || 1, color: '#6366f1', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
   ], [wins, losses, breakeven]);
 
   // 4. PAR SETUP
@@ -478,7 +485,9 @@ export const AnalyticsScreen: React.FC = () => {
 
   // 8. DAY OF WEEK ANALYSIS
   const dayOfWeekAnalysis = useMemo(() => {
-    const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const dayNames = lang === 'en'
+        ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        : ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
     const dayNamesEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const dayMap: Record<number, { pnl: number; wins: number; total: number }> = {};
     for (let i = 0; i < 7; i++) dayMap[i] = { pnl: 0, wins: 0, total: 0 };
@@ -496,7 +505,7 @@ export const AnalyticsScreen: React.FC = () => {
       winRate: dayMap[i].total > 0 ? (dayMap[i].wins / dayMap[i].total) * 100 : 0,
       pnl: dayMap[i].pnl,
     }));
-  }, [closed]);
+  }, [closed, lang]);
 
   // 9. HOLDING TIME ANALYSIS
   const holdingTimeData = useMemo(() => {
@@ -620,7 +629,7 @@ export const AnalyticsScreen: React.FC = () => {
     const isCompliant = maxDayContrib <= consistencyRule;
 
     const dailyContributions = dayPnls.map(d => ({
-      date: formatShortDate(new Date(d.date + 'T12:00:00Z')),
+      date: formatShortDate(new Date(d.date + 'T12:00:00Z'), lang),
       pct: totalAbs > 0 ? (d.pnl / totalAbs) * 100 : 0,
       pnl: d.pnl,
     }));
@@ -652,8 +661,18 @@ export const AnalyticsScreen: React.FC = () => {
     <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
       {/* HEADER */}
       <Animated.View entering={FadeInDown.duration(350)} style={s.header}>
-        <Text style={s.screenTitle}>{t('tabAnalytics')}</Text>
-        <Text style={s.screenSubtitle}>{t('screenSubtitleAnalytics')}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.screenTitle}>{t('tabAnalytics')}</Text>
+          <Text style={s.screenSubtitle}>{t('screenSubtitleAnalytics')}</Text>
+        </View>
+        <TouchableOpacity
+              style={s.shareBtn}
+              onPress={() => setShareModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Share2 size={13} color={theme.colors.primaryLight} />
+              <Text style={s.shareBtnText}>{t('sharePnl')}</Text>
+            </TouchableOpacity>
       </Animated.View>
 
       {/* TABS SELECTOR */}
@@ -917,7 +936,7 @@ export const AnalyticsScreen: React.FC = () => {
                   <View style={s.rowBetween}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.boldWhite}>🎯 {st.name}</Text>
-                      <Text style={s.subMuted}>{st.count} trades exécutés</Text>
+                      <Text style={s.subMuted}>{st.count} trades</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
@@ -947,7 +966,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {p.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
-                        {p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)}
+                        {p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)}
                       </Text>
                     </View>
                   </View>
@@ -970,7 +989,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {tf.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
-                        {tf.pnl >= 0 ? '+' : ''}$${tf.pnl.toFixed(2)}
+                        {tf.pnl >= 0 ? '+' : ''}${tf.pnl.toFixed(2)}
                       </Text>
                     </View>
                   </View>
@@ -993,6 +1012,8 @@ export const AnalyticsScreen: React.FC = () => {
               )}
             </Card>
           </Animated.View>
+            {/* Session Heatmap */}
+            <SessionHeatmapCard trades={closed} />
 
           {/* Session Performance Breakdown */}
           <Animated.View entering={FadeIn.delay(100).duration(350)}>
@@ -1344,6 +1365,14 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       <View style={{ height: 40 }} />
+
+      {/* Share P&L Card Modal */}
+      <ShareCardModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        trades={trades}
+        accountName={selectedAccount?.name || 'Tous les comptes'}
+      />
     </ScrollView>
   );
 };
@@ -1362,6 +1391,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
@@ -1371,7 +1403,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     letterSpacing: 1,
   },
   screenSubtitle: {
-    color: theme.colors.primaryLight,
+    color: theme.colors.textPrimary,
     fontSize: 10,
     fontFamily: theme.fonts.sansSemiBold,
     marginTop: 2,
@@ -1480,6 +1512,22 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  shareBtnText: {
+    color: theme.colors.textPrimary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
+  },
+
   dateRangeTextActive: {
     color: theme.colors.primaryLight,
   },

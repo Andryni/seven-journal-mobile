@@ -1,10 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
 import { useUIStore } from '../../store/uiStore';
+import { useToast } from '../../store/toastStore';
+import { useT } from '../../i18n';
 import type { Trade, TradingAccount } from '../../types/domain';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 export function useTrades() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
+  const { t } = useT();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
   // Fetch trades
@@ -62,7 +67,7 @@ export function useTrades() {
       }
 
       if (dailyLossExceeded) {
-        const reason = `Limite de perte quotidienne ($ / %) atteinte sur ${exceededAccountName} (-$${exceededAmount.toFixed(2)} / max $${limitAmount.toFixed(2)}). Session verrouillée.`;
+        const reason = `Limite de perte quotidienne ($ / %) atteinte sur ${exceededAccountName} (${formatCurrency(-exceededAmount)} / max ${formatCurrency(limitAmount)}). Session verrouillée.`;
 
         await supabase.from('daily_session_locks').upsert({
           user_id: userId,
@@ -105,6 +110,10 @@ export function useTrades() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      showSuccess(t('toastTradeCreated'));
+    },
+    onError: () => {
+      showError(t('toastErrorCreate'));
     },
   });
 
@@ -130,6 +139,10 @@ export function useTrades() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      showSuccess(t('toastTradeUpdated'));
+    },
+    onError: () => {
+      showError(t('toastErrorUpdate'));
     },
   });
 
@@ -151,6 +164,10 @@ export function useTrades() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      showSuccess(t('toastTradeDeleted'));
+    },
+    onError: () => {
+      showError(t('toastErrorDelete'));
     },
   });
 

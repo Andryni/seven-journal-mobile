@@ -1,69 +1,61 @@
 /**
- * Formats a date string or Date object to short format: DD/MM/YY
+ * Formats a date string or Date object to short format.
  *
- * Examples:
- *   formatShortDate('2025-08-12')       → '12/08/25'
- *   formatShortDate('2025-08-12T14:30') → '12/08/25'
- *   formatShortDate(new Date(...))      → '12/08/25'
- *   formatShortDate('8/12')             → '12/08/25' (US M/D)
- *   formatShortDate('12 août')          → '12/08'    (FR short month → keeps DD/MM)
+ * FR: DD/MM/YY (e.g. 12/08/25)
+ * EN: M/D/YY   (e.g. 8/12/25)
+ *
+ * @param input - Date string or Date object
+ * @param lang  - 'fr' | 'en' (default: 'fr')
  */
-export function formatShortDate(input: string | Date): string {
-  if (input instanceof Date) {
-    const dd = String(input.getDate()).padStart(2, '0');
-    const mm = String(input.getMonth() + 1).padStart(2, '0');
-    const yy = String(input.getFullYear()).slice(-2);
-    return `${dd}/${mm}/${yy}`;
+export function formatShortDate(input: string | Date, lang: 'fr' | 'en' = 'fr'): string {
+  const toDate = (val: string | Date): Date => {
+    if (val instanceof Date) return val;
+    const s = val.trim();
+    // Try ISO
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d;
+    }
+    // Try DD/MM or DD/MM/YY
+    if (/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(s)) {
+      const parts = s.split('/');
+      const dd = parseInt(parts[0], 10);
+      const mm = parseInt(parts[1], 10) - 1;
+      const yy = parts[2] ? 2000 + parseInt(parts[2].slice(-2), 10) : new Date().getFullYear();
+      const d = new Date(yy, mm, dd);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+    return new Date();
+  };
+
+  const d = toDate(input);
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = String(d.getFullYear()).slice(-2);
+
+  if (lang === 'en') {
+    // EN format: M/D/YY (no leading zeros)
+    return `${month}/${day}/${year}`;
   }
-
-  const s = input.trim();
-
-  // Already DD/MM or DD/MM/YY
-  if (/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(s)) {
-    const parts = s.split('/');
-    const dd = parts[0].padStart(2, '0');
-    const mm = parts[1].padStart(2, '0');
-    const yy = parts[2] ? parts[2].slice(-2) : '';
-    return yy ? `${dd}/${mm}/${yy}` : `${dd}/${mm}`;
-  }
-
-  // YYYY-MM-DD or YYYY-MM-DDTHH:mm
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const parts = s.split('T')[0].split('-');
-    return `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
-  }
-
-  // US M/D or M/D/YY
-  if (/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(s)) {
-    const parts = s.split('/');
-    const dd = parts[1].padStart(2, '0');
-    const mm = parts[0].padStart(2, '0');
-    const yy = parts[2] ? parts[2].slice(-2) : '';
-    return yy ? `${dd}/${mm}/${yy}` : `${dd}/${mm}`;
-  }
-
-  // Try to parse as Date
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${dd}/${mm}/${yy}`;
-  }
-
-  // Fallback: return as-is
-  return s;
+  // FR format: DD/MM/YY
+  const dd = String(day).padStart(2, '0');
+  const mm = String(month).padStart(2, '0');
+  return `${dd}/${mm}/${year}`;
 }
 
 /**
- * Formats a date to short DD/MM format (no year).
+ * Formats a date to short DD/MM or M/D format (no year).
  * Used when year is not needed on chart labels.
  */
-export function formatShortDateNoYear(input: string | Date): string {
-  const full = formatShortDate(input);
-  // Remove /YY suffix if present
+export function formatShortDateNoYear(input: string | Date, lang: 'fr' | 'en' = 'fr'): string {
+  const full = formatShortDate(input, lang);
   const parts = full.split('/');
   if (parts.length === 3) {
+    if (lang === 'en') {
+      return `${parts[0]}/${parts[1]}`;
+    }
     return `${parts[0]}/${parts[1]}`;
   }
   return full;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   View,
@@ -9,10 +9,13 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import { theme } from '../../theme';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
+import { formatCurrency } from '../../utils/formatCurrency';
 import { Badge } from '../ui/Badge';
-import { X, Edit3, Trash2, ExternalLink, Activity, Brain, Clock, Shield } from 'lucide-react-native';
+import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
 
 interface TradeDetailModalProps {
   visible: boolean;
@@ -29,6 +32,9 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { theme } = useTheme();
+  const { t, lang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   if (!trade) return null;
 
   const isWin = (trade.pnl || 0) > 0;
@@ -45,8 +51,14 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <Badge label={trade.direction} variant={trade.direction === 'BUY' ? 'blue' : 'gold'} />
               <Badge label={trade.result} variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'} />
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X color="#ffffff" size={20} />
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('tdCloseDetail')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X color={theme.colors.textPrimary} size={20} />
             </TouchableOpacity>
           </View>
 
@@ -54,13 +66,13 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             {/* P&L & R-Multiple Highlight */}
             <View style={styles.pnlBanner}>
               <View>
-                <Text style={styles.pnlLabel}>P&L NET RÉALISÉ</Text>
+                <Text style={styles.pnlLabel}>{t('tdNetPnl')}</Text>
                 <Text style={[styles.pnlValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}>
-                  {trade.pnl !== null ? `${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}` : 'OPEN'}
+                  {trade.pnl !== null ? formatCurrency(trade.pnl) : 'OPEN'}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.pnlLabel}>R-MULTIPLE</Text>
+                <Text style={styles.pnlLabel}>{t('tdRMultiple')}</Text>
                 <Text style={[styles.rValue, (trade.r_multiple || 0) >= 0 ? styles.greenText : styles.redText]}>
                   {trade.r_multiple !== null ? `${trade.r_multiple >= 0 ? '+' : ''}${trade.r_multiple} R` : '—'}
                 </Text>
@@ -69,30 +81,30 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 
             {/* Détails Exécution */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>PARAMÈTRES D'EXÉCUTION</Text>
+              <Text style={styles.sectionTitle}>{t('tdExecutionParams')}</Text>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>Date d'Entrée :</Text>
-                <Text style={styles.val}>{new Date(trade.entry_time).toLocaleString('fr-FR')}</Text>
+                <Text style={styles.label}>{t('tdEntryDate')}</Text>
+                <Text style={styles.val}>{new Date(trade.entry_time).toLocaleString(localeFor(lang))}</Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>Timeframe :</Text>
+                <Text style={styles.label}>{t('tdTimeframe')}</Text>
                 <Text style={styles.val}>{trade.timeframe}</Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>Session :</Text>
-                <Text style={styles.val}>{trade.session || '—'}</Text>
+                <Text style={styles.label}>{t('tdSession')}</Text>
+                <Text style={styles.val}>{sessionLabel(t, trade.session)}</Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>Volume :</Text>
+                <Text style={styles.label}>{t('tdVolume')}</Text>
                 <Text style={styles.val}>{trade.size} Lots</Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>Entrée / SL / TP :</Text>
+                <Text style={styles.label}>{t('tdEntrySlTp')}</Text>
                 <Text style={styles.val}>{trade.entry_price} / {trade.stop_loss} / {trade.take_profit}</Text>
               </View>
               {trade.exit_price && (
                 <View style={styles.detailRow}>
-                  <Text style={styles.label}>Prix de Sortie :</Text>
+                  <Text style={styles.label}>{t('tdExitPrice')}</Text>
                   <Text style={styles.val}>{trade.exit_price}</Text>
                 </View>
               )}
@@ -100,21 +112,19 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 
             {/* Stratégie Playbook */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>STRATÉGIE DU PLAYBOOK</Text>
+              <Text style={styles.sectionTitle}>{t('tdPlaybookStrategy')}</Text>
               <View style={styles.badgeRow}>
                 {(() => {
                   const playbookSetups = trade.setup_structures.filter(s => s !== 'BOS');
                   if (playbookSetups.length > 0) {
                     return playbookSetups.map((s, idx) => (
                       <View key={idx} style={styles.strategyPill}>
-                        <Text style={styles.strategyText}>🎯 {s}</Text>
+                        <Text style={styles.strategyText}>{s}</Text>
                       </View>
                     ));
                   }
                   return (
-                    <Text style={styles.noStrategyText}>
-                      Aucune stratégie spécifique associée
-                    </Text>
+                    <Text style={styles.noStrategyText}>{t('tdNoStrategy')}</Text>
                   );
                 })()}
               </View>
@@ -123,17 +133,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             {/* Screenshots Avant & Après */}
             {(trade.screenshot_before_url || trade.screenshot_after_url) && (
               <View style={styles.sectionBox}>
-                <Text style={styles.sectionTitle}>SCREENSHOTS DU SETUP</Text>
+                <Text style={styles.sectionTitle}>{t('tdSetupScreenshots')}</Text>
                 {trade.screenshot_before_url && (
                   <View style={{ marginBottom: 10 }}>
-                    <Text style={styles.miniLabel}>Graphique Avant :</Text>
+                    <Text style={styles.miniLabel}>{t('tdChartBefore')}</Text>
                     {trade.screenshot_before_url.startsWith('data:') || trade.screenshot_before_url.startsWith('file:') || trade.screenshot_before_url.startsWith('http') ? (
                       <Image source={{ uri: trade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
                     ) : null}
                     {trade.screenshot_before_url.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)} style={styles.linkRow}>
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
-                        <Text style={styles.linkText}>Ouvrir sur TradingView</Text>
+                        <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -141,14 +151,14 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 
                 {trade.screenshot_after_url && (
                   <View>
-                    <Text style={styles.miniLabel}>Graphique Après :</Text>
+                    <Text style={styles.miniLabel}>{t('tdChartAfter')}</Text>
                     {trade.screenshot_after_url.startsWith('data:') || trade.screenshot_after_url.startsWith('file:') || trade.screenshot_after_url.startsWith('http') ? (
                       <Image source={{ uri: trade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
                     ) : null}
                     {trade.screenshot_after_url.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)} style={styles.linkRow}>
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
-                        <Text style={styles.linkText}>Ouvrir sur TradingView</Text>
+                        <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -158,18 +168,18 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 
             {/* Psychologie & Notes */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>PSYCHOLOGIE & NOTES</Text>
+              <Text style={styles.sectionTitle}>{t('tdPsychologyNotes')}</Text>
               <View style={styles.detailRow}>
-                <Text style={styles.label}>État Mental :</Text>
-                <Text style={[styles.val, { textTransform: 'uppercase', color: theme.colors.goldLight }]}>
-                  {trade.mental_state}
+                <Text style={styles.label}>{t('tdMentalState')}</Text>
+                <Text style={[styles.val, { color: theme.colors.goldLight }]}>
+                  {mentalStateLabel(t, trade.mental_state)}
                 </Text>
               </View>
               {trade.cookie_jar_ref && (
-                <Text style={styles.goldText}>✓ Cookie Jar (Goggins) Appliqué</Text>
+                <Text style={styles.goldText}>{t('tdCookieJar')}</Text>
               )}
               {trade.rule_40_percent && (
-                <Text style={styles.goldText}>✓ 40% Rule Appliquée</Text>
+                <Text style={styles.goldText}>{t('tdRule40')}</Text>
               )}
               {trade.notes ? (
                 <Text style={styles.notesText}>"{trade.notes}"</Text>
@@ -187,7 +197,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               }}
             >
               <Trash2 size={16} color={theme.colors.redLight} />
-              <Text style={styles.deleteText}>SUPPRIMER</Text>
+              <Text style={styles.deleteText}>{t('tdDelete')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -197,8 +207,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 onEdit(trade);
               }}
             >
-              <Edit3 size={16} color="#ffffff" />
-              <Text style={styles.editText}>MODIFIER LE TRADE</Text>
+              <Edit3 size={16} color={theme.colors.textPrimary} />
+              <Text style={styles.editText}>{t('tdEditTrade')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -207,7 +217,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
@@ -215,8 +225,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   content: {
-    backgroundColor: '#181920',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.modalBg,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
@@ -227,7 +237,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#262833',
+    borderBottomColor: theme.colors.borderStrong,
     paddingBottom: theme.spacing.sm,
     marginBottom: theme.spacing.md,
   },
@@ -237,9 +247,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pairText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontFamily: theme.fonts.sansBold,
   },
   closeBtn: {
     padding: 4,
@@ -250,8 +260,8 @@ const styles = StyleSheet.create({
   pnlBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#121318',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
@@ -260,24 +270,24 @@ const styles = StyleSheet.create({
   pnlLabel: {
     color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
   },
   pnlValue: {
     fontSize: 20,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
   rValue: {
     fontSize: 18,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
   sectionBox: {
-    backgroundColor: '#121318',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
@@ -286,10 +296,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
     borderBottomWidth: 1,
-    borderBottomColor: '#262833',
+    borderBottomColor: theme.colors.borderStrong,
     paddingBottom: 4,
     marginBottom: 8,
   },
@@ -298,16 +308,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: theme.colors.cardBorder,
   },
   label: {
     color: theme.colors.textSecondary,
     fontSize: 11,
+    fontFamily: theme.fonts.monoMedium,
   },
   val: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: theme.fonts.sansMedium,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -315,30 +326,30 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   smcPill: {
-    backgroundColor: '#181920',
-    borderColor: '#262833',
+    backgroundColor: theme.colors.modalBg,
+    borderColor: theme.colors.borderStrong,
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   smcText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoBold,
   },
   strategyPill: {
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
-    borderColor: '#6366f1',
+    borderColor: theme.colors.primary,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
   strategyText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   noStrategyText: {
     color: theme.colors.textMuted,
@@ -348,6 +359,7 @@ const styles = StyleSheet.create({
   miniLabel: {
     color: theme.colors.textSecondary,
     fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
     marginBottom: 4,
   },
   screenshotImg: {
@@ -365,7 +377,7 @@ const styles = StyleSheet.create({
   linkText: {
     color: theme.colors.primaryLight,
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: theme.fonts.sansSemiBold,
   },
   notesText: {
     color: theme.colors.textSecondary,
@@ -395,7 +407,7 @@ const styles = StyleSheet.create({
   deleteText: {
     color: theme.colors.redLight,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   editBtn: {
     flex: 2,
@@ -408,11 +420,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
   },
   editText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 11,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   greenText: { color: theme.colors.greenLight },
   redText: { color: theme.colors.redLight },
-  goldText: { color: theme.colors.goldLight, fontSize: 11, fontWeight: '700', marginTop: 4 },
+  goldText: { color: theme.colors.goldLight, fontSize: 11, fontFamily: theme.fonts.sansSemiBold, marginTop: 4 },
 });

@@ -17,11 +17,16 @@ import type { Trade } from '../types/domain';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
+import { useAccounts } from '../features/accounts/useAccounts';
 import { localeFor, useT } from '../i18n';
 import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, TrendingUp } from 'lucide-react-native';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, TrendingUp, Download, Upload, FileText } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
+import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
@@ -30,7 +35,8 @@ export const TradesScreen: React.FC = () => {
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
-  const { trades, deleteTrade, isLoading } = useTrades();
+  const { trades, createTrade, deleteTrade, isLoading } = useTrades();
+  const { accounts } = useAccounts();
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
@@ -71,6 +77,100 @@ export const TradesScreen: React.FC = () => {
     );
   };
 
+
+  // Import trades from file
+  const handleImportTrades = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const file = result.assets[0];
+      const content = await fetch(file.uri).then(r => r.text());
+
+      let parsedTrades = [] as ReturnType<typeof parseMT4MT5Report>;
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith(".json")) {
+        parsedTrades = JSON.parse(content);
+      } else if (fileName.endsWith(".csv") || fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+        if (content.toLowerCase().includes("symbol") || content.toLowerCase().includes("ticker")) {
+          parsedTrades = parseTradingViewExport(content);
+        } else {
+          parsedTrades = parseMT4MT5Report(content);
+        }
+      }
+
+      if (parsedTrades.length > 0) {
+        Alert.alert(
+          "Import",
+          `${parsedTrades.length} trade(s) trouvé(s). Importer ?`,
+          [
+            { text: "Annuler", style: "cancel" },
+            {
+              text: "Importer",
+              onPress: async () => {
+                for (const t of parsedTrades) {
+                  await createTrade({
+                    account_id: accounts[0]?.id || "",
+                    pair: t.pair || "XAUUSD",
+                    direction: t.direction || "BUY",
+                    entry_price: Number(t.entry_price),
+                    exit_price: t.exit_price ? Number(t.exit_price) : null,
+                    stop_loss: Number(t.stop_loss),
+                    take_profit: Number(t.take_profit),
+                    size: Number(t.size),
+                    entry_time: t.entry_time || new Date().toISOString(),
+                    exit_time: t.exit_time || null,
+                    pnl: t.pnl != null ? Number(t.pnl) : null,
+                    r_multiple: t.r_multiple != null ? Number(t.r_multiple) : null,
+                    timeframe: t.timeframe || "M5",
+                    setup_structures: [],
+                    setup_fvg: false,
+                    setup_ob: false,
+                    setup_liquidity_sweep: false,
+                    bookmap_absorption: null,
+                    bookmap_passive_orders: null,
+                    bookmap_aggressive_orders: null,
+                    bookmap_vwap_position: null,
+                    mental_state: "focused",
+                    cookie_jar_ref: false,
+                    rule_40_percent: false,
+                    screenshot_before_url: null,
+                    screenshot_after_url: null,
+                    notes: t.notes || null,
+                    result: t.result || "OPEN",
+                    session: null,
+                  } as any);
+                }
+                Alert.alert("Succes", `${parsedTrades.length} trade(s) importe(s).`);
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert("Import", "Aucun trade detecte dans ce fichier.");
+      }
+    } catch {
+      Alert.alert("Erreur", "Erreur lors de l import du fichier.");
+    }
+  };
+
+  // Export trades as CSV
+  const handleExportCSV = async () => {
+    try {
+      const csv = generateTradeCSV(trades);
+      const fileName = `seven_journal_${new Date().toISOString().split("T")[0]}.csv`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, csv);
+      await Sharing.shareAsync(fileUri);
+    } catch {
+      Alert.alert("Erreur", "Erreur lors de l export.");
+    }
+  };
   // Filtered & Searched Trades
   const filteredTrades = useMemo(() => {
     return trades.filter((t: Trade) => {
@@ -213,6 +313,16 @@ export const TradesScreen: React.FC = () => {
             <Text style={styles.addBtnText}>{t('newTradeBtn')}</Text>
           </LinearGradient>
         </TouchableOpacity>
+        {/* Import button */}
+        <TouchableOpacity style={styles.importBtn} onPress={handleImportTrades} activeOpacity={0.8}>
+          <Upload color={theme.colors.primaryLight} size={14} />
+          <Text style={styles.importBtnText}>IMPORT</Text>
+        </TouchableOpacity>
+        {/* Export button */}
+        <TouchableOpacity style={styles.exportBtn} onPress={handleExportCSV} activeOpacity={0.8}>
+          <Download color={theme.colors.textSecondary} size={14} />
+          <Text style={styles.exportBtnText}>CSV</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── 2. QUICK STATS SUMMARY STRIP ── */}
@@ -350,6 +460,40 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 11,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
+  },
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  importBtnText: {
+    color: theme.colors.primaryLight,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  exportBtnText: {
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
   },
   summaryBar: {
     flexDirection: 'row',

@@ -126,7 +126,7 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
         <Animated.View style={[styles.textBlock, { opacity: textFade }]}>
           <View style={styles.brandRow}>
             <Text style={styles.brandSeven}>SEVEN </Text>
-            <Text style={styles.brandTracking}>TRACKING</Text>
+            <Text style={styles.brandTracking}>JOURNAL</Text>
           </View>
           <Text style={styles.tagline}>QUANTITATIVE TRADING TERMINAL</Text>
 
@@ -165,31 +165,31 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   glowHalo: {
     position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: 'rgba(99, 102, 241, 0.35)',
-    top: -15,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+    top: -18,
     shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 35,
-    elevation: 25,
+    shadowRadius: 40,
+    elevation: 28,
   },
   logoCard: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
+    width: 128,
+    height: 128,
+    borderRadius: 32,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(129, 140, 248, 0.7)',
+    borderWidth: 2,
+    borderColor: 'rgba(129, 140, 248, 0.8)',
     shadowColor: theme.colors.green,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.8,
-    shadowRadius: 25,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.9,
+    shadowRadius: 30,
+    elevation: 22,
     backgroundColor: theme.colors.backgroundElevated,
-    marginBottom: 24,
+    marginBottom: 28,
   },
   logoImage: {
     width: '100%',

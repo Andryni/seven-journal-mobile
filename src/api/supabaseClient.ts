@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const supabaseUrl = 'https://aeqyqwchxvcfvbbapqch.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlcXlxd2NoeHZjZnZiYmFwcWNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMDU4MzQsImV4cCI6MjA5OTY4MTgzNH0.Cordi5UpKyYdgb6urDwMAI5Nolsaw80ZSaUUmwhY4P8';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 // Safe storage wrapper that handles Expo Go web or native module unlinked states
 const memoryStorage: Record<string, string> = {};

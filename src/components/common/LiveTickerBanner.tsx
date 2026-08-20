@@ -1,34 +1,34 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTrades } from '../../features/trades/useTrades';
-import { theme } from '../../theme';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 export const LiveTickerBanner: React.FC = () => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades } = useTrades();
   const animatedX = useRef(new Animated.Value(0)).current;
 
-  const tickerItems = trades.length > 0
-    ? trades.slice(0, 10).map(t => {
-        const pnlVal = t.pnl ?? 0;
-        const isPos = pnlVal >= 0;
-        const rStr = t.r_multiple !== null ? `${t.r_multiple >= 0 ? '+' : ''}${t.r_multiple.toFixed(1)}R` : '';
-        const pnlStr = t.pnl !== null ? `${isPos ? '+' : ''}$${t.pnl.toFixed(2)}` : 'OPEN';
-        return {
-          id: t.id,
-          symbol: t.pair,
-          direction: t.direction,
-          pnl: pnlStr,
-          r: rStr,
-          up: isPos,
-        };
-      })
-    : [
-        { id: '1', symbol: 'XAUUSD', direction: 'BUY', pnl: '+$250.00', r: '+2.5R', up: true },
-        { id: '2', symbol: 'EURUSD', direction: 'SELL', pnl: '-$100.00', r: '-1.0R', up: false },
-        { id: '3', symbol: 'US30', direction: 'BUY', pnl: '+$450.00', r: '+3.0R', up: true },
-      ];
+  const tickerItems = trades.slice(0, 10).map(t => {
+    const pnlVal = t.pnl ?? 0;
+    const isPos = pnlVal >= 0;
+    const rStr = t.r_multiple !== null ? `${t.r_multiple >= 0 ? '+' : ''}${t.r_multiple.toFixed(1)}R` : '';
+    const pnlStr = t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN';
+    return {
+      id: t.id,
+      symbol: t.pair,
+      direction: t.direction,
+      pnl: pnlStr,
+      r: rStr,
+      up: isPos,
+    };
+  });
 
   const items = [...tickerItems, ...tickerItems, ...tickerItems];
+
+  if (tickerItems.length === 0) return null;
 
   useEffect(() => {
     animatedX.setValue(0);
@@ -93,12 +93,12 @@ export const LiveTickerBanner: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   container: {
     height: 32,
-    backgroundColor: '#050609',
+    backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.07)',
+    borderBottomColor: theme.colors.cardBorder,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
@@ -118,12 +118,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10b981',
+    backgroundColor: theme.colors.green,
   },
   liveText: {
-    color: '#818cf8',
+    color: theme.colors.primaryLight,
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
   },
   scrollArea: {
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   symbolText: {
-    color: '#f8fafc',
+    color: theme.colors.textPrimary,
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   dirBadge: {
     paddingHorizontal: 4,
@@ -158,21 +158,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(99, 102, 241, 0.15)',
   },
   dirText: {
-    fontSize: 8,
-    fontWeight: '900',
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
   },
   pnlText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
   rText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: theme.fonts.monoMedium,
     fontVariant: ['tabular-nums'],
   },
-  greenText: { color: '#10b981' },
-  redText: { color: '#ef4444' },
-  blueText: { color: '#818cf8' },
-  goldText: { color: '#f59e0b' },
+  greenText: { color: theme.colors.green },
+  redText: { color: theme.colors.red },
+  blueText: { color: theme.colors.primaryLight },
+  goldText: { color: theme.colors.gold },
 });

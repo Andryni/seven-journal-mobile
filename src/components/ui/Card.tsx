@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../../theme';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
 
 interface CardProps {
   title?: string;
   subtitle?: string;
   badge?: string;
   badgeVariant?: 'green' | 'red' | 'gold' | 'blue' | 'neutral';
+  headerAction?: React.ReactNode;
   children: React.ReactNode;
   style?: ViewStyle;
   gradientColors?: [string, string, ...string[]];
@@ -19,23 +21,27 @@ export const Card: React.FC<CardProps> = ({
   subtitle,
   badge,
   badgeVariant = 'blue',
+  headerAction,
   children,
   style,
-  gradientColors = ['#12141c', '#0d0f15'],
+  gradientColors,
   glowBorder = false,
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const resolvedGradientColors = gradientColors ?? [theme.colors.card, theme.colors.backgroundElevated];
   return (
     <View style={[styles.outerContainer, glowBorder && styles.glowOuter, style]}>
       {/* Top subtle highlight line */}
       <LinearGradient
-        colors={['rgba(255,255,255,0.15)', 'rgba(99,102,241,0.2)', 'rgba(255,255,255,0.02)']}
+        colors={[theme.colors.borderBright, theme.colors.primaryGlow, 'transparent']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.topHighlight}
       />
 
       <LinearGradient
-        colors={gradientColors}
+        colors={resolvedGradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={styles.innerCard}
@@ -69,6 +75,9 @@ export const Card: React.FC<CardProps> = ({
                 </Text>
               </View>
             )}
+            {headerAction && (
+              <View style={styles.headerAction}>{headerAction}</View>
+            )}
           </View>
         )}
         <View style={styles.content}>{children}</View>
@@ -77,12 +86,12 @@ export const Card: React.FC<CardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) => StyleSheet.create({
   outerContainer: {
     borderRadius: theme.borderRadius.lg,
-    backgroundColor: '#0e1017',
+    backgroundColor: theme.colors.backgroundElevated,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.cardBorder,
     marginBottom: theme.spacing.lg,
     overflow: 'hidden',
     shadowColor: '#000000',
@@ -93,7 +102,7 @@ const styles = StyleSheet.create({
   },
   glowOuter: {
     borderColor: 'rgba(99, 102, 241, 0.4)',
-    shadowColor: '#6366f1',
+    shadowColor: theme.colors.primary,
     shadowOpacity: 0.25,
     shadowRadius: 16,
   },
@@ -110,23 +119,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: theme.colors.cardBorder,
     paddingBottom: theme.spacing.sm,
   },
   titleWrap: {
     flex: 1,
   },
   titleText: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 12,
-    fontWeight: '800',
+    fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   subtitleText: {
     color: theme.colors.textMuted,
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: theme.fonts.sansSemiBold,
     marginTop: 2,
   },
   badgeWrap: {
@@ -156,10 +165,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  badgeTextGreen: { color: '#34d399' },
-  badgeTextRed: { color: '#f87171' },
-  badgeTextGold: { color: '#fbbf24' },
-  badgeTextBlue: { color: '#818cf8' },
+  badgeTextGreen: { color: theme.colors.greenLight },
+  badgeTextRed: { color: theme.colors.redLight },
+  badgeTextGold: { color: theme.colors.goldLight },
+  badgeTextBlue: { color: theme.colors.primaryLight },
+  headerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginLeft: theme.spacing.sm,
+  },
   content: {
     gap: theme.spacing.sm,
   },

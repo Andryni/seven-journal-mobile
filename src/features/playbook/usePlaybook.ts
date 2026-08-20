@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export interface DailyDebrief {
+interface DailyDebrief {
   id: string;
   user_id: string;
   date: string;
@@ -32,8 +32,8 @@ export interface PlaybookSetup {
   created_at: string;
 }
 
-export type DebriefPayload = Omit<DailyDebrief, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { id?: string };
-export type SetupPayload = Omit<PlaybookSetup, 'id' | 'user_id' | 'created_at'> & { id?: string };
+type DebriefPayload = Omit<DailyDebrief, 'id' | 'user_id' | 'created_at' | 'updated_at'> & { id?: string };
+type SetupPayload = Omit<PlaybookSetup, 'id' | 'user_id' | 'created_at'> & { id?: string };
 
 export function usePlaybook() {
   const queryClient = useQueryClient();

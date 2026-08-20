@@ -34,6 +34,8 @@ import {
 } from 'lucide-react-native';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { ChecklistCard } from '../components/dashboard/ChecklistCard';
+import { PositionCalculator } from '../components/trades/PositionCalculator';
+import { AchievementsCard } from '../components/dashboard/AchievementsCard';
 import { formatCurrency } from '../utils/formatCurrency';
 import { KpiCard } from '../components/ui/KpiCard';
 import { StatRow } from '../components/ui/StatRow';
@@ -55,7 +57,7 @@ export const DashboardScreen: React.FC = () => {
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { isLocked, lock } = useDailyLock();
-  const m = usePerformanceMetrics(trades);
+  const m = usePerformanceMetrics(trades, lang);
 
   const [now, setNow] = useState(new Date());
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -305,6 +307,12 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 6. CHECKLIST PRÉ-SESSION (PERSONNALISABLE & SYNCHRONISÉE) ── */}
       <ChecklistCard />
+
+      {/* ── 6b. ACHIEVEMENTS ── */}
+      <AchievementsCard />
+
+      {/* ── 6c. POSITION CALCULATOR ── */}
+      <PositionCalculator />
 
       {/* ── 7. DETAILED METRICS BREAKDOWN ── */}
       <Card title={t('financialMetrics')}>

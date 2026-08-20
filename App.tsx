@@ -19,12 +19,15 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
 import { AccountsScreen } from './src/screens/AccountsScreen';
+import { GoalsScreen } from './src/screens/GoalsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { PlaybookScreen } from './src/screens/PlaybookScreen';
-import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked } from 'lucide-react-native';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
+import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked, Target } from 'lucide-react-native';
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
+import type { Session } from '@supabase/supabase-js';
 
 import {
   useFonts,
@@ -48,9 +51,10 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 export default function App() {
   const { theme } = useTheme();
   const { t } = useT();
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [splashFinished, setSplashFinished] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   // Load High-Tech FinTech Google Fonts
   const [fontsLoaded] = useFonts({
@@ -71,8 +75,12 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      // When user taps reset link, Supabase fires PASSWORD_RECOVERY
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -86,7 +94,7 @@ export default function App() {
   if (!splashFinished || !fontsLoaded) {
     return (
       <SafeAreaProvider>
-        <View style={{ flex: 1 }} onLayout={onSplashLayout}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }} onLayout={onSplashLayout}>
           <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
         </View>
       </SafeAreaProvider>
@@ -99,6 +107,22 @@ export default function App() {
         <View style={[styles.centerScreen, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Show Reset Password screen when user arrives via email link
+  if (isPasswordRecovery) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={[styles.appContainer, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+          <ResetPasswordScreen
+            onPasswordReset={() => {
+              setIsPasswordRecovery(false);
+              // After successful reset, session will be set via onAuthStateChange
+            }}
+          />
+        </SafeAreaView>
       </SafeAreaProvider>
     );
   }
