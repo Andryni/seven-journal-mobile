@@ -111,18 +111,17 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       Animated.timing(journalOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]);
 
-    // ── Phase 6: Loading Progress Bar & Status Badges ──
-    const p6Progress = Animated.parallel([
-      Animated.timing(progressWidth, { toValue: 1, duration: 800, useNativeDriver: false }),
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
-      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
-      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
+    // ── Phase 6: Status Badges & Tagline (native driver) ──
+    const p6Badges = Animated.parallel([
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]);
 
     // ── Phase 7: Exit Transition ──
     const p7Exit = Animated.parallel([
-      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: false }),
-      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: false }),
+      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: true }),
+      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: true }),
     ]);
 
     // Run master sequence
@@ -132,12 +131,17 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       p3Logo,
       p4Candles,
       p5Brand,
-      p6Progress,
+      p6Badges,
       Animated.delay(900),
       p7Exit,
     ]).start(() => {
       onAnimationFinish();
     });
+
+    // Progress bar runs independently (useNativeDriver: false — cannot mix in native sequence)
+    const progressTimer = setTimeout(() => {
+      Animated.timing(progressWidth, { toValue: 1, duration: 800, useNativeDriver: false }).start();
+    }, 1800); // Approximate delay to sync with Phase 6
 
     // Typewriter timer for subtitle with proper interval clearing
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -182,6 +186,7 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       tickerAnim.stop();
       clearTimeout(typeTimer);
       clearTimeout(safetyTimer);
+      clearTimeout(progressTimer);
       if (intervalId) clearInterval(intervalId);
     };
   }, []);
