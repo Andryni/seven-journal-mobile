@@ -92,7 +92,7 @@ export const AuthCard: React.FC<Props> = ({ children, welcomeText }) => {
               <Image
                 source={require('../../assets/seven_tracking_logo.png')}
                 style={styles.logoImage}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </Animated.View>
             <View style={styles.brandRow}>
@@ -170,18 +170,10 @@ const createStyles = (theme: AppTheme) =>
       top: -14,
     },
     logoCard: {
-      width: 84,
-      height: 84,
-      borderRadius: 22,
-      overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: 'rgba(129, 140, 248, 0.6)',
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.7,
-      shadowRadius: 16,
-      elevation: 12,
-      backgroundColor: theme.colors.backgroundElevated,
+      width: 90,
+      height: 90,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 14,
     },
     logoImage: {
@@ -191,6 +183,8 @@ const createStyles = (theme: AppTheme) =>
     brandRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
       marginBottom: 4,
     },
     brandSeven: {
@@ -204,6 +198,7 @@ const createStyles = (theme: AppTheme) =>
       fontSize: 18,
       fontFamily: theme.fonts.sansExtraBold,
       letterSpacing: 2,
+      paddingRight: 4,
     },
     tagline: {
       color: theme.colors.textMuted,
