@@ -19,7 +19,11 @@ let Sharing: any = null;
 try { Sharing = require('expo-sharing'); } catch {}
 
 let MediaLibrary: any = null;
-try { MediaLibrary = require('expo-media-library'); } catch {}
+try {
+  MediaLibrary = require('expo-media-library/legacy');
+} catch {
+  try { MediaLibrary = require('expo-media-library'); } catch {}
+}
 
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';

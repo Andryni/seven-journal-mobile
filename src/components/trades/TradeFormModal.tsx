@@ -122,7 +122,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
         base64: true,
       });
@@ -144,12 +144,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           if (parsed.result) setResult(parsed.result);
           if (parsed.timeframe) setTimeframe(parsed.timeframe);
         } else {
-          alert('Impossible d\'extraire les données du trade. Vérifiez l\'image.');
+          alert('Impossible d\'extraire les données du trade. Vérifiez la netteté de l\'image.');
         }
       }
     } catch (e) {
       setIsAnalyzingAI(false);
       console.error(e);
+      if (e instanceof Error && e.message === 'API_KEY_MISSING') {
+        alert('Clé EXPO_PUBLIC_GEMINI_API_KEY non configurée dans le fichier .env ou dans EAS Secrets.');
+      } else {
+        alert('Erreur lors de l\'analyse de l\'image: ' + (e instanceof Error ? e.message : 'inconnue'));
+      }
     }
   };
 

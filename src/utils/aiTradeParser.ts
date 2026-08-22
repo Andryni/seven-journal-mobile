@@ -17,29 +17,41 @@ export async function parseTradeScreenshotAI(
 ): Promise<ParsedTradeAI | null> {
   const geminiKey = apiKey || process.env.EXPO_PUBLIC_GEMINI_API_KEY;
   if (!geminiKey) {
-    console.warn('Aucune clé GEMINI API configurée.');
-    return null;
+    console.warn('EXPO_PUBLIC_GEMINI_API_KEY manquant dans .env ou eas.json.');
+    throw new Error('API_KEY_MISSING');
   }
 
   try {
     const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '');
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
 
-    const prompt = `Tu es un expert quantitatif. Analyse cette capture d'ecran de trading (MT4, MT5, cTrader, TradingView ou broker).
-Extraie les parametres du trade et reponds STRICTEMENT avec un JSON valide respectant ce format :
+    const prompt = `Tu es un expert en trading quantitatif. Analyse cette capture d'ecran d'application de trading (MetaTrader 4, MetaTrader 5 / MT5, cTrader, TradingView, ou broker).
+Extrais précisément les informations de la position visible (symbole/paire, direction BUY ou SELL, volume/lot, prix d'ouverture/entrée, Stop Loss, Take Profit, prix de clôture/sortie, P&L / profit réalisé).
+
+Exemple pour MT5 (ex: "BTCUSD.s, buy 4.40" avec prix "77 257.00 -> 77 130.93" et profit "-554.71") :
+- pair: "BTCUSD" (sans suffixe de courtier comme .s ou .m)
+- direction: "BUY"
+- size: 4.40
+- entry_price: 77257.00
+- exit_price: 77130.93
+- pnl: -554.71
+- result: "SL" (ou "TP" si profit positif)
+- stop_loss: 77130.93 (ou déduis selon S/L)
+- take_profit: 77808.58 (ou déduis selon T/P)
+
+Réponds STRICTEMENT avec un objet JSON pur sans balises markdown :
 {
-  "pair": "XAUUSD",
+  "pair": "BTCUSD",
   "direction": "BUY",
-  "size": 1.0,
-  "entry_price": 2380.50,
-  "stop_loss": 2375.00,
-  "take_profit": 2395.00,
-  "exit_price": 2390.00,
-  "pnl": 150.00,
-  "result": "TP",
+  "size": 4.4,
+  "entry_price": 77257.00,
+  "stop_loss": 77130.93,
+  "take_profit": 77808.58,
+  "exit_price": 77130.93,
+  "pnl": -554.71,
+  "result": "SL",
   "timeframe": "M5"
-}
-Si un champ est introuvable, deduis-le ou mets des valeurs coherentes. Ne renvoie rien d'autre que le JSON.`;
+}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -72,12 +84,18 @@ Si un champ est introuvable, deduis-le ou mets des valeurs coherentes. Ne renvoi
     }
 
     const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) return null;
+
+    // Remove markdown code fences if present (```json ... ```)
+    rawText = rawText.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
 
     const parsed: ParsedTradeAI = JSON.parse(rawText);
     return parsed;
   } catch (error) {
+    if (error instanceof Error && error.message === 'API_KEY_MISSING') {
+      throw error;
+    }
     console.error('Erreur parseTradeScreenshotAI:', error);
     return null;
   }
