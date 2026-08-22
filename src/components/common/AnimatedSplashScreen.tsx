@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import Svg, { Path, Rect, Line, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
@@ -13,329 +14,268 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // ─── Animated values ───
+  // Master fade out
   const containerFade = useRef(new Animated.Value(1)).current;
-  const scanLineY = useRef(new Animated.Value(-200)).current;
-  const scanLineOpacity = useRef(new Animated.Value(0)).current;
 
-  // Halo
-  const haloScale = useRef(new Animated.Value(0.5)).current;
-  const haloOpacity = useRef(new Animated.Value(0)).current;
-  const haloPulse = useRef(new Animated.Value(0.2)).current;
+  // Background Grid Opacity
+  const gridOpacity = useRef(new Animated.Value(0)).current;
 
-  // Text "SEVEN" - main + glitch layers
-  const sevenMainOpacity = useRef(new Animated.Value(0)).current;
-  const sevenMainY = useRef(new Animated.Value(-25)).current;
-  const sevenGlitchCyan = useRef(new Animated.Value(0)).current; // glitch color flash
-  const sevenGlitchOffset = useRef(new Animated.Value(0)).current;
+  // Candlesticks Animation (3 candlesticks: SL sweep, Rejection, Bullish Expansion)
+  const candle1Height = useRef(new Animated.Value(0)).current;
+  const candle2Height = useRef(new Animated.Value(0)).current;
+  const candle3Height = useRef(new Animated.Value(0)).current;
+  const candlesOpacity = useRef(new Animated.Value(0)).current;
 
-  // Text "JOURNAL" - main + glitch layers
-  const journalMainOpacity = useRef(new Animated.Value(0)).current;
-  const journalMainY = useRef(new Animated.Value(25)).current;
-  const journalGlitchGreen = useRef(new Animated.Value(0)).current; // flash color
-  const journalGlitchOffset = useRef(new Animated.Value(0)).current;
+  // Equity Curve Neon Stroke
+  const equityProgress = useRef(new Animated.Value(0)).current;
+  const equityGlow = useRef(new Animated.Value(0)).current;
 
-  // Line decorations
-  const lineWidthLeft = useRef(new Animated.Value(0)).current;
-  const lineWidthRight = useRef(new Animated.Value(0)).current;
+  // Pulse point at the tip of the equity line
+  const tipPulse = useRef(new Animated.Value(0.6)).current;
 
-  // Tagline typewriter
+  // Typography animations
+  const sevenOpacity = useRef(new Animated.Value(0)).current;
+  const sevenScale = useRef(new Animated.Value(0.92)).current;
+  const journalOpacity = useRef(new Animated.Value(0)).current;
+  const journalY = useRef(new Animated.Value(15)).current;
+
+  // Subtitle / Terminal Typewriter
   const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const [taglineChars, setTaglineChars] = useState(0);
+  const [taglineIndex, setTaglineIndex] = useState(0);
   const TAGLINE = 'QUANTITATIVE TRADING JOURNAL';
 
-  // Progress
-  const progressWidth = useRef(new Animated.Value(0)).current;
+  // Live Market Ticker footer
+  const tickerOpacity = useRef(new Animated.Value(0)).current;
+  const tickerTranslateX = useRef(new Animated.Value(0)).current;
 
-  // Status
+  // Status Badge / Lock Guard verification
   const statusOpacity = useRef(new Animated.Value(0)).current;
-  const dotPulse = useRef(new Animated.Value(0.4)).current;
-
-  // Corner brackets
-  const bracketOpacity = useRef(new Animated.Value(0)).current;
-  const bracketScale = useRef(new Animated.Value(0.7)).current;
 
   useEffect(() => {
-    // ─── Phase 1: Halo ring appears ───
-    const phase1 = Animated.parallel([
-      Animated.spring(haloScale, { toValue: 1, friction: 5, tension: 35, useNativeDriver: true }),
-      Animated.timing(haloOpacity, { toValue: 0.35, duration: 500, useNativeDriver: true }),
-    ]);
+    // ── Phase 1: Background Market Grid fades in ──
+    const p1Grid = Animated.timing(gridOpacity, {
+      toValue: 0.45,
+      duration: 400,
+      useNativeDriver: true,
+    });
 
-    // ─── Phase 2: Scan line sweeps ───
-    const phase2 = Animated.sequence([
-      Animated.timing(scanLineOpacity, { toValue: 0.7, duration: 80, useNativeDriver: true }),
-      Animated.parallel([
-        Animated.timing(scanLineY, { toValue: 900, duration: 700, useNativeDriver: true }),
-        Animated.timing(scanLineOpacity, { toValue: 0, duration: 700, useNativeDriver: true }),
+    // ── Phase 2: Candlesticks sequential draw ──
+    const p2Candles = Animated.parallel([
+      Animated.timing(candlesOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.stagger(120, [
+        Animated.spring(candle1Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
+        Animated.spring(candle2Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
+        Animated.spring(candle3Height, { toValue: 1, friction: 5, tension: 45, useNativeDriver: true }),
       ]),
     ]);
 
-    // ─── Phase 3: "SEVEN" drops in + glitch flash cyan ───
-    const phase3 = Animated.parallel([
-      Animated.spring(sevenMainY, { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
-      Animated.timing(sevenMainOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      // Glitch sequence: flash cyan then back to white
-      Animated.sequence([
-        Animated.delay(200),
-        Animated.parallel([
-          Animated.timing(sevenGlitchCyan, { toValue: 1, duration: 80, useNativeDriver: true }),
-          Animated.timing(sevenGlitchOffset, { toValue: 4, duration: 40, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(sevenGlitchOffset, { toValue: -3, duration: 40, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(sevenGlitchCyan, { toValue: 0, duration: 60, useNativeDriver: true }),
-          Animated.timing(sevenGlitchOffset, { toValue: 2, duration: 30, useNativeDriver: true }),
-        ]),
-        Animated.timing(sevenGlitchOffset, { toValue: 0, duration: 30, useNativeDriver: true }),
-      ]),
+    // ── Phase 3: Glowing Equity Curve draws ──
+    const p3Equity = Animated.parallel([
+      Animated.timing(equityProgress, { toValue: 1, duration: 650, useNativeDriver: true }),
+      Animated.timing(equityGlow, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]);
 
-    // ─── Phase 4: Lines extend ───
-    const phase4 = Animated.parallel([
-      Animated.timing(lineWidthLeft, { toValue: 1, duration: 450, useNativeDriver: false }),
-      Animated.timing(lineWidthRight, { toValue: 1, duration: 450, useNativeDriver: false }),
+    // ── Phase 4: Brand Reveal ("SEVEN" + "JOURNAL") ──
+    const p4Brand = Animated.parallel([
+      Animated.spring(sevenScale, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }),
+      Animated.timing(sevenOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(journalY, { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
+      Animated.timing(journalOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
     ]);
 
-    // ─── Phase 5: "JOURNAL" slides up + flash green ───
-    const phase5 = Animated.parallel([
-      Animated.spring(journalMainY, { toValue: 0, friction: 7, tension: 55, useNativeDriver: true }),
-      Animated.timing(journalMainOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      // Glitch sequence: flash green then back to indigo
-      Animated.sequence([
-        Animated.delay(200),
-        Animated.parallel([
-          Animated.timing(journalGlitchGreen, { toValue: 1, duration: 80, useNativeDriver: true }),
-          Animated.timing(journalGlitchOffset, { toValue: -4, duration: 40, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(journalGlitchOffset, { toValue: 3, duration: 40, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(journalGlitchGreen, { toValue: 0, duration: 60, useNativeDriver: true }),
-          Animated.timing(journalGlitchOffset, { toValue: -1, duration: 30, useNativeDriver: true }),
-        ]),
-        Animated.timing(journalGlitchOffset, { toValue: 0, duration: 30, useNativeDriver: true }),
-      ]),
+    // ── Phase 5: Tagline & Status Badge ──
+    const p5Status = Animated.parallel([
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(tickerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
     ]);
 
-    // ─── Phase 6: Corner brackets ───
-    const phase6 = Animated.parallel([
-      Animated.spring(bracketScale, { toValue: 1, friction: 8, tension: 50, useNativeDriver: true }),
-      Animated.timing(bracketOpacity, { toValue: 0.5, duration: 300, useNativeDriver: true }),
-    ]);
-
-    // ─── Phase 7: Tagline typewriter ───
-    const phase7 = Animated.timing(taglineOpacity, { toValue: 1, duration: 200, useNativeDriver: true });
-
-    // ─── Phase 8: Progress bar fills ───
-    const phase8 = Animated.timing(progressWidth, { toValue: 1, duration: 1100, useNativeDriver: false });
-
-    // ─── Phase 9: Status fades in ───
-    const phase9 = Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true });
-
-    // ─── Phase 10: Exit ───
-    const phase10 = Animated.parallel([
+    // ── Phase 6: Exit Transition ──
+    const p6Exit = Animated.parallel([
       Animated.timing(containerFade, { toValue: 0, duration: 400, useNativeDriver: true }),
-      Animated.spring(haloScale, { toValue: 1.4, friction: 6, useNativeDriver: true }),
+      Animated.timing(sevenScale, { toValue: 1.05, duration: 400, useNativeDriver: true }),
     ]);
 
-    // ─── Master timeline ───
+    // Run main sequence
     Animated.sequence([
-      phase1,
-      Animated.stagger(60, [phase2, phase3]),
-      phase4,
-      Animated.stagger(50, [phase5, phase6]),
-      phase7,
-      Animated.stagger(40, [phase8, phase9]),
-      Animated.delay(900),
-      phase10,
+      p1Grid,
+      p2Candles,
+      p3Equity,
+      p4Brand,
+      p5Status,
+      Animated.delay(1000),
+      p6Exit,
     ]).start(() => {
       onAnimationFinish();
     });
 
-    // ─── Typewriter timer ───
+    // Typewriter timer for subtitle
     const typeTimer = setTimeout(() => {
-      let i = 0;
+      let idx = 0;
       const interval = setInterval(() => {
-        i++;
-        setTaglineChars(i);
-        if (i >= TAGLINE.length) clearInterval(interval);
-      }, 40);
+        idx++;
+        setTaglineIndex(idx);
+        if (idx >= TAGLINE.length) clearInterval(interval);
+      }, 35);
       return () => clearInterval(interval);
-    }, 1800);
+    }, 900);
 
-    // ─── Ambient pulsing loops ───
-    const dotLoop = Animated.loop(
+    // Continuous pulsing loop on equity tip point
+    const pulseAnim = Animated.loop(
       Animated.sequence([
-        Animated.timing(dotPulse, { toValue: 1, duration: 650, useNativeDriver: true }),
-        Animated.timing(dotPulse, { toValue: 0.3, duration: 650, useNativeDriver: true }),
+        Animated.timing(tipPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(tipPulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
       ])
     );
-    const haloLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(haloPulse, { toValue: 0.5, duration: 1000, useNativeDriver: true }),
-        Animated.timing(haloPulse, { toValue: 0.2, duration: 1000, useNativeDriver: true }),
-      ])
+    pulseAnim.start();
+
+    // Continuous ticker horizontal scrolling
+    const tickerAnim = Animated.loop(
+      Animated.timing(tickerTranslateX, {
+        toValue: -150,
+        duration: 4000,
+        useNativeDriver: true,
+      })
     );
-    dotLoop.start();
-    haloLoop.start();
+    tickerAnim.start();
 
     return () => {
-      dotLoop.stop();
-      haloLoop.stop();
+      pulseAnim.stop();
+      tickerAnim.stop();
       clearTimeout(typeTimer);
     };
   }, []);
 
-  // ─── Interpolations ───
-  const progressFillWidth = progressWidth.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-  const leftLineWidth = lineWidthLeft.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '38%'],
-  });
-  const rightLineWidth = lineWidthRight.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '38%'],
-  });
-
-
   return (
     <Animated.View style={[styles.container, { opacity: containerFade }]}>
-      {/* Background ambient glow */}
+      {/* Background ambient radial glow */}
       <View style={styles.ambientGlow} />
 
-      {/* Scanning line */}
-      <Animated.View
-        style={[
-          styles.scanLine,
-          { transform: [{ translateY: scanLineY }], opacity: scanLineOpacity },
-        ]}
-      />
+      {/* Grid Pattern (Trading Desk Background) */}
+      <Animated.View style={[styles.gridWrap, { opacity: gridOpacity }]} pointerEvents="none">
+        <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="gridGrad" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor="#6366F1" stopOpacity="0.12" />
+              <Stop offset="50%" stopColor="#10B981" stopOpacity="0.06" />
+              <Stop offset="100%" stopColor="#000" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          {/* Horizontal grid lines */}
+          {[0.2, 0.35, 0.5, 0.65, 0.8].map((ratio, i) => (
+            <Line
+              key={`h-${i}`}
+              x1={0}
+              y1={SCREEN_H * ratio}
+              x2={SCREEN_W}
+              y2={SCREEN_H * ratio}
+              stroke="rgba(255,255,255,0.06)"
+              strokeDasharray="4,6"
+              strokeWidth="1"
+            />
+          ))}
+          {/* Vertical grid lines */}
+          {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+            <Line
+              key={`v-${i}`}
+              x1={SCREEN_W * ratio}
+              y1={0}
+              x2={SCREEN_W * ratio}
+              y2={SCREEN_H}
+              stroke="rgba(255,255,255,0.04)"
+              strokeDasharray="4,6"
+              strokeWidth="1"
+            />
+          ))}
+        </Svg>
+      </Animated.View>
 
-      {/* Halo ring */}
-      <Animated.View
-        style={[
-          styles.halo,
-          {
-            opacity: Animated.add(haloOpacity, haloPulse),
-            transform: [{ scale: haloScale }],
-          },
-        ]}
-      />
+      {/* Main Visual Center: Trading Candles + Neon Equity Arc */}
+      <View style={styles.centerStage}>
+        {/* Candlesticks Visualization */}
+        <Animated.View style={[styles.candlesRow, { opacity: candlesOpacity }]}>
+          {/* Candle 1 (Bearish Pullback / Sweep) */}
+          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle1Height }] }]}>
+            <View style={[styles.candleWick, { height: 36, backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
+            <View style={[styles.candleBody, { height: 18, backgroundColor: '#EF4444' }]} />
+          </Animated.View>
 
-      {/* Main content */}
-      <View style={styles.mainContent}>
-        {/* ── Brand text: SEVEN ── */}
-        <Animated.View
-          style={[
-            styles.sevenWrap,
-            {
-              opacity: sevenMainOpacity,
-              transform: [
-                { translateY: sevenMainY },
-                { translateX: sevenGlitchOffset },
-              ],
-            },
-          ]}
-        >
-          {/* Cyan glitch ghost */}
-          <Animated.Text
+          {/* Candle 2 (Doji / Rejection) */}
+          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle2Height }] }]}>
+            <View style={[styles.candleWick, { height: 44, backgroundColor: 'rgba(245, 158, 11, 0.6)' }]} />
+            <View style={[styles.candleBody, { height: 6, backgroundColor: '#F59E0B' }]} />
+          </Animated.View>
+
+          {/* Candle 3 (Strong Bullish Expansion) */}
+          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle3Height }] }]}>
+            <View style={[styles.candleWick, { height: 56, backgroundColor: 'rgba(16, 185, 129, 0.6)' }]} />
+            <View style={[styles.candleBody, { height: 32, backgroundColor: '#10B981' }]} />
+          </Animated.View>
+        </Animated.View>
+
+        {/* Brand Reveal : SEVEN JOURNAL */}
+        <View style={styles.brandBlock}>
+          {/* SEVEN */}
+          <Animated.View
             style={[
-              styles.brandSeven,
-              styles.glitchGhost,
+              styles.sevenWrap,
               {
-                opacity: sevenGlitchCyan,
-                color: theme.colors.cyan,
-                transform: [{ translateX: sevenGlitchCyan }],
+                opacity: sevenOpacity,
+                transform: [{ scale: sevenScale }],
               },
             ]}
           >
-            SEVEN
-          </Animated.Text>
-          {/* Main white text */}
-          <Text style={[styles.brandSeven, { color: theme.colors.textPrimary }]}>
-            SEVEN
-          </Text>
-        </Animated.View>
+            <Text style={styles.brandSeven}>SEVEN</Text>
+          </Animated.View>
 
-        {/* ── Brand text: JOURNAL ── */}
-        <Animated.View
-          style={[
-            styles.journalWrap,
-            {
-              opacity: journalMainOpacity,
-              transform: [
-                { translateY: journalMainY },
-                { translateX: journalGlitchOffset },
-              ],
-            },
-          ]}
-        >
-          {/* Green flash ghost */}
-          <Animated.Text
+          {/* JOURNAL */}
+          <Animated.View
             style={[
-              styles.brandJournal,
-              styles.glitchGhost,
+              styles.journalWrap,
               {
-                opacity: journalGlitchGreen,
-                color: theme.colors.green,
-                transform: [{ translateX: Animated.multiply(journalGlitchGreen, -1) }],
+                opacity: journalOpacity,
+                transform: [{ translateY: journalY }],
               },
             ]}
           >
-            JOURNAL
-          </Animated.Text>
-          {/* Main indigo text */}
-          <Text style={[styles.brandJournal, { color: theme.colors.primaryLight }]}>
-            JOURNAL
-          </Text>
-        </Animated.View>
+            <Text style={styles.brandJournal}>JOURNAL</Text>
+          </Animated.View>
+        </View>
 
-        {/* ── Tagline (typewriter) ── */}
-        <Animated.View style={[styles.taglineRow, { opacity: taglineOpacity }]}>
+        {/* Dynamic Typewriter Subtitle */}
+        <Animated.View style={[styles.taglineBox, { opacity: taglineOpacity }]}>
           <Text style={styles.taglineText}>
-            {TAGLINE.slice(0, taglineChars)}
-            {taglineChars < TAGLINE.length && <Text style={styles.cursor}>▌</Text>}
+            {TAGLINE.slice(0, taglineIndex)}
+            {taglineIndex < TAGLINE.length && <Text style={styles.cursor}>▌</Text>}
           </Text>
         </Animated.View>
 
-        {/* ── Decorative lines ── */}
-        <View style={[styles.decorRow, { marginTop: 22 }]}>
-          <Animated.View style={[styles.decorLine, { width: leftLineWidth }]} />
-          <View style={styles.decorDot} />
-          <Animated.View style={[styles.decorLine, { width: rightLineWidth }]} />
-        </View>
-
-        {/* ── Corner brackets ── */}
-        <Animated.View
-          style={[
-            styles.bracketFrame,
-            { opacity: bracketOpacity, transform: [{ scale: bracketScale }] },
-          ]}
-        >
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
-        </Animated.View>
-
-        {/* ── Progress bar ── */}
-        <View style={styles.progressBg}>
-          <Animated.View style={[styles.progressFill, { width: progressFillWidth }]} />
-        </View>
-
-        {/* ── Status ── */}
+        {/* Terminal Loading Indicators */}
         <Animated.View style={[styles.statusRow, { opacity: statusOpacity }]}>
-          <Animated.View style={[styles.liveDot, { opacity: dotPulse }]} />
-          <Text style={styles.statusText}>INITIALISATION DU JOURNAL...</Text>
+          <View style={styles.statusChip}>
+            <Animated.View style={[styles.statusDot, { opacity: tipPulse }]} />
+            <Text style={styles.statusText}>EDGE ENGINE READY</Text>
+          </View>
+          <View style={[styles.statusChip, { borderColor: 'rgba(16, 185, 129, 0.3)', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+            <Text style={[styles.statusText, { color: '#34D399' }]}>DISCIPLINE 100%</Text>
+          </View>
         </Animated.View>
       </View>
+
+      {/* Footer Market Ticker */}
+      <Animated.View style={[styles.tickerFooter, { opacity: tickerOpacity }]}>
+        <Animated.View style={[styles.tickerScroll, { transform: [{ translateX: tickerTranslateX }] }]}>
+          <Text style={styles.tickerItem}>XAUUSD <Text style={styles.greenText}>+1.42%</Text></Text>
+          <Text style={styles.tickerSeparator}>•</Text>
+          <Text style={styles.tickerItem}>NASDAQ <Text style={styles.greenText}>+0.85%</Text></Text>
+          <Text style={styles.tickerSeparator}>•</Text>
+          <Text style={styles.tickerItem}>EURUSD <Text style={styles.redText}>-0.18%</Text></Text>
+          <Text style={styles.tickerSeparator}>•</Text>
+          <Text style={styles.tickerItem}>US30 <Text style={styles.greenText}>+0.41%</Text></Text>
+          <Text style={styles.tickerSeparator}>•</Text>
+          <Text style={styles.tickerItem}>RISK GUARD <Text style={styles.goldText}>ARMED</Text></Text>
+        </Animated.View>
+      </Animated.View>
     </Animated.View>
   );
 };
@@ -343,165 +283,161 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: '#060709',
       justifyContent: 'center',
       alignItems: 'center',
+      zIndex: 99999,
     },
     ambientGlow: {
       position: 'absolute',
-      width: 420,
-      height: 420,
-      borderRadius: 210,
-      backgroundColor: 'rgba(99, 102, 241, 0.06)',
+      width: SCREEN_W * 1.2,
+      height: SCREEN_W * 1.2,
+      borderRadius: (SCREEN_W * 1.2) / 2,
+      backgroundColor: 'rgba(99, 102, 241, 0.08)',
     },
-    scanLine: {
+    gridWrap: {
       position: 'absolute',
+      top: 0,
       left: 0,
       right: 0,
-      height: 2,
-      backgroundColor: theme.colors.primaryLight,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 1,
-      shadowRadius: 14,
-      elevation: 12,
+      bottom: 0,
     },
-    halo: {
-      position: 'absolute',
-      width: 220,
-      height: 220,
-      borderRadius: 110,
-      borderWidth: 1.5,
-      borderColor: 'rgba(99, 102, 241, 0.3)',
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.7,
-      shadowRadius: 44,
-      elevation: 22,
-    },
-    mainContent: {
+    centerStage: {
       alignItems: 'center',
       justifyContent: 'center',
-      width: SCREEN_W,
-      paddingHorizontal: 20,
+      paddingHorizontal: 24,
     },
-
-    // ── Brand text ──
+    candlesRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 16,
+      height: 70,
+      marginBottom: 20,
+    },
+    candleItem: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 14,
+    },
+    candleWick: {
+      position: 'absolute',
+      width: 2,
+      borderRadius: 1,
+    },
+    candleBody: {
+      width: 12,
+      borderRadius: 2,
+    },
+    brandBlock: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     sevenWrap: {
-      alignItems: 'center',
-      marginBottom: 2,
-      justifyContent: 'center',
-      overflow: 'visible',
       paddingHorizontal: 16,
-    },
-    journalWrap: {
-      alignItems: 'center',
-      marginBottom: 10,
-      justifyContent: 'center',
-      overflow: 'visible',
-      paddingHorizontal: 16,
-    },
-    glitchGhost: {
-      position: 'absolute',
     },
     brandSeven: {
-      fontSize: 34,
-      fontFamily: theme.fonts.sansExtraBold,
-      letterSpacing: 3.5,
-      paddingRight: 6,
+      fontFamily: theme.fonts.monoExtraBold,
+      fontSize: 38,
+      letterSpacing: 4.5,
+      color: '#FFFFFF',
       textAlign: 'center',
+    },
+    journalWrap: {
+      paddingHorizontal: 16,
+      marginTop: -4,
     },
     brandJournal: {
-      fontSize: 34,
-      fontFamily: theme.fonts.sansExtraBold,
-      letterSpacing: 3.5,
-      paddingRight: 6,
+      fontFamily: theme.fonts.monoExtraBold,
+      fontSize: 26,
+      letterSpacing: 4,
+      color: '#818CF8',
       textAlign: 'center',
     },
-    // ── Tagline ──
-    taglineRow: {
-      marginBottom: 26,
-      minHeight: 16,
+    taglineBox: {
+      marginTop: 14,
+      height: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     taglineText: {
-      color: theme.colors.textMuted,
-      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
-      letterSpacing: 2.5,
+      fontSize: 9.5,
+      letterSpacing: 2,
+      color: 'rgba(255, 255, 255, 0.55)',
     },
     cursor: {
       color: theme.colors.primaryLight,
+      fontWeight: 'bold',
     },
-    // ── Decorations ──
-    decorRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      width: '100%',
-      marginBottom: 20,
-    },
-    decorLine: {
-      height: 1,
-      backgroundColor: theme.colors.cardBorder,
-    },
-    decorDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 2.5,
-      backgroundColor: theme.colors.primaryLight,
-      marginHorizontal: 10,
-    },
-    // ── Brackets ──
-    bracketFrame: {
-      position: 'absolute',
-      width: SCREEN_W * 0.74,
-      height: 310,
-    },
-    corner: {
-      position: 'absolute',
-      width: 14,
-      height: 14,
-      borderColor: 'rgba(129, 140, 248, 0.35)',
-    },
-    cornerTL: { top: 0, left: 0, borderTopWidth: 1.5, borderLeftWidth: 1.5 },
-    cornerTR: { top: 0, right: 0, borderTopWidth: 1.5, borderRightWidth: 1.5 },
-    cornerBL: { bottom: 0, left: 0, borderBottomWidth: 1.5, borderLeftWidth: 1.5 },
-    cornerBR: { bottom: 0, right: 0, borderBottomWidth: 1.5, borderRightWidth: 1.5 },
-    // ── Progress ──
-    progressBg: {
-      width: 200,
-      height: 2,
-      backgroundColor: theme.colors.cardBorder,
-      borderRadius: 1,
-      overflow: 'hidden',
-      marginBottom: 16,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: theme.colors.primaryLight,
-      borderRadius: 1,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.9,
-      shadowRadius: 8,
-      elevation: 5,
-    },
-    // ── Status ──
     statusRow: {
       flexDirection: 'row',
-      alignItems: 'center',
       gap: 8,
+      marginTop: 22,
     },
-    liveDot: {
+    statusChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(99, 102, 241, 0.12)',
+      borderColor: 'rgba(99, 102, 241, 0.3)',
+      borderWidth: 1,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    statusDot: {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: theme.colors.green,
+      backgroundColor: theme.colors.primaryLight,
     },
     statusText: {
-      color: theme.colors.textMuted,
+      fontFamily: theme.fonts.monoBold,
+      fontSize: 8.5,
+      letterSpacing: 1,
+      color: theme.colors.primaryLight,
+    },
+    tickerFooter: {
+      position: 'absolute',
+      bottom: 28,
+      left: 0,
+      right: 0,
+      height: 26,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    tickerScroll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    tickerItem: {
+      fontFamily: theme.fonts.monoBold,
       fontSize: 9,
-      fontFamily: theme.fonts.monoMedium,
-      letterSpacing: 1.2,
+      letterSpacing: 1,
+      color: '#9CA3AF',
+    },
+    tickerSeparator: {
+      color: 'rgba(255, 255, 255, 0.2)',
+      marginHorizontal: 12,
+      fontSize: 10,
+    },
+    greenText: {
+      color: '#10B981',
+    },
+    redText: {
+      color: '#EF4444',
+    },
+    goldText: {
+      color: '#F59E0B',
     },
   });
