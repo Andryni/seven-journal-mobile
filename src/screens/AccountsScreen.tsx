@@ -572,6 +572,7 @@ export const AccountsScreen: React.FC = () => {
               )}
 
               {/* Action Buttons */}
+              <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={[styles.saveBtn, (isCreating || isUpdating) && { opacity: 0.6 }]}
                   onPress={handleSave}
