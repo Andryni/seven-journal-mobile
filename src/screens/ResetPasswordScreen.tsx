@@ -136,7 +136,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onPass
             <View style={styles.logoSection}>
               <View style={styles.logoCard}>
                 <Image
-                  source={require('../assets/seven_tracking_logo.png')}
+                  source={require('../../assets/seven_tracking_logo.png')}
                   style={styles.logoImage}
                   resizeMode="cover"
                 />

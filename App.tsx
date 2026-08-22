@@ -97,6 +97,16 @@ export default function App() {
     }
   }, [fontsLoaded]);
 
+  if (!fontsLoaded || loading) {
+    return (
+      <SafeAreaProvider>
+        <View style={[styles.appContainer, { backgroundColor: '#07080a' }]}>
+          <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   const showSplash = !splashFinished;
 
   return (
