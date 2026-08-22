@@ -66,86 +66,79 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
   const statusOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // ── Phase 1: Background Market Grid & Ambient Glow ──
-    const p1Grid = Animated.timing(gridOpacity, {
-      toValue: 0.5,
-      duration: 350,
-      useNativeDriver: true,
-    });
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
-    // ── Phase 2: Laser Scanner Sweeps Down ──
-    const p2Scanner = Animated.sequence([
-      Animated.timing(scannerOpacity, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+    // ── t=0ms: Phase 1 – Background Grid ──
+    Animated.timing(gridOpacity, { toValue: 0.5, duration: 350, useNativeDriver: true }).start();
+
+    // ── t=350ms: Phase 2 – Scanner flash ──
+    timers.push(setTimeout(() => {
+      Animated.timing(scannerOpacity, { toValue: 0.8, duration: 100, useNativeDriver: true }).start();
+    }, 350));
+
+    // ── t=450ms: Phase 2 – Scanner sweep down ──
+    timers.push(setTimeout(() => {
       Animated.parallel([
         Animated.timing(scannerY, { toValue: SCREEN_H * 0.7, duration: 600, useNativeDriver: true }),
         Animated.timing(scannerOpacity, { toValue: 0, duration: 600, useNativeDriver: true }),
-      ]),
-    ]);
+      ]).start();
+    }, 450));
 
-    // ── Phase 3: Logo Reveal with Glow ──
-    const p3Logo = Animated.parallel([
-      Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 50, useNativeDriver: true }),
-      Animated.timing(logoGlow, { toValue: 0.9, duration: 450, useNativeDriver: true }),
-    ]);
+    // ── t=1050ms: Phase 3 – Logo Reveal ──
+    timers.push(setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(logoScale, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(logoGlow, { toValue: 0.9, duration: 450, useNativeDriver: true }),
+      ]).start();
+    }, 1050));
 
-    // ── Phase 4: Dynamic Candlestick Formations (Sweep -> Consolidation -> Breakout) ──
-    const p4Candles = Animated.parallel([
-      Animated.timing(candlesOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.stagger(80, [
-        Animated.spring(candle1Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
-        Animated.spring(candle2Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
-        Animated.spring(candle3Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
-        Animated.spring(candle4Scale, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
-        Animated.spring(candle5Scale, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
-      ]),
-      Animated.timing(chartPathProgress, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.timing(chartGlow, { toValue: 1, duration: 400, useNativeDriver: true }),
-    ]);
+    // ── t=1550ms: Phase 4 – Candlestick formations ──
+    timers.push(setTimeout(() => {
+      Animated.timing(candlesOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      Animated.timing(chartPathProgress, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      Animated.timing(chartGlow, { toValue: 1, duration: 400, useNativeDriver: true }).start();
 
-    // ── Phase 5: Brand Reveal ("SEVEN" + "JOURNAL") ──
-    const p5Brand = Animated.parallel([
-      Animated.spring(sevenScale, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }),
-      Animated.timing(sevenOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      Animated.spring(journalY, { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
-      Animated.timing(journalOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-    ]);
+      // Stagger each candle at 80ms intervals
+      const candleScales = [candle1Scale, candle2Scale, candle3Scale, candle4Scale, candle5Scale];
+      candleScales.forEach((scale, i) => {
+        timers.push(setTimeout(() => {
+          Animated.timing(scale, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+        }, i * 80));
+      });
+    }, 1550));
 
-    // ── Phase 6: Status Badges & Tagline (native driver) ──
-    const p6Badges = Animated.parallel([
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-    ]);
+    // ── t=2400ms: Phase 5 – Brand Reveal ("SEVEN" + "JOURNAL") ──
+    timers.push(setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(sevenScale, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(sevenOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(journalY, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(journalOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start();
+    }, 2400));
 
-    // ── Phase 7: Exit Transition ──
-    const p7Exit = Animated.parallel([
-      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: true }),
-      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: true }),
-    ]);
-
-    // Run master sequence
-    Animated.sequence([
-      p1Grid,
-      p2Scanner,
-      p3Logo,
-      p4Candles,
-      p5Brand,
-      p6Badges,
-      Animated.delay(900),
-      p7Exit,
-    ]).start(() => {
-      onAnimationFinish();
-    });
-
-    // Progress bar runs independently (useNativeDriver: false — cannot mix in native sequence)
-    const progressTimer = setTimeout(() => {
+    // ── t=2850ms: Phase 6 – Badges, tagline, progress bar ──
+    timers.push(setTimeout(() => {
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
       Animated.timing(progressWidth, { toValue: 1, duration: 800, useNativeDriver: false }).start();
-    }, 1800); // Approximate delay to sync with Phase 6
+    }, 2850));
 
-    // Typewriter timer for subtitle with proper interval clearing
+    // ── t=4550ms: Phase 7 – Exit transition ──
+    timers.push(setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: true }),
+        Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: true }),
+      ]).start(() => {
+        onAnimationFinish();
+      });
+    }, 4550));
+
+    // Typewriter for subtitle (synced with Phase 6)
     let intervalId: ReturnType<typeof setInterval> | null = null;
-    const typeTimer = setTimeout(() => {
+    timers.push(setTimeout(() => {
       let idx = 0;
       intervalId = setInterval(() => {
         idx++;
@@ -155,12 +148,12 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
           intervalId = null;
         }
       }, 30);
-    }, 1100);
+    }, 2850));
 
-    // Fallback safety timer to ensure splash finish is ALWAYS called even if native animation stutters
-    const safetyTimer = setTimeout(() => {
+    // Fallback safety timer
+    timers.push(setTimeout(() => {
       onAnimationFinish();
-    }, 4500);
+    }, 5500));
 
     // Continuous pulsing loop on breakout tip
     const pulseAnim = Animated.loop(
@@ -184,9 +177,7 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     return () => {
       pulseAnim.stop();
       tickerAnim.stop();
-      clearTimeout(typeTimer);
-      clearTimeout(safetyTimer);
-      clearTimeout(progressTimer);
+      timers.forEach(t => clearTimeout(t));
       if (intervalId) clearInterval(intervalId);
     };
   }, []);
