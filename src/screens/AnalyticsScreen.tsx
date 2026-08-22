@@ -16,6 +16,7 @@ import Animated, {
   FadeInLeft,
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withTiming,
   withSpring,
   withDelay,
@@ -65,6 +66,8 @@ const TABS: { id: TabType; labelKey: string; icon: React.FC<{ color?: string; si
 ];
 
 // ─── Animated Progress Ring (SVG) ───
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 export const ProgressRing: React.FC<{
   progress: number;
   size?: number;
@@ -81,10 +84,12 @@ export const ProgressRing: React.FC<{
   const clampedProgress = Math.min(Math.max(progress, 0), 1);
 
   useEffect(() => {
-    animProgress.value = withDelay(delay, withSpring(clampedProgress, { damping: 18, stiffness: 60 }));
+    animProgress.value = withDelay(delay, withTiming(clampedProgress, { duration: 900 }));
   }, [clampedProgress, delay]);
 
-  const strokeDashoffset = circumference * (1 - animProgress.value);
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - animProgress.value),
+  }));
 
   return (
     <View style={{ alignItems: 'center', width: 100 }}>
@@ -97,11 +102,11 @@ export const ProgressRing: React.FC<{
             </LinearGradient>
           </Defs>
           <Circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={t.colors.cardBorder} strokeWidth={strokeWidth} />
-          <Circle
+          <AnimatedCircle
             cx={size / 2} cy={size / 2} r={radius}
             fill="none" stroke={`url(#ringGrad-${label})`}
             strokeWidth={strokeWidth} strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+            animatedProps={animatedProps} strokeLinecap="round"
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
           <SvgText x={size / 2} y={size / 2 + 4} textAnchor="middle" fill={t.colors.textPrimary} fontSize={14} fontWeight="900">
