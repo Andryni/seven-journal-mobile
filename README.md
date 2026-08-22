@@ -12,46 +12,38 @@ Seven Journal est un terminal de trading quantitatif mobile qui combine journal 
 
 ## ✨ Fonctionnalités
 
-### 📊 Dashboard
-- KPIs en temps réel (P&L, Win Rate, Profit Factor, R-Multiple)
-- Courbe d'équité interactive avec tooltip
-- P&L quotidien bicolore (vert/rouge)
-- Streak tracker (win/loss consécutifs)
-- Account Health Badge
-- Market Sessions (Tokyo, Londres, New York, Sydney)
-- Session Timer avec Lock Guard
+### 📸 Saisie Ultra-Rapide & Scan IA
+- **Scan IA de Captures d'Écran (Gemini 1.5 Flash Vision)** : Import instantané depuis vos captures MT4/MT5/TradingView (extraction automatique de la Paire, Volume/Lots, Prix d'Entrée, SL, TP, Sortie et P&L).
+- **Floating Action Button (FAB) Global** : Ajout rapide de trade accessible en 1 tap depuis n'importe quel écran.
+- **Sélecteur de Risque Rapide** : Chips de préréglage de risque (0.5%, 1%, 2%) et alerte de dépassement de risque.
 
-### 📈 Analytics
-- **Vue d'ensemble** : KPIs globaux, Expectancy R-score
-- **Equity & Drawdown** : Courbe d'équité, courbe de drawdown
-- **Distribution** : Pie chart gains/pertes
-- **Breakdown** : Par setup, par paire, par timeframe
-- **Timing** : Performance par heure et par jour
-- **Psychology** : Impact du mental sur le P&L
-- **Prop Firm Tracker** : Drawdown projection, consistency rule, countdown
+### 📊 Dashboard & Lock Guard
+- **KPIs en temps réel** (P&L, Win Rate, Profit Factor, Expectancy, R-Multiple moyen).
+- **Courbe d'équité interactive** & Bicolor Daily P&L.
+- **Hard Daily Lock Overlay** : Verrouillage d'écran anti-revenge trading immédiat lorsque le Max Daily Drawdown est atteint.
+- **Suivi des sessions de marché** (Asie, Londres, New York, Over Session).
 
-### 📅 Calendrier
-- Heatmap mensuelle avec drill-down par jour
-- Détail des trades par date
-- Stats mensuelles (P&L, jours actifs)
+### 📈 Analytics & Psychologie
+- **Diagnostics & Impact Mental** : Corrélations statistiques automatiques entre vos émotions avant/après trade (FOMO, Revenge, Calme) et votre winrate.
+- **Simulateur What-If** : Simulation en direct du P&L théorique si toutes vos pertes avaient été rigoureusement coupées à -1R.
+- **Matrice Croisée Sessions × Jours** : Analyse matricielle 4 sessions × 5 jours pour détecter vos créneaux les plus rentables.
+- **Prop Firm Tracker** : Projection de Drawdown, règle de consistance, compte à rebours de challenge.
 
-### 📓 Playbook
-- Stratégies personnalisées (FVG, BOS, OB, etc.)
-- Débriefings quotidiens
-- Scores mentaux et notes
-- Matrice de discipline
+### 📓 Playbook & Matrice de Discipline 2.0
+- **Stratégies de trading (Setups)** avec validation technique personnalisée (FVG, BOS, Sweeps, etc.).
+- **Débriefing Journalier avec DatePicker Natif** localisé en FR / EN.
+- **Liaison dynamique des règles** : Le débriefing vérifie vos vraies règles issues de vos stratégies.
+- **Score de Discipline Global (0 à 100%)** et compteur de jours sans infraction (**Clean Days Streak** 🔥).
+- **Leak Detector** : Récidive des fautes et suivi statistique des erreurs de trading.
 
-### 💰 Comptes
-- Gestion multi-comptes (Prop Firm, Personnel, Démo)
-- Lock Guard automatique (daily loss limit)
-- Prop Firm Tracker (drawdown, consistency, target)
-- Progress bar des objectifs
+### 💰 Gestion Multi-Comptes (Futures & CFD)
+- **Support complet CFD & Futures** (E-mini / Micro, contrats, calculs de ticks).
+- **Suivi des challenges Prop Firm** (FTMO, Topstep, etc.) et portefeuilles personnels.
 
-### 🎯 Outils
-- **Position Calculator** : Lot sizing multi-instruments
-- **Achievements** : 13 badges progressifs
-- **Share Card** : Export P&L en image
-- **Import/Export** : MT4/MT5, TradingView, CSV
+### 🎯 Outils & Imports
+- **Position & Risk Calculator** : Calcul de lot sizing multi-instruments.
+- **Import/Export** : MT4/MT5 (CSV/HTML), TradingView et exports de données.
+- **Share Card Generator** : Partage élégant de vos performances en image.
 
 ## 🛠️ Stack Technique
 
@@ -93,12 +85,16 @@ npx expo start
 
 ## ⚙️ Configuration
 
-Créer un fichier `.env` :
+Créer un fichier `.env` à la racine :
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key  # Gratuit (pour le Scan IA)
 ```
+
+### 🗄️ Base de Données Supabase
+Exécutez le script SQL fourni [`supabase_migration_complete.sql`](./supabase_migration_complete.sql) dans votre **SQL Editor Supabase** pour initialiser les tables (Daily Lock, Futures, Débriefings, Index de performance).
 
 ## 📱 Scripts
 
