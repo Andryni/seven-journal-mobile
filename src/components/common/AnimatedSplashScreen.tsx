@@ -139,16 +139,24 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       onAnimationFinish();
     });
 
-    // Typewriter timer for subtitle
+    // Typewriter timer for subtitle with proper interval clearing
+    let intervalId: ReturnType<typeof setInterval> | null = null;
     const typeTimer = setTimeout(() => {
       let idx = 0;
-      const interval = setInterval(() => {
+      intervalId = setInterval(() => {
         idx++;
         setTaglineIndex(idx);
-        if (idx >= TAGLINE.length) clearInterval(interval);
+        if (idx >= TAGLINE.length && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
       }, 30);
-      return () => clearInterval(interval);
     }, 1100);
+
+    // Fallback safety timer to ensure splash finish is ALWAYS called even if native animation stutters
+    const safetyTimer = setTimeout(() => {
+      onAnimationFinish();
+    }, 4500);
 
     // Continuous pulsing loop on breakout tip
     const pulseAnim = Animated.loop(
@@ -173,6 +181,8 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       pulseAnim.stop();
       tickerAnim.stop();
       clearTimeout(typeTimer);
+      clearTimeout(safetyTimer);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 

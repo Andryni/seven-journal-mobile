@@ -101,25 +101,26 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
-        <QueryClientProvider client={queryClient}>
-          {isPasswordRecovery ? (
-            <View style={styles.appContainer}>
-              <ResetPasswordScreen
-                onPasswordReset={() => setIsPasswordRecovery(false)}
-              />
-            </View>
-          ) : (
-            <SafeAreaView
-              style={styles.appContainer}
-              edges={['top', 'left', 'right']}
-            >
-              <ToastContainer />
-              {session && <TopAccountBar />}
-              <NavigationContainer>
-                <ErrorBoundary screenName="Navigation">
-                  {!session ? (
-                    <AuthScreen />
+      <ErrorBoundary screenName="Root">
+        <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
+          <QueryClientProvider client={queryClient}>
+            {isPasswordRecovery ? (
+              <View style={styles.appContainer}>
+                <ResetPasswordScreen
+                  onPasswordReset={() => setIsPasswordRecovery(false)}
+                />
+              </View>
+            ) : (
+              <SafeAreaView
+                style={styles.appContainer}
+                edges={['top', 'left', 'right']}
+              >
+                <ToastContainer />
+                {session && <TopAccountBar />}
+                <NavigationContainer>
+                  <ErrorBoundary screenName="Navigation">
+                    {!session ? (
+                      <AuthScreen />
                   ) : (
                     <>
                       <Tab.Navigator
@@ -221,7 +222,8 @@ export default function App() {
             <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
           </View>
         )}
-      </View>
+        </View>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
