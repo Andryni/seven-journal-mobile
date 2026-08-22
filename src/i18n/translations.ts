@@ -440,6 +440,7 @@ export const translations = {
     openTradeStatus: 'EN COURS',
     setupStandard: 'Setup Standard',
     lots: 'lots',
+    contracts: 'contrat(s)',
     modifySearch: 'Modifiez votre recherche.',
     addFirstTrade: 'Ajoutez votre premier trade !',
 
@@ -1121,6 +1122,7 @@ export const translations = {
     openTradeStatus: 'OPEN',
     setupStandard: 'Standard Setup',
     lots: 'lots',
+    contracts: 'contract(s)',
     modifySearch: 'Modify your search.',
     addFirstTrade: 'Add your first trade!',
 

@@ -25,6 +25,13 @@ try {
   try { MediaLibrary = require('expo-media-library'); } catch {}
 }
 
+let FileSystem: any = null;
+try {
+  FileSystem = require('expo-file-system/legacy');
+} catch {
+  try { FileSystem = require('expo-file-system'); } catch {}
+}
+
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
@@ -130,9 +137,21 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
         return;
       }
 
-      const asset = await MediaLibrary.createAssetAsync(imageUri);
+      // Rename file to a clean, branded format: seven-journal-performance-YYYY-MM-DD-HHmm.png
+      let targetUri = imageUri;
+      if (FileSystem && FileSystem.cacheDirectory) {
+        const dateStr = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+        const cleanName = `seven-journal-${dateStr}.png`;
+        const newPath = `${FileSystem.cacheDirectory}${cleanName}`;
+        try {
+          await FileSystem.copyAsync({ from: imageUri, to: newPath });
+          targetUri = newPath;
+        } catch {}
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(targetUri);
       hapticSuccess();
-      Alert.alert(t('scSavedTitle'), t('scSavedMsg', asset.filename || 'image.png'));
+      Alert.alert(t('scSavedTitle'), t('scSavedMsg', asset.filename || 'seven-journal.png'));
     } catch (saveErr: unknown) {
       console.error('Save to gallery failed:', saveErr);
       Alert.alert(t('confirmTitle'), saveErr instanceof Error ? saveErr.message : t('scSaveError'));

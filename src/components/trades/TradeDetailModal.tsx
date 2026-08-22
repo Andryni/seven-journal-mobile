@@ -16,6 +16,7 @@ import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useTrades } from '../../features/trades/useTrades';
+import { useAccounts } from '../../features/accounts/useAccounts';
 import { Badge } from '../ui/Badge';
 import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
 
@@ -38,6 +39,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { fetchTradeFull } = useTrades();
+  const { accounts } = useAccounts();
   const [fullTrade, setFullTrade] = useState<Trade | null>(null);
   const [loadingFull, setLoadingFull] = useState(false);
 
@@ -115,7 +117,15 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdVolume')}</Text>
-                <Text style={styles.val}>{displayTrade.size} Lots</Text>
+                {(() => {
+                  const acc = accounts.find(a => a.id === displayTrade.account_id);
+                  const isFutures = (acc as any)?.instrument_type === 'Futures';
+                  return (
+                    <Text style={styles.val}>
+                      {displayTrade.size} {isFutures ? t('contracts') : t('lots')}
+                    </Text>
+                  );
+                })()}
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdEntrySlTp')}</Text>

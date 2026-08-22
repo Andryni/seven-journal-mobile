@@ -312,7 +312,15 @@ export const TradesScreen: React.FC = () => {
                 variant={item.direction === 'BUY' ? 'green' : 'blue'}
                 size="sm"
               />
-              <Text style={styles.lotText}>{item.size || 1} {t('lots')}</Text>
+              {(() => {
+                const acc = accounts.find(a => a.id === item.account_id);
+                const isFutures = (acc as any)?.instrument_type === 'Futures';
+                return (
+                  <Text style={styles.lotText}>
+                    {item.size || 1} {isFutures ? t('contracts') : t('lots')}
+                  </Text>
+                );
+              })()}
             </View>
 
             <View style={styles.pnlWrap}>
