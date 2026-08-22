@@ -38,8 +38,8 @@ export const TopAccountBar: React.FC = () => {
         <View style={styles.logoWrapper}>
           <Image
             source={require('../../assets/seven_tracking_logo.png')}
-            style={{ width: 34, height: 34, borderRadius: 8 }}
-            resizeMode="cover"
+            style={styles.logoImg}
+            resizeMode="contain"
           />
         </View>
         <View>
@@ -207,15 +207,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   logoWrapper: {
     width: 36,
     height: 36,
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.5)',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoImg: {
     width: 36,
