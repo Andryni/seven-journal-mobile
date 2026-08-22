@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 
+import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +12,9 @@ import { useT } from './src/i18n';
 import { TopAccountBar } from './src/components/common/TopAccountBar';
 import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
+
+// Empêche le splash screen natif de disparaître avec un écran blanc
+SplashScreen.preventAutoHideAsync().catch(() => {});
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
@@ -86,6 +90,12 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded]);
 
   const showSplash = !splashFinished;
 

@@ -21,22 +21,28 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
   const gridOpacity = useRef(new Animated.Value(0)).current;
 
   // Official Logo Reveal
-  const logoScale = useRef(new Animated.Value(0.7)).current;
+  const logoScale = useRef(new Animated.Value(0.75)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoGlow = useRef(new Animated.Value(0.3)).current;
 
-  // Candlesticks Animation (3 candlesticks: SL sweep, Rejection, Bullish Expansion)
-  const candle1Height = useRef(new Animated.Value(0)).current;
-  const candle2Height = useRef(new Animated.Value(0)).current;
-  const candle3Height = useRef(new Animated.Value(0)).current;
+  // Candlesticks Animation (5 live candlesticks forming a bullish breakout)
+  const candle1Scale = useRef(new Animated.Value(0)).current;
+  const candle2Scale = useRef(new Animated.Value(0)).current;
+  const candle3Scale = useRef(new Animated.Value(0)).current;
+  const candle4Scale = useRef(new Animated.Value(0)).current;
+  const candle5Scale = useRef(new Animated.Value(0)).current;
   const candlesOpacity = useRef(new Animated.Value(0)).current;
 
-  // Equity Curve Neon Stroke
-  const equityProgress = useRef(new Animated.Value(0)).current;
-  const equityGlow = useRef(new Animated.Value(0)).current;
+  // Live Chart Trendline Curve
+  const chartPathProgress = useRef(new Animated.Value(0)).current;
+  const chartGlow = useRef(new Animated.Value(0)).current;
 
-  // Pulse point at the tip of the equity line
-  const tipPulse = useRef(new Animated.Value(0.6)).current;
+  // Scanner Laser Line
+  const scannerY = useRef(new Animated.Value(-100)).current;
+  const scannerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Pulse point at the tip of the breakout
+  const tipPulse = useRef(new Animated.Value(0.5)).current;
 
   // Typography animations
   const sevenOpacity = useRef(new Animated.Value(0)).current;
@@ -53,63 +59,82 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
   const tickerOpacity = useRef(new Animated.Value(0)).current;
   const tickerTranslateX = useRef(new Animated.Value(0)).current;
 
-  // Status Badge / Lock Guard verification
+  // Loading Progress Bar
+  const progressWidth = useRef(new Animated.Value(0)).current;
+
+  // Status Badges
   const statusOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // ── Phase 1: Background Market Grid fades in ──
+    // ── Phase 1: Background Market Grid & Ambient Glow ──
     const p1Grid = Animated.timing(gridOpacity, {
-      toValue: 0.45,
-      duration: 400,
+      toValue: 0.5,
+      duration: 350,
       useNativeDriver: true,
     });
 
-    // ── Phase 2: Official Logo Emblem springs in ──
-    const p2Logo = Animated.parallel([
-      Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 50, useNativeDriver: true }),
-      Animated.timing(logoGlow, { toValue: 0.8, duration: 400, useNativeDriver: true }),
-    ]);
-
-    // ── Phase 3: Candlesticks sequential draw ──
-    const p3Candles = Animated.parallel([
-      Animated.timing(candlesOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.stagger(100, [
-        Animated.spring(candle1Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
-        Animated.spring(candle2Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
-        Animated.spring(candle3Height, { toValue: 1, friction: 5, tension: 45, useNativeDriver: true }),
+    // ── Phase 2: Laser Scanner Sweeps Down ──
+    const p2Scanner = Animated.sequence([
+      Animated.timing(scannerOpacity, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+      Animated.parallel([
+        Animated.timing(scannerY, { toValue: SCREEN_H * 0.7, duration: 600, useNativeDriver: true }),
+        Animated.timing(scannerOpacity, { toValue: 0, duration: 600, useNativeDriver: true }),
       ]),
     ]);
 
-    // ── Phase 4: Brand Reveal ("SEVEN" + "JOURNAL") ──
-    const p4Brand = Animated.parallel([
-      Animated.spring(sevenScale, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }),
-      Animated.timing(sevenOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.spring(journalY, { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
-      Animated.timing(journalOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+    // ── Phase 3: Logo Reveal with Glow ──
+    const p3Logo = Animated.parallel([
+      Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 50, useNativeDriver: true }),
+      Animated.timing(logoGlow, { toValue: 0.9, duration: 450, useNativeDriver: true }),
     ]);
 
-    // ── Phase 5: Tagline & Status Badge ──
-    const p5Status = Animated.parallel([
+    // ── Phase 4: Dynamic Candlestick Formations (Sweep -> Consolidation -> Breakout) ──
+    const p4Candles = Animated.parallel([
+      Animated.timing(candlesOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.stagger(80, [
+        Animated.spring(candle1Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
+        Animated.spring(candle2Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
+        Animated.spring(candle3Scale, { toValue: 1, friction: 6, tension: 45, useNativeDriver: true }),
+        Animated.spring(candle4Scale, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
+        Animated.spring(candle5Scale, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }),
+      ]),
+      Animated.timing(chartPathProgress, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(chartGlow, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]);
+
+    // ── Phase 5: Brand Reveal ("SEVEN" + "JOURNAL") ──
+    const p5Brand = Animated.parallel([
+      Animated.spring(sevenScale, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }),
+      Animated.timing(sevenOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.spring(journalY, { toValue: 0, friction: 7, tension: 50, useNativeDriver: true }),
+      Animated.timing(journalOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]);
+
+    // ── Phase 6: Loading Progress Bar & Status Badges ──
+    const p6Progress = Animated.parallel([
+      Animated.timing(progressWidth, { toValue: 1, duration: 800, useNativeDriver: false }),
       Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
       Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(tickerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]);
 
-    // ── Phase 6: Exit Transition ──
-    const p6Exit = Animated.parallel([
-      Animated.timing(containerFade, { toValue: 0, duration: 400, useNativeDriver: true }),
-      Animated.timing(logoScale, { toValue: 1.08, duration: 400, useNativeDriver: true }),
+    // ── Phase 7: Exit Transition ──
+    const p7Exit = Animated.parallel([
+      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: true }),
+      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: true }),
     ]);
 
-    // Run main sequence
+    // Run master sequence
     Animated.sequence([
       p1Grid,
-      Animated.parallel([p2Logo, p3Candles]),
-      p4Brand,
-      p5Status,
-      Animated.delay(1100),
-      p6Exit,
+      p2Scanner,
+      p3Logo,
+      p4Candles,
+      p5Brand,
+      p6Progress,
+      Animated.delay(900),
+      p7Exit,
     ]).start(() => {
       onAnimationFinish();
     });
@@ -121,15 +146,15 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
         idx++;
         setTaglineIndex(idx);
         if (idx >= TAGLINE.length) clearInterval(interval);
-      }, 35);
+      }, 30);
       return () => clearInterval(interval);
-    }, 900);
+    }, 1100);
 
-    // Continuous pulsing loop on equity tip point
+    // Continuous pulsing loop on breakout tip
     const pulseAnim = Animated.loop(
       Animated.sequence([
-        Animated.timing(tipPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(tipPulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(tipPulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(tipPulse, { toValue: 0.3, duration: 500, useNativeDriver: true }),
       ])
     );
     pulseAnim.start();
@@ -137,8 +162,8 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     // Continuous ticker horizontal scrolling
     const tickerAnim = Animated.loop(
       Animated.timing(tickerTranslateX, {
-        toValue: -150,
-        duration: 4000,
+        toValue: -180,
+        duration: 3500,
         useNativeDriver: true,
       })
     );
@@ -151,6 +176,11 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     };
   }, []);
 
+  const progressInterpolated = progressWidth.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <Animated.View style={[styles.container, { opacity: containerFade }]}>
       {/* Background ambient radial glow */}
@@ -161,13 +191,13 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
         <Svg width={SCREEN_W} height={SCREEN_H} style={StyleSheet.absoluteFill}>
           <Defs>
             <LinearGradient id="gridGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#6366F1" stopOpacity="0.12" />
-              <Stop offset="50%" stopColor="#10B981" stopOpacity="0.06" />
+              <Stop offset="0%" stopColor="#6366F1" stopOpacity="0.15" />
+              <Stop offset="50%" stopColor="#10B981" stopOpacity="0.08" />
               <Stop offset="100%" stopColor="#000" stopOpacity="0" />
             </LinearGradient>
           </Defs>
           {/* Horizontal grid lines */}
-          {[0.2, 0.35, 0.5, 0.65, 0.8].map((ratio, i) => (
+          {[0.18, 0.32, 0.46, 0.6, 0.74, 0.88].map((ratio, i) => (
             <Line
               key={`h-${i}`}
               x1={0}
@@ -180,7 +210,7 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
             />
           ))}
           {/* Vertical grid lines */}
-          {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+          {[0.15, 0.32, 0.5, 0.68, 0.85].map((ratio, i) => (
             <Line
               key={`v-${i}`}
               x1={SCREEN_W * ratio}
@@ -195,9 +225,20 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
         </Svg>
       </Animated.View>
 
-      {/* Main Visual Center: Official Logo + Trading Elements */}
+      {/* Scanner Laser Beam */}
+      <Animated.View
+        style={[
+          styles.scannerBeam,
+          {
+            transform: [{ translateY: scannerY }],
+            opacity: scannerOpacity,
+          },
+        ]}
+      />
+
+      {/* Main Visual Stage */}
       <View style={styles.centerStage}>
-        {/* Official Hexagonal Logo with Glow & Pulse */}
+        {/* Top: Official Logo Emblem with Glow */}
         <Animated.View
           style={[
             styles.logoContainer,
@@ -207,7 +248,6 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
             },
           ]}
         >
-          {/* Logo Glow Aura */}
           <Animated.View style={[styles.logoAura, { opacity: logoGlow }]} />
           <Image
             source={require('../../assets/seven_tracking_logo.png')}
@@ -216,7 +256,42 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
           />
         </Animated.View>
 
-        {/* Brand Reveal : SEVEN JOURNAL */}
+        {/* Middle: Live Candlestick Breakout Chart Animation */}
+        <Animated.View style={[styles.chartStage, { opacity: candlesOpacity }]}>
+          {/* Candle 1 (Red Sweep) */}
+          <Animated.View style={[styles.candleCol, { transform: [{ scaleY: candle1Scale }] }]}>
+            <View style={[styles.wick, { height: 28, backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
+            <View style={[styles.body, { height: 16, backgroundColor: '#EF4444' }]} />
+          </Animated.View>
+
+          {/* Candle 2 (Doji Rejection) */}
+          <Animated.View style={[styles.candleCol, { transform: [{ scaleY: candle2Scale }] }]}>
+            <View style={[styles.wick, { height: 36, backgroundColor: 'rgba(245, 158, 11, 0.6)' }]} />
+            <View style={[styles.body, { height: 6, backgroundColor: '#F59E0B' }]} />
+          </Animated.View>
+
+          {/* Candle 3 (Green Shift) */}
+          <Animated.View style={[styles.candleCol, { transform: [{ scaleY: candle3Scale }] }]}>
+            <View style={[styles.wick, { height: 32, backgroundColor: 'rgba(16, 185, 129, 0.6)' }]} />
+            <View style={[styles.body, { height: 20, backgroundColor: '#10B981' }]} />
+          </Animated.View>
+
+          {/* Candle 4 (Green Acceleration) */}
+          <Animated.View style={[styles.candleCol, { transform: [{ scaleY: candle4Scale }] }]}>
+            <View style={[styles.wick, { height: 44, backgroundColor: 'rgba(16, 185, 129, 0.7)' }]} />
+            <View style={[styles.body, { height: 28, backgroundColor: '#10B981' }]} />
+          </Animated.View>
+
+          {/* Candle 5 (Strong Bullish Expansion + Breakout Point) */}
+          <Animated.View style={[styles.candleCol, { transform: [{ scaleY: candle5Scale }] }]}>
+            <View style={[styles.wick, { height: 58, backgroundColor: 'rgba(52, 211, 153, 0.8)' }]} />
+            <View style={[styles.body, { height: 40, backgroundColor: '#34D399' }]} />
+            {/* Glowing Breakout Target Dot */}
+            <Animated.View style={[styles.breakoutDot, { opacity: tipPulse }]} />
+          </Animated.View>
+        </Animated.View>
+
+        {/* Brand Typography : SEVEN JOURNAL */}
         <View style={styles.brandBlock}>
           {/* SEVEN */}
           <Animated.View
@@ -245,7 +320,7 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
           </Animated.View>
         </View>
 
-        {/* Dynamic Typewriter Subtitle */}
+        {/* Typewriter Subtitle */}
         <Animated.View style={[styles.taglineBox, { opacity: taglineOpacity }]}>
           <Text style={styles.taglineText}>
             {TAGLINE.slice(0, taglineIndex)}
@@ -253,14 +328,19 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
           </Text>
         </Animated.View>
 
-        {/* Terminal Loading Indicators */}
+        {/* Terminal Loading Progress Bar */}
+        <View style={styles.progressBarWrapper}>
+          <Animated.View style={[styles.progressBarFill, { width: progressInterpolated }]} />
+        </View>
+
+        {/* Terminal Status Badges */}
         <Animated.View style={[styles.statusRow, { opacity: statusOpacity }]}>
           <View style={styles.statusChip}>
             <Animated.View style={[styles.statusDot, { opacity: tipPulse }]} />
-            <Text style={styles.statusText}>EDGE ENGINE READY</Text>
+            <Text style={styles.statusText}>PRICE ACTION ENGINE</Text>
           </View>
-          <View style={[styles.statusChip, { borderColor: 'rgba(16, 185, 129, 0.3)', backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-            <Text style={[styles.statusText, { color: '#34D399' }]}>DISCIPLINE 100%</Text>
+          <View style={[styles.statusChip, { borderColor: 'rgba(16, 185, 129, 0.35)', backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+            <Text style={[styles.statusText, { color: '#34D399' }]}>DISCIPLINE MATRIX 2.0</Text>
           </View>
         </Animated.View>
       </View>
@@ -310,29 +390,72 @@ const createStyles = (theme: AppTheme) =>
       right: 0,
       bottom: 0,
     },
+    scannerBeam: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: '#10B981',
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.9,
+      shadowRadius: 8,
+    },
     centerStage: {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
     },
     logoContainer: {
-      width: 100,
-      height: 100,
+      width: 76,
+      height: 76,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 16,
+      marginBottom: 10,
     },
     logoAura: {
       position: 'absolute',
-      width: 110,
-      height: 110,
-      borderRadius: 55,
-      backgroundColor: 'rgba(99, 102, 241, 0.25)',
+      width: 86,
+      height: 86,
+      borderRadius: 43,
+      backgroundColor: 'rgba(99, 102, 241, 0.3)',
     },
     officialLogoImg: {
-      width: 90,
-      height: 90,
-      borderRadius: 18,
+      width: 70,
+      height: 70,
+    },
+    chartStage: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 12,
+      height: 64,
+      marginBottom: 14,
+    },
+    candleCol: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 12,
+    },
+    wick: {
+      position: 'absolute',
+      width: 2,
+      borderRadius: 1,
+    },
+    body: {
+      width: 10,
+      borderRadius: 2,
+    },
+    breakoutDot: {
+      position: 'absolute',
+      top: -6,
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#34D399',
+      shadowColor: '#34D399',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 1,
+      shadowRadius: 4,
     },
     brandBlock: {
       alignItems: 'center',
@@ -343,7 +466,7 @@ const createStyles = (theme: AppTheme) =>
     },
     brandSeven: {
       fontFamily: theme.fonts.monoExtraBold,
-      fontSize: 38,
+      fontSize: 34,
       letterSpacing: 4.5,
       color: '#FFFFFF',
       textAlign: 'center',
@@ -354,20 +477,20 @@ const createStyles = (theme: AppTheme) =>
     },
     brandJournal: {
       fontFamily: theme.fonts.monoExtraBold,
-      fontSize: 26,
+      fontSize: 24,
       letterSpacing: 4,
       color: '#818CF8',
       textAlign: 'center',
     },
     taglineBox: {
-      marginTop: 14,
+      marginTop: 10,
       height: 18,
       alignItems: 'center',
       justifyContent: 'center',
     },
     taglineText: {
       fontFamily: theme.fonts.monoBold,
-      fontSize: 9.5,
+      fontSize: 9,
       letterSpacing: 2,
       color: 'rgba(255, 255, 255, 0.55)',
     },
@@ -375,10 +498,23 @@ const createStyles = (theme: AppTheme) =>
       color: theme.colors.primaryLight,
       fontWeight: 'bold',
     },
+    progressBarWrapper: {
+      width: 160,
+      height: 3,
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginTop: 14,
+    },
+    progressBarFill: {
+      height: '100%',
+      backgroundColor: '#10B981',
+      borderRadius: 2,
+    },
     statusRow: {
       flexDirection: 'row',
       gap: 8,
-      marginTop: 22,
+      marginTop: 16,
     },
     statusChip: {
       flexDirection: 'row',
@@ -388,8 +524,8 @@ const createStyles = (theme: AppTheme) =>
       borderColor: 'rgba(99, 102, 241, 0.3)',
       borderWidth: 1,
       borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
     },
     statusDot: {
       width: 6,
@@ -399,13 +535,13 @@ const createStyles = (theme: AppTheme) =>
     },
     statusText: {
       fontFamily: theme.fonts.monoBold,
-      fontSize: 8.5,
+      fontSize: 8,
       letterSpacing: 1,
       color: theme.colors.primaryLight,
     },
     tickerFooter: {
       position: 'absolute',
-      bottom: 28,
+      bottom: 24,
       left: 0,
       right: 0,
       height: 26,
