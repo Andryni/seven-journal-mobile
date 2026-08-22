@@ -191,13 +191,16 @@ export const TradesScreen: React.FC = () => {
       if (!matchesSearch) return false;
 
       // Status filter
-      if (activeFilter === 'WIN') return (t.pnl || 0) > 0;
-      if (activeFilter === 'LOSS') return (t.pnl || 0) < 0;
+      if (activeFilter === 'WIN') return t.result === 'TP' || (t.result !== 'SL' && t.result !== 'BE' && (t.pnl || 0) > 0);
+      if (activeFilter === 'LOSS') return t.result === 'SL' || (t.result !== 'TP' && t.result !== 'BE' && (t.pnl || 0) < 0);
       if (activeFilter === 'BE') return t.result === 'BE' || (t.pnl !== null && Math.abs(t.pnl) < 0.01);
-      if (activeFilter === 'OPEN') return t.pnl === null;
+      if (activeFilter === 'OPEN') return t.result === 'OPEN' || t.pnl === null;
 
       // Session filter
-      if (sessionFilter !== 'ALL' && t.session !== sessionFilter) return false;
+      if (sessionFilter !== 'ALL') {
+        const tradeSession = t.session || 'Over Session';
+        if (tradeSession !== sessionFilter) return false;
+      }
 
       // Date range filter
       if (dateRangeFilter !== 'ALL') {
@@ -440,7 +443,7 @@ export const TradesScreen: React.FC = () => {
       </View>
 
       {/* Result Filter */}
-      <View style={styles.filterRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ gap: 6 }}>
         {(['ALL', 'WIN', 'LOSS', 'BE', 'OPEN'] as FilterType[]).map(f => {
           const isActive = activeFilter === f;
           return (
@@ -455,22 +458,22 @@ export const TradesScreen: React.FC = () => {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Session & Date Range Filters */}
-      <View style={styles.filterRow}>
-        {['ALL', 'Asia', 'London', 'New York'].map(s => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: theme.spacing.md }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {['ALL', 'Asia', 'London', 'New York', 'Over Session'].map(s => (
           <TouchableOpacity
             key={s}
             style={[styles.filterPill, sessionFilter === s && styles.filterPillActive]}
             onPress={() => { hapticLight(); setSessionFilter(s); }}
           >
             <Text style={[styles.filterText, sessionFilter === s && styles.filterTextActive]}>
-              {s === 'ALL' ? t('filterAll') : s === 'New York' ? 'NY' : s}
+              {s === 'ALL' ? t('filterAll') : s === 'New York' ? 'NY' : s === 'Over Session' ? 'Over' : s}
             </Text>
           </TouchableOpacity>
         ))}
-        <View style={{ width: 1, height: 20, backgroundColor: theme.colors.cardBorder, marginHorizontal: 4 }} />
+        <View style={{ width: 1, height: 16, backgroundColor: theme.colors.cardBorder, marginHorizontal: 2 }} />
         {['ALL', '7d', '30d', '90d'].map(d => (
           <TouchableOpacity
             key={d}
@@ -482,7 +485,7 @@ export const TradesScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* ── 4. TRADES LIST ── */}
       <FlatList

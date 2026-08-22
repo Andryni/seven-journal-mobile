@@ -76,7 +76,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               activeItem.value >= 0 ? styles.greenText : styles.redText,
             ]}
           >
-            {valuePrefix}{Math.abs(activeItem.value).toFixed(1)}{valueSuffix}
+            {formatCurrency(activeItem.value)}
           </Text>
         </View>
       )}

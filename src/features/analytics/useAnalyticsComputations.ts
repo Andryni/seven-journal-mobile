@@ -267,8 +267,10 @@ export function useAnalyticsComputations(dateRange: DateRange) {
   [tfMap]);
 
   const timingBreakdown = useMemo(() => {
-    const hours = [8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20];
-    return hours.map(h => ({ label: `${h}h`, value: hourMap[h] || 0 })).filter(h => h.value !== 0);
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    return hours
+      .map(h => ({ label: `${h}h`, value: hourMap[h] || 0 }))
+      .filter(h => h.value !== 0);
   }, [hourMap]);
 
   const mentalBreakdown = useMemo(() => {
