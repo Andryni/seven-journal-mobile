@@ -160,7 +160,8 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
       .sort((a, b) => new Date(b.entry_time || 0).getTime() - new Date(a.entry_time || 0).getTime())
       .slice(0, 5);
 
-    const sortedDailyPnL = [...dailyPnL].sort((a, b) => a.date.localeCompare(b.date));
+    // dailyPnL is already chronologically sorted by isoKey
+    const sortedDailyPnL = dailyPnL;
 
     let currentStreak = 0;
     let bestStreak = 0;
