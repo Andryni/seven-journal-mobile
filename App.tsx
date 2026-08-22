@@ -87,140 +87,127 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const showSplash = !splashFinished || !fontsLoaded;
+  const showSplash = !splashFinished;
 
   return (
     <SafeAreaProvider>
       <View style={[styles.appContainer, { backgroundColor: theme.colors.background }]}>
+        <QueryClientProvider client={queryClient}>
+          {isPasswordRecovery ? (
+            <View style={styles.appContainer}>
+              <ResetPasswordScreen
+                onPasswordReset={() => setIsPasswordRecovery(false)}
+              />
+            </View>
+          ) : (
+            <SafeAreaView
+              style={styles.appContainer}
+              edges={['top', 'left', 'right']}
+            >
+              <ToastContainer />
+              {session && <TopAccountBar />}
+              <NavigationContainer>
+                <ErrorBoundary screenName="Navigation">
+                  {!session ? (
+                    <AuthScreen />
+                  ) : (
+                    <>
+                      <Tab.Navigator
+                        screenOptions={{
+                          headerShown: false,
+                          tabBarStyle: {
+                            backgroundColor: theme.colors.backgroundElevated,
+                            borderTopColor: theme.colors.cardBorder,
+                            borderTopWidth: 1,
+                            height: 64,
+                            paddingBottom: 8,
+                            paddingTop: 6,
+                          },
+                          tabBarActiveTintColor: theme.colors.primaryLight,
+                          tabBarInactiveTintColor: theme.colors.textDark,
+                          tabBarLabelStyle: {
+                            fontSize: 9,
+                            fontWeight: '800',
+                            letterSpacing: 0.5,
+                            marginTop: 2,
+                          },
+                        }}
+                      >
+                        <Tab.Screen
+                          name="Dashboard"
+                          component={DashboardScreen}
+                          options={{
+                            tabBarLabel: t('tabDashboard'),
+                            tabBarIcon: ({ color }) => <LayoutGrid color={color} size={20} />,
+                          }}
+                        />
+                        <Tab.Screen
+                          name="Trades"
+                          component={TradesScreen}
+                          options={{
+                            tabBarLabel: t('tabTrades'),
+                            tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
+                          }}
+                        />
+                        <Tab.Screen
+                          name="Calendar"
+                          component={CalendarScreen}
+                          options={{
+                            tabBarLabel: t('tabCalendar'),
+                            tabBarIcon: ({ color }) => <Calendar color={color} size={20} />,
+                          }}
+                        />
+                        <Tab.Screen
+                          name="Analytics"
+                          component={AnalyticsScreen}
+                          options={{
+                            tabBarLabel: t('tabAnalytics'),
+                            tabBarIcon: ({ color }) => <BarChart2 color={color} size={20} />,
+                          }}
+                        />
+                        <Tab.Screen
+                          name="Playbook"
+                          component={PlaybookScreen}
+                          options={{
+                            tabBarLabel: t('tabPlaybook'),
+                            tabBarIcon: ({ color }) => <BookMarked color={color} size={20} />,
+                          }}
+                        />
+                        <Tab.Screen
+                          name="Accounts"
+                          component={AccountsScreen}
+                          options={{
+                            tabBarLabel: t('tabAccounts'),
+                            tabBarIcon: ({ color }) => <Wallet color={color} size={20} />,
+                          }}
+                        />
+                      </Tab.Navigator>
 
-        {/* ── Main content (always mounted behind splash) ── */}
-        {!showSplash && !loading && (
-          <>
-            {isPasswordRecovery ? (
-              <View style={styles.appContainer}>
-                <ResetPasswordScreen
-                  onPasswordReset={() => setIsPasswordRecovery(false)}
-                />
-              </View>
-            ) : (
-              <QueryClientProvider client={queryClient}>
-                <SafeAreaView
-                  style={styles.appContainer}
-                  edges={['top', 'left', 'right']}
-                >
-                  <ToastContainer />
-                  {session && <TopAccountBar />}
-                  <NavigationContainer>
-                    <ErrorBoundary screenName="Navigation">
-                      {!session ? (
-                        <AuthScreen />
-                      ) : (
-                        <>
-                          <Tab.Navigator
-                            screenOptions={{
-                              headerShown: false,
-                              tabBarStyle: {
-                                backgroundColor: theme.colors.backgroundElevated,
-                                borderTopColor: theme.colors.cardBorder,
-                                borderTopWidth: 1,
-                                height: 64,
-                                paddingBottom: 8,
-                                paddingTop: 6,
-                              },
-                              tabBarActiveTintColor: theme.colors.primaryLight,
-                              tabBarInactiveTintColor: theme.colors.textDark,
-                              tabBarLabelStyle: {
-                                fontSize: 9,
-                                fontWeight: '800',
-                                letterSpacing: 0.5,
-                                marginTop: 2,
-                              },
-                            }}
-                          >
-                            <Tab.Screen
-                              name="Dashboard"
-                              component={DashboardScreen}
-                              options={{
-                                tabBarLabel: t('tabDashboard'),
-                                tabBarIcon: ({ color }) => <LayoutGrid color={color} size={20} />,
-                              }}
-                            />
-                            <Tab.Screen
-                              name="Trades"
-                              component={TradesScreen}
-                              options={{
-                                tabBarLabel: t('tabTrades'),
-                                tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
-                              }}
-                            />
-                            <Tab.Screen
-                              name="Calendar"
-                              component={CalendarScreen}
-                              options={{
-                                tabBarLabel: t('tabCalendar'),
-                                tabBarIcon: ({ color }) => <Calendar color={color} size={20} />,
-                              }}
-                            />
-                            <Tab.Screen
-                              name="Analytics"
-                              component={AnalyticsScreen}
-                              options={{
-                                tabBarLabel: t('tabAnalytics'),
-                                tabBarIcon: ({ color }) => <BarChart2 color={color} size={20} />,
-                              }}
-                            />
-                            <Tab.Screen
-                              name="Playbook"
-                              component={PlaybookScreen}
-                              options={{
-                                tabBarLabel: t('tabPlaybook'),
-                                tabBarIcon: ({ color }) => <BookMarked color={color} size={20} />,
-                              }}
-                            />
-                            <Tab.Screen
-                              name="Accounts"
-                              component={AccountsScreen}
-                              options={{
-                                tabBarLabel: t('tabAccounts'),
-                                tabBarIcon: ({ color }) => <Wallet color={color} size={20} />,
-                              }}
-                            />
-                          </Tab.Navigator>
+                      <FloatingActionButton
+                        onPress={() => setGlobalTradeModal(true)}
+                      />
 
-                          <FloatingActionButton
-                            onPress={() => setGlobalTradeModal(true)}
-                          />
+                      <TradeFormModal
+                        visible={globalTradeModal}
+                        onClose={() => setGlobalTradeModal(false)}
+                      />
 
-                          <TradeFormModal
-                            visible={globalTradeModal}
-                            onClose={() => setGlobalTradeModal(false)}
-                          />
+                      <DailyLockOverlay
+                        visible={isDailySessionLocked && lockOverlayDismissed === false}
+                        reason="Limite de perte journalière atteinte. Mode anti-revenge trading activé."
+                        onDismiss={() => setLockOverlayDismissed(true)}
+                      />
+                    </>
+                  )}
+                </ErrorBoundary>
+              </NavigationContainer>
+            </SafeAreaView>
+          )}
+        </QueryClientProvider>
 
-                          <DailyLockOverlay
-                            visible={isDailySessionLocked && lockOverlayDismissed === false}
-                            reason="Limite de perte journalière atteinte. Mode anti-revenge trading activé."
-                            onDismiss={() => setLockOverlayDismissed(true)}
-                          />
-                        </>
-                      )}
-                    </ErrorBoundary>
-                  </NavigationContainer>
-                </SafeAreaView>
-              </QueryClientProvider>
-            )}
-          </>
-        )}
-
-        {/* ── Loading spinner (dark bg, behind splash) ── */}
-        {!showSplash && loading && (
-          <View style={styles.centerScreen}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
-        )}
-
-        {/* ── Splash overlay on top — fades out, never unmounts early ── */}
+        {/* ── Splash overlay on top — smoothly covers until animation ends ── */}
         {showSplash && (
-          <View style={[StyleSheet.absoluteFill]}>
+          <View style={StyleSheet.absoluteFill} pointerEvents={splashFinished ? 'none' : 'auto'}>
             <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
           </View>
         )}
