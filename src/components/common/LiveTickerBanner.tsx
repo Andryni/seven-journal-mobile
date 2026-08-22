@@ -28,9 +28,8 @@ export const LiveTickerBanner: React.FC = () => {
 
   const items = [...tickerItems, ...tickerItems, ...tickerItems];
 
-  if (tickerItems.length === 0) return null;
-
   useEffect(() => {
+    if (tickerItems.length === 0) return;
     animatedX.setValue(0);
     const animation = Animated.loop(
       Animated.timing(animatedX, {
@@ -41,7 +40,9 @@ export const LiveTickerBanner: React.FC = () => {
     );
     animation.start();
     return () => animation.stop();
-  }, [trades]);
+  }, [trades, tickerItems.length]);
+
+  if (tickerItems.length === 0) return null;
 
   return (
     <View style={styles.container}>

@@ -6,35 +6,62 @@ import { useT } from '../../i18n';
 import type { Trade, TradingAccount } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
 
+/** Core columns used across screens — excludes heavy screenshot URLs & bookmap text */
+const TRADE_LIST_COLUMNS =
+  'id, user_id, account_id, pair, direction, entry_price, exit_price, stop_loss, take_profit, size, entry_time, exit_time, pnl, r_multiple, timeframe, setup_structures, setup_fvg, setup_ob, setup_liquidity_sweep, mental_state, cookie_jar_ref, rule_40_percent, notes, result, session, created_at' as const;
+
+/** Full columns including screenshots — only for detail modals */
+const TRADE_FULL_COLUMNS = '*' as const;
+
+/** Max trades per page (Supabase max is 1000) */
+const PAGE_SIZE = 500;
+
 export function useTrades() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
   const { t } = useT();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
-  // Fetch trades
+  // Fetch trades — lightweight columns for list views
   const { data: trades = [], isLoading } = useQuery<Trade[]>({
     queryKey: ['trades', activeAccountId],
     queryFn: async () => {
-      let query = supabase.from('trades').select('*').order('entry_time', { ascending: false });
-      
+      let query = supabase
+        .from('trades')
+        .select(TRADE_LIST_COLUMNS)
+        .order('entry_time', { ascending: false })
+        .range(0, PAGE_SIZE - 1);
+
       if (activeAccountId) {
         query = query.eq('account_id', activeAccountId);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      // Cast to Trade[] — missing screenshot/bookmap columns only used in detail modal
+      return (data || []) as unknown as Trade[];
     },
+    staleTime: 30_000, // 30s — don't refetch on every tab switch
   });
+
+  /** Fetch full trade data (with screenshots) for detail modal */
+  const fetchTradeFull = async (tradeId: string): Promise<Trade | null> => {
+    const { data, error } = await supabase
+      .from('trades')
+      .select(TRADE_FULL_COLUMNS)
+      .eq('id', tradeId)
+      .single();
+    if (error) return null;
+    return data;
+  };
 
   // Helper check for daily stop losses & maximum daily loss limits
   const checkAndApplyDailyLock = async (userId: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
-    
+
     const { data: todayTrades, error: fetchError } = await supabase
       .from('trades')
-      .select('*')
+      .select('id, account_id, pnl')
       .eq('user_id', userId)
       .gte('entry_time', `${todayStr}T00:00:00Z`);
 
@@ -56,7 +83,7 @@ export function useTrades() {
 
         const accTodayTrades = (todayTrades as Trade[]).filter((t: Trade) => t.account_id === acc.id);
         const todayPnl = accTodayTrades.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0);
-        
+
         if (todayPnl < 0 && Math.abs(todayPnl) >= effectiveLimitUsd) {
           dailyLossExceeded = true;
           exceededAccountName = acc.name;
@@ -79,7 +106,7 @@ export function useTrades() {
         }, {
           onConflict: 'user_id,date'
         });
-        
+
         queryClient.invalidateQueries({ queryKey: ['daily_lock', todayStr] });
       }
     }
@@ -174,6 +201,7 @@ export function useTrades() {
   return {
     trades,
     isLoading,
+    fetchTradeFull,
     createTrade: createTradeMutation.mutateAsync,
     updateTrade: updateTradeMutation.mutateAsync,
     deleteTrade: deleteTradeMutation.mutateAsync,

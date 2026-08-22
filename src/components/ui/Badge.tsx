@@ -8,6 +8,7 @@ interface BadgeProps {
   variant?: 'green' | 'red' | 'gold' | 'blue' | 'cyan' | 'neutral';
   size?: 'sm' | 'md';
   pulse?: boolean;
+  style?: object;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
@@ -15,6 +16,7 @@ export const Badge: React.FC<BadgeProps> = ({
   variant = 'neutral',
   size = 'md',
   pulse = false,
+  style,
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -25,6 +27,7 @@ export const Badge: React.FC<BadgeProps> = ({
       style={[
         styles.badge,
         size === 'sm' && styles.badgeSm,
+        style,
         variant === 'green' && styles.badgeGreen,
         variant === 'red' && styles.badgeRed,
         variant === 'gold' && styles.badgeGold,

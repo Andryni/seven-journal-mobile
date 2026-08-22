@@ -53,7 +53,7 @@ export const CalendarScreen: React.FC = () => {
           if (!map[dateStr]) map[dateStr] = { pnl: 0, count: 0, wins: 0, trades: [] };
           map[dateStr].pnl += t.pnl || 0;
           map[dateStr].count += 1;
-          if ((t.pnl || 0) > 0) map[dateStr].wins += 1;
+          if (t.result === 'TP' || (t.result !== 'SL' && t.result !== 'BE' && (t.pnl || 0) > 0)) map[dateStr].wins += 1;
           map[dateStr].trades.push(t);
         }
       }

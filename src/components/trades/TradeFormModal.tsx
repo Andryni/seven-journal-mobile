@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useHaptic } from '../../hooks/useHaptic';
 import {
   Modal,
   View,
@@ -25,6 +26,7 @@ import { calculateRMultiple } from '../../utils/financials';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { parseTradeScreenshotAI } from '../../utils/aiTradeParser';
 import {
   X,
   AlertCircle,
@@ -37,6 +39,7 @@ import {
   Clock,
   Wallet,
   Calendar,
+  Sparkles,
 } from 'lucide-react-native';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
@@ -80,6 +83,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [exitPrice, setExitPrice] = useState('');
+  const [exitDateObj, setExitDateObj] = useState<Date | null>(null);
+  const [showExitDatePicker, setShowExitDatePicker] = useState(false);
+  const [showExitTimePicker, setShowExitTimePicker] = useState(false);
   const [result, setResult] = useState<'TP' | 'SL' | 'BE' | 'OPEN'>('OPEN');
 
   // Risk Parameters
@@ -104,6 +110,48 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [notes, setNotes] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
+
+  const handleScanScreenshotAI = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        alert(t('tfPermissionRequired'));
+        return;
+      }
+
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!res.canceled && res.assets?.[0]?.base64) {
+        setIsAnalyzingAI(true);
+        const parsed = await parseTradeScreenshotAI(res.assets[0].base64);
+        setIsAnalyzingAI(false);
+
+        if (parsed) {
+          if (parsed.pair) setPair(parsed.pair.toUpperCase());
+          if (parsed.direction) setDirection(parsed.direction);
+          if (parsed.size) setSize(parsed.size.toString());
+          if (parsed.entry_price) setEntryPrice(parsed.entry_price.toString());
+          if (parsed.stop_loss) setStopLoss(parsed.stop_loss.toString());
+          if (parsed.take_profit) setTakeProfit(parsed.take_profit.toString());
+          if (parsed.exit_price) setExitPrice(parsed.exit_price.toString());
+          if (parsed.pnl != null) setManualPnl(parsed.pnl.toString());
+          if (parsed.result) setResult(parsed.result);
+          if (parsed.timeframe) setTimeframe(parsed.timeframe);
+        } else {
+          alert('Impossible d\'extraire les données du trade. Vérifiez l\'image.');
+        }
+      }
+    } catch (e) {
+      setIsAnalyzingAI(false);
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     if (editingTrade) {
@@ -123,6 +171,12 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setStopLoss(editingTrade.stop_loss.toString());
       setTakeProfit(editingTrade.take_profit.toString());
       setExitPrice(editingTrade.exit_price ? editingTrade.exit_price.toString() : '');
+      if (editingTrade.exit_time) {
+        const exitDt = new Date(editingTrade.exit_time);
+        if (!isNaN(exitDt.getTime())) setExitDateObj(exitDt);
+      } else {
+        setExitDateObj(null);
+      }
       setResult(editingTrade.result);
       setManualPnl(editingTrade.pnl !== null ? editingTrade.pnl.toString() : '');
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
@@ -156,7 +210,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setStopLoss('');
     setTakeProfit('');
     setExitPrice('');
+    setExitDateObj(null);
+    setShowExitDatePicker(false);
+    setShowExitTimePicker(false);
     setResult('OPEN');
+    setFuturesSize('mini');
     setRiskType('percent');
     setRiskValue('1');
     setManualPnl('');
@@ -176,6 +234,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const tp = Number(takeProfit);
     const exit = exitPrice ? Number(exitPrice) : null;
     const rVal = Number(riskValue);
+
+    // Auto-detect result from exit price
+    if (exit !== null && exit > 0 && entry > 0 && sl > 0 && tp > 0 && entry !== sl) {
+      if (Math.abs(exit - tp) < 0.001) setResult('TP');
+      else if (Math.abs(exit - sl) < 0.001) setResult('SL');
+      else if (Math.abs(exit - entry) < Math.abs(entry - sl) * 0.05) setResult('BE');
+    }
 
     if (!isNaN(entry) && !isNaN(sl) && entry > 0 && sl > 0 && entry !== sl) {
       const selectedAccount = accounts.find(acc => acc.id === accountId);
@@ -241,6 +306,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     }
   };
 
+  const { light: hapticLight, success: hapticSuccess } = useHaptic();
+
   const handleSubmit = async () => {
     setErrorMsg('');
 
@@ -251,6 +318,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
     if (!accountId || !pair.trim() || !entryPrice || !stopLoss || !takeProfit || !size) {
       setErrorMsg(t('tfRequiredFields'));
+      return;
+    }
+
+    if (!selectedSetupTitle) {
+      setErrorMsg(t('tfRequiredSetup'));
       return;
     }
 
@@ -275,7 +347,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       take_profit: tp,
       size: lotSize,
       entry_time: entryDateObj.toISOString(),
-      exit_time: exit ? new Date().toISOString() : null,
+      exit_time: exit ? (exitDateObj ? exitDateObj.toISOString() : new Date().toISOString()) : null,
       pnl: finalPnl,
       r_multiple: finalR,
       timeframe,
@@ -303,14 +375,57 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       } else {
         await createTrade(tradePayload);
       }
+      hapticSuccess();
       onClose();
-    } catch (err: any) {
-      setErrorMsg(err.message || t('tfSaveError'));
+    } catch (err: unknown) {
+      hapticLight();
+      setErrorMsg(err instanceof Error ? err.message : t('tfSaveError'));
     }
   };
 
   const selectedAccount = accounts.find(a => a.id === accountId);
+  const isFutures = selectedAccount?.instrument_type === 'Futures';
   const selectedSessionLabel = sessionLabel(t, session);
+  const [futuresSize, setFuturesSize] = useState<'mini' | 'micro'>('mini');
+
+  // Futures tick values for auto-calculation (mini vs micro)
+  const FUTURES_INSTRUMENTS: Record<string, { label: string; mini: { tickSize: number; tickValue: number; pointValue: number }; micro: { tickSize: number; tickValue: number; pointValue: number } }> = {
+    ES: { label: 'ES — E-mini S&P 500', mini: { tickSize: 0.25, tickValue: 12.5, pointValue: 50 }, micro: { tickSize: 0.25, tickValue: 1.25, pointValue: 5 } },
+    NQ: { label: 'NQ — E-mini Nasdaq', mini: { tickSize: 0.25, tickValue: 5, pointValue: 20 }, micro: { tickSize: 0.25, tickValue: 0.5, pointValue: 2 } },
+    YM: { label: 'YM — E-mini Dow', mini: { tickSize: 1, tickValue: 5, pointValue: 10 }, micro: { tickSize: 1, tickValue: 0.5, pointValue: 1 } },
+    GC: { label: 'GC — Gold', mini: { tickSize: 0.1, tickValue: 10, pointValue: 100 }, micro: { tickSize: 0.1, tickValue: 1, pointValue: 10 } },
+  };
+  const FUTURES_KEYS = Object.keys(FUTURES_INSTRUMENTS);
+  const futuresInfo = isFutures ? FUTURES_INSTRUMENTS[pair.toUpperCase()]?.[futuresSize] ?? FUTURES_INSTRUMENTS['ES'][futuresSize] : null;
+
+  // Auto-calculate PnL preview for TP/SL
+  const entry = Number(entryPrice);
+  const sl = Number(stopLoss);
+  const tp = Number(takeProfit);
+  const contracts = Number(size) || 1;
+
+  let tpGain = 0;
+  let slLoss = 0;
+  let riskUsd = 0;
+  if (entry > 0 && sl > 0 && entry !== sl) {
+    if (isFutures && futuresInfo) {
+      // Futures: PnL = (priceDiff / tickSize) * tickValue * contracts
+      tpGain = tp > 0 ? ((tp - entry) / futuresInfo.tickSize) * futuresInfo.tickValue * contracts : 0;
+      slLoss = sl > 0 ? ((entry - sl) / futuresInfo.tickSize) * futuresInfo.tickValue * contracts : 0;
+      if (direction === 'SELL') { tpGain = -tpGain; slLoss = -slLoss; }
+      riskUsd = Math.abs(slLoss);
+    } else {
+      // CFD: simplified PnL estimation
+      const slDist = Math.abs(entry - sl);
+      const tpDist = tp > 0 ? Math.abs(tp - entry) : 0;
+      riskUsd = riskType === 'percent' ? (selectedAccount?.balance || 100000) * (Number(riskValue) / 100) : Number(riskValue);
+      tpGain = riskUsd > 0 && slDist > 0 ? (tpDist / slDist) * riskUsd : 0;
+      slLoss = -riskUsd;
+    }
+  }
+
+  // Auto-detect result from exit price
+  const exit = exitPrice ? Number(exitPrice) : null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -335,15 +450,47 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 <Text style={styles.headerSubtitle}>{t('tfHeaderSub')}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t('tfCloseForm')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <X color={theme.colors.textPrimary} size={20} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {!editingTrade && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    borderColor: theme.colors.primary,
+                    borderWidth: 1,
+                    borderRadius: theme.borderRadius.sm,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    gap: 4,
+                  }}
+                  onPress={handleScanScreenshotAI}
+                  disabled={isAnalyzingAI}
+                  activeOpacity={0.8}
+                >
+                  {isAnalyzingAI ? (
+                    <ActivityIndicator size="small" color={theme.colors.primaryLight} />
+                  ) : (
+                    <>
+                      <Sparkles size={13} color={theme.colors.primaryLight} />
+                      <Text style={{ color: theme.colors.primaryLight, fontSize: 10, fontFamily: theme.fonts.monoBold }}>
+                        SCAN IA
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('tfCloseForm')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X color={theme.colors.textPrimary} size={20} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {errorMsg ? (
@@ -382,14 +529,28 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>{t('tfPairLabel')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('tfPairPlaceholder')}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={pair}
-                    onChangeText={t => setPair(t.toUpperCase())}
-                    autoCapitalize="characters"
-                  />
+                  {isFutures ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {FUTURES_KEYS.map(key => (
+                        <TouchableOpacity
+                          key={key}
+                          style={[styles.toggleBtn, pair.toUpperCase() === key && styles.toggleBtnActive]}
+                          onPress={() => setPair(key)}
+                        >
+                          <Text style={[styles.toggleText, pair.toUpperCase() === key && { color: '#fff' }]}>{key}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t('tfPairPlaceholder')}
+                      placeholderTextColor={theme.colors.textMuted}
+                      value={pair}
+                      onChangeText={t => setPair(t.toUpperCase())}
+                      autoCapitalize="characters"
+                    />
+                  )}
                 </View>
               </View>
 
@@ -531,10 +692,26 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
+              {/* Futures Mini / Micro */}
+              {isFutures && (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  <Text style={[styles.fieldLabel, { flex: 0, marginRight: 4 }]}>{t('accountFuturesType')}</Text>
+                  {(['mini', 'micro'] as const).map(ft => (
+                    <TouchableOpacity
+                      key={ft}
+                      style={[styles.toggleBtn, futuresSize === ft && styles.toggleBtnActive]}
+                      onPress={() => setFuturesSize(ft)}
+                    >
+                      <Text style={[styles.toggleText, futuresSize === ft && { color: '#fff' }]}>{ft === 'mini' ? 'E-mini' : 'Micro'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               {/* Volume & Prix d'entrée */}
               <View style={styles.row2}>
                 <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfVolume')}</Text>
+                  <Text style={styles.fieldLabel}>{isFutures ? 'CONTRATS' : t('tfVolume')}</Text>
                   <TextInput
                     style={styles.input}
                     placeholder="1.0"
@@ -556,6 +733,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   />
                 </View>
               </View>
+
+              {/* Alerte Rule Breaker Dérive de Risque */}
+              {riskType === 'percent' && Number(riskValue) > 2 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)', borderWidth: 1, borderRadius: 8, padding: 8, marginBottom: 10, gap: 6 }}>
+                  <AlertCircle size={14} color={theme.colors.redLight} />
+                  <Text style={{ color: theme.colors.redLight, fontSize: 10, fontFamily: theme.fonts.sansBold, flex: 1 }}>
+                    {t('ruleBreakerRiskAlert', riskValue)}
+                  </Text>
+                </View>
+              )}
 
               {/* Stop Loss & Take Profit */}
               <View style={styles.row2}>
@@ -610,6 +797,40 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 return null;
               })()}
 
+              {/* Futures Info Badge */}
+              {isFutures && futuresInfo && (
+                <View style={[styles.rrCalcBox, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
+                  <Text style={styles.rrCalcLabel}>📐 {FUTURES_INSTRUMENTS[pair.toUpperCase()]?.label || pair} — {futuresSize === 'mini' ? 'E-mini' : 'Micro'}</Text>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <Text style={styles.rrCalcDetail}>Tick: {futuresInfo.tickSize}</Text>
+                    <Text style={styles.rrCalcDetail}>Tick Val: ${futuresInfo.tickValue}</Text>
+                    <Text style={styles.rrCalcDetail}>Point Val: ${futuresInfo.pointValue}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* TP / SL Preview */}
+              {(tpGain !== 0 || slLoss !== 0) && (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {tp > 0 && (
+                    <View style={{ flex: 1, backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)', borderWidth: 1, borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: theme.colors.greenLight, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>🎯 TP</Text>
+                      <Text style={{ color: theme.colors.greenLight, fontSize: 14, fontWeight: '900', marginTop: 4 }}>+${Math.abs(tpGain).toFixed(2)}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)', borderWidth: 1, borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                    <Text style={{ color: theme.colors.redLight, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>🛑 SL</Text>
+                    <Text style={{ color: theme.colors.redLight, fontSize: 14, fontWeight: '900', marginTop: 4 }}>-${Math.abs(slLoss).toFixed(2)}</Text>
+                  </View>
+                  {riskUsd > 0 && (
+                    <View style={{ flex: 1, backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.3)', borderWidth: 1, borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: theme.colors.goldLight, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>💰 RISK</Text>
+                      <Text style={{ color: theme.colors.goldLight, fontSize: 14, fontWeight: '900', marginTop: 4 }}>${riskUsd.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Résultat & Prix de Sortie */}
               <View style={styles.row2}>
                 <View style={styles.col}>
@@ -639,6 +860,93 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
+              {/* Heure de sortie */}
+              {exitPrice ? (
+                <View style={styles.dateRow}>
+                  <Text style={styles.fieldLabel}>{t('tfExitDateTime') || 'HEURE DE SORTIE'}</Text>
+                  <View style={styles.row2}>
+                    <TouchableOpacity
+                      style={[styles.dropdownSelector, { flex: 1.2 }]}
+                      onPress={() => setShowExitDatePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.dropdownSelectedContent}>
+                        <Calendar size={14} color={theme.colors.primaryLight} />
+                        <Text style={styles.dropdownSelectedText}>
+                          {exitDateObj ? exitDateObj.toLocaleDateString(localeFor(lang), { day: '2-digit', month: 'short', year: 'numeric' }) : entryDateObj.toLocaleDateString(localeFor(lang), { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </Text>
+                      </View>
+                      <ChevronDown size={14} color={theme.colors.textMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.dropdownSelector, { flex: 0.8 }]}
+                      onPress={() => setShowExitTimePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.dropdownSelectedContent}>
+                        <Clock size={14} color={theme.colors.primaryLight} />
+                        <Text style={styles.dropdownSelectedText}>
+                          {exitDateObj ? exitDateObj.toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </Text>
+                      </View>
+                      <ChevronDown size={14} color={theme.colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                  {exitDateObj && (
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 9, marginTop: 4 }}>
+                      ⏱️ {t('holdingTime') || 'Durée'}: {(() => {
+                        const mins = (exitDateObj.getTime() - entryDateObj.getTime()) / 60000;
+                        if (mins < 60) return `${Math.round(mins)}min`;
+                        const h = Math.floor(mins / 60);
+                        const m = Math.round(mins % 60);
+                        return m > 0 ? `${h}h${m}min` : `${h}h`;
+                      })()}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+
+              {/* Native Exit Date Picker */}
+              {showExitDatePicker && (
+                <DateTimePicker
+                  value={exitDateObj || new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  themeVariant="dark"
+                  onDismiss={() => setShowExitDatePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowExitDatePicker(false);
+                    if (selectedDate) {
+                      const prev = exitDateObj || new Date();
+                      const updated = new Date(prev);
+                      updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                      setExitDateObj(updated);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Native Exit Time Picker */}
+              {showExitTimePicker && (
+                <DateTimePicker
+                  value={exitDateObj || new Date()}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={true}
+                  themeVariant="dark"
+                  onDismiss={() => setShowExitTimePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowExitTimePicker(false);
+                    if (selectedDate) {
+                      const prev = exitDateObj || new Date();
+                      const updated = new Date(prev);
+                      updated.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+                      setExitDateObj(updated);
+                    }
+                  }}
+                />
+              )}
+
               {/* Risque % ou $ & Calcul live */}
               <View style={styles.row2}>
                 <View style={styles.col}>
@@ -665,6 +973,25 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       keyboardType="decimal-pad"
                     />
                   </View>
+                  {riskType === 'percent' && (
+                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
+                      {['0.5', '1', '2'].map(pct => (
+                        <TouchableOpacity
+                          key={pct}
+                          style={[
+                            styles.toggleBtn,
+                            { paddingHorizontal: 6, paddingVertical: 2, height: 22 },
+                            riskValue === pct && styles.toggleBtnActive,
+                          ]}
+                          onPress={() => setRiskValue(pct)}
+                        >
+                          <Text style={[styles.toggleText, { fontSize: 9 }, riskValue === pct && { color: '#fff' }]}>
+                            {pct}%
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>{t('tfPnlR')}</Text>

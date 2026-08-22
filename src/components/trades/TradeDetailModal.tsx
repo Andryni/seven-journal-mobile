@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -8,12 +8,14 @@ import {
   StyleSheet,
   Image,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useTrades } from '../../features/trades/useTrades';
 import { Badge } from '../ui/Badge';
 import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
 
@@ -35,10 +37,27 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  if (!trade) return null;
+  const { fetchTradeFull } = useTrades();
+  const [fullTrade, setFullTrade] = useState<Trade | null>(null);
+  const [loadingFull, setLoadingFull] = useState(false);
 
-  const isWin = (trade.pnl || 0) > 0;
-  const isLoss = (trade.pnl || 0) < 0;
+  useEffect(() => {
+    if (visible && trade?.id) {
+      setLoadingFull(true);
+      fetchTradeFull(trade.id)
+        .then((data) => { if (data) setFullTrade(data); })
+        .catch(() => {}) // fallback to basic trade data
+        .finally(() => setLoadingFull(false));
+    } else {
+      setFullTrade(null);
+    }
+  }, [visible, trade?.id]);
+
+  const displayTrade = fullTrade || trade;
+  if (!displayTrade) return null;
+
+  const isWin = (displayTrade.pnl || 0) > 0;
+  const isLoss = (displayTrade.pnl || 0) < 0;
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -47,9 +66,9 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleInfo}>
-              <Text style={styles.pairText}>{trade.pair}</Text>
-              <Badge label={trade.direction} variant={trade.direction === 'BUY' ? 'blue' : 'gold'} />
-              <Badge label={trade.result} variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'} />
+              <Text style={styles.pairText}>{displayTrade.pair}</Text>
+              <Badge label={displayTrade.direction} variant={displayTrade.direction === 'BUY' ? 'blue' : 'gold'} />
+              <Badge label={displayTrade.result} variant={displayTrade.result === 'TP' ? 'green' : displayTrade.result === 'SL' ? 'red' : 'neutral'} />
             </View>
             <TouchableOpacity
               onPress={onClose}
@@ -68,13 +87,13 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <View>
                 <Text style={styles.pnlLabel}>{t('tdNetPnl')}</Text>
                 <Text style={[styles.pnlValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}>
-                  {trade.pnl !== null ? formatCurrency(trade.pnl) : 'OPEN'}
+                  {displayTrade.pnl !== null ? formatCurrency(displayTrade.pnl) : 'OPEN'}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.pnlLabel}>{t('tdRMultiple')}</Text>
-                <Text style={[styles.rValue, (trade.r_multiple || 0) >= 0 ? styles.greenText : styles.redText]}>
-                  {trade.r_multiple !== null ? `${trade.r_multiple >= 0 ? '+' : ''}${trade.r_multiple} R` : '—'}
+                <Text style={[styles.rValue, (displayTrade.r_multiple || 0) >= 0 ? styles.greenText : styles.redText]}>
+                  {displayTrade.r_multiple !== null ? `${displayTrade.r_multiple >= 0 ? '+' : ''}${displayTrade.r_multiple} R` : '—'}
                 </Text>
               </View>
             </View>
@@ -84,28 +103,28 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <Text style={styles.sectionTitle}>{t('tdExecutionParams')}</Text>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdEntryDate')}</Text>
-                <Text style={styles.val}>{new Date(trade.entry_time).toLocaleString(localeFor(lang))}</Text>
+                <Text style={styles.val}>{new Date(displayTrade.entry_time).toLocaleString(localeFor(lang))}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdTimeframe')}</Text>
-                <Text style={styles.val}>{trade.timeframe}</Text>
+                <Text style={styles.val}>{displayTrade.timeframe}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdSession')}</Text>
-                <Text style={styles.val}>{sessionLabel(t, trade.session)}</Text>
+                <Text style={styles.val}>{sessionLabel(t, displayTrade.session)}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdVolume')}</Text>
-                <Text style={styles.val}>{trade.size} Lots</Text>
+                <Text style={styles.val}>{displayTrade.size} Lots</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdEntrySlTp')}</Text>
-                <Text style={styles.val}>{trade.entry_price} / {trade.stop_loss} / {trade.take_profit}</Text>
+                <Text style={styles.val}>{displayTrade.entry_price} / {displayTrade.stop_loss} / {displayTrade.take_profit}</Text>
               </View>
-              {trade.exit_price && (
+              {displayTrade.exit_price && (
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>{t('tdExitPrice')}</Text>
-                  <Text style={styles.val}>{trade.exit_price}</Text>
+                  <Text style={styles.val}>{displayTrade.exit_price}</Text>
                 </View>
               )}
             </View>
@@ -115,7 +134,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <Text style={styles.sectionTitle}>{t('tdPlaybookStrategy')}</Text>
               <View style={styles.badgeRow}>
                 {(() => {
-                  const playbookSetups = trade.setup_structures.filter(s => s !== 'BOS');
+                  const playbookSetups = displayTrade.setup_structures.filter(s => s !== 'BOS');
                   if (playbookSetups.length > 0) {
                     return playbookSetups.map((s, idx) => (
                       <View key={idx} style={styles.strategyPill}>
@@ -131,17 +150,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </View>
 
             {/* Screenshots Avant & Après */}
-            {(trade.screenshot_before_url || trade.screenshot_after_url) && (
+            {(displayTrade.screenshot_before_url || displayTrade.screenshot_after_url) && (
               <View style={styles.sectionBox}>
                 <Text style={styles.sectionTitle}>{t('tdSetupScreenshots')}</Text>
-                {trade.screenshot_before_url && (
+                {displayTrade.screenshot_before_url && (
                   <View style={{ marginBottom: 10 }}>
                     <Text style={styles.miniLabel}>{t('tdChartBefore')}</Text>
-                    {trade.screenshot_before_url.startsWith('data:') || trade.screenshot_before_url.startsWith('file:') || trade.screenshot_before_url.startsWith('http') ? (
-                      <Image source={{ uri: trade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
+                    {displayTrade.screenshot_before_url.startsWith('data:') || displayTrade.screenshot_before_url.startsWith('file:') || displayTrade.screenshot_before_url.startsWith('http') ? (
+                      <Image source={{ uri: displayTrade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
                     ) : null}
-                    {trade.screenshot_before_url.startsWith('http') && (
-                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)} style={styles.linkRow}>
+                    {displayTrade.screenshot_before_url.startsWith('http') && (
+                      <TouchableOpacity onPress={() => Linking.openURL(displayTrade.screenshot_before_url!)} style={styles.linkRow}>
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
                         <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
@@ -149,14 +168,14 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                   </View>
                 )}
 
-                {trade.screenshot_after_url && (
+                {displayTrade.screenshot_after_url && (
                   <View>
                     <Text style={styles.miniLabel}>{t('tdChartAfter')}</Text>
-                    {trade.screenshot_after_url.startsWith('data:') || trade.screenshot_after_url.startsWith('file:') || trade.screenshot_after_url.startsWith('http') ? (
-                      <Image source={{ uri: trade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
+                    {displayTrade.screenshot_after_url.startsWith('data:') || displayTrade.screenshot_after_url.startsWith('file:') || displayTrade.screenshot_after_url.startsWith('http') ? (
+                      <Image source={{ uri: displayTrade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
                     ) : null}
-                    {trade.screenshot_after_url.startsWith('http') && (
-                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)} style={styles.linkRow}>
+                    {displayTrade.screenshot_after_url.startsWith('http') && (
+                      <TouchableOpacity onPress={() => Linking.openURL(displayTrade.screenshot_after_url!)} style={styles.linkRow}>
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
                         <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
@@ -172,17 +191,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdMentalState')}</Text>
                 <Text style={[styles.val, { color: theme.colors.goldLight }]}>
-                  {mentalStateLabel(t, trade.mental_state)}
+                  {mentalStateLabel(t, displayTrade.mental_state)}
                 </Text>
               </View>
-              {trade.cookie_jar_ref && (
+              {displayTrade.cookie_jar_ref && (
                 <Text style={styles.goldText}>{t('tdCookieJar')}</Text>
               )}
-              {trade.rule_40_percent && (
+              {displayTrade.rule_40_percent && (
                 <Text style={styles.goldText}>{t('tdRule40')}</Text>
               )}
-              {trade.notes ? (
-                <Text style={styles.notesText}>"{trade.notes}"</Text>
+              {displayTrade.notes ? (
+                <Text style={styles.notesText}>"{displayTrade.notes}"</Text>
               ) : null}
             </View>
           </ScrollView>
@@ -192,7 +211,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             <TouchableOpacity
               style={styles.deleteBtn}
               onPress={() => {
-                onDelete(trade.id);
+                onDelete(displayTrade.id);
                 onClose();
               }}
             >
@@ -204,7 +223,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               style={styles.editBtn}
               onPress={() => {
                 onClose();
-                onEdit(trade);
+                onEdit(displayTrade);
               }}
             >
               <Edit3 size={16} color={theme.colors.textPrimary} />

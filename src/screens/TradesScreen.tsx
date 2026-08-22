@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useHaptic } from '../hooks/useHaptic';
 import {
   View,
   Text,
@@ -9,6 +10,9 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,13 +26,13 @@ import { localeFor, useT } from '../i18n';
 import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
-import { Plus, Search, ArrowUpRight, ArrowDownRight, TrendingUp, Download, Upload, FileText } from 'lucide-react-native';
+import { Plus, Search, ArrowUpRight, ArrowDownRight, TrendingUp, Download, Upload, Trash2 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 
-type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
+type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'BE' | 'OPEN';
 
 export const TradesScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -37,13 +41,17 @@ export const TradesScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const { trades, createTrade, deleteTrade, isLoading } = useTrades();
   const { accounts } = useAccounts();
+
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const { light: hapticLight } = useHaptic();
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
+  const [sessionFilter, setSessionFilter] = useState<string>('ALL');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('ALL');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -106,12 +114,12 @@ export const TradesScreen: React.FC = () => {
 
       if (parsedTrades.length > 0) {
         Alert.alert(
-          "Import",
-          `${parsedTrades.length} trade(s) trouvé(s). Importer ?`,
+          t('importTitle'),
+          t('importMsg', parsedTrades.length),
           [
-            { text: "Annuler", style: "cancel" },
+            { text: t('confirmNo'), style: "cancel" },
             {
-              text: "Importer",
+              text: t('importBtn'),
               onPress: async () => {
                 for (const t of parsedTrades) {
                   await createTrade({
@@ -146,16 +154,16 @@ export const TradesScreen: React.FC = () => {
                     session: null,
                   } as any);
                 }
-                Alert.alert("Succes", `${parsedTrades.length} trade(s) importe(s).`);
+                Alert.alert(t('confirmTitle'), t('importSuccess', parsedTrades.length));
               },
             },
           ],
         );
       } else {
-        Alert.alert("Import", "Aucun trade detecte dans ce fichier.");
+        Alert.alert(t('importTitle'), t('importEmpty'));
       }
     } catch {
-      Alert.alert("Erreur", "Erreur lors de l import du fichier.");
+      Alert.alert(t('confirmTitle'), t('importError'));
     }
   };
 
@@ -168,7 +176,7 @@ export const TradesScreen: React.FC = () => {
       await FileSystem.writeAsStringAsync(fileUri, csv);
       await Sharing.shareAsync(fileUri);
     } catch {
-      Alert.alert("Erreur", "Erreur lors de l export.");
+      Alert.alert(t('confirmTitle'), t('exportError'));
     }
   };
   // Filtered & Searched Trades
@@ -185,19 +193,88 @@ export const TradesScreen: React.FC = () => {
       // Status filter
       if (activeFilter === 'WIN') return (t.pnl || 0) > 0;
       if (activeFilter === 'LOSS') return (t.pnl || 0) < 0;
+      if (activeFilter === 'BE') return t.result === 'BE' || (t.pnl !== null && Math.abs(t.pnl) < 0.01);
       if (activeFilter === 'OPEN') return t.pnl === null;
+
+      // Session filter
+      if (sessionFilter !== 'ALL' && t.session !== sessionFilter) return false;
+
+      // Date range filter
+      if (dateRangeFilter !== 'ALL') {
+        const tradeDate = new Date(t.entry_time).getTime();
+        const now = Date.now();
+        const msMap: Record<string, number> = { '7d': 7 * 86400000, '30d': 30 * 86400000, '90d': 90 * 86400000 };
+        if (msMap[dateRangeFilter] && tradeDate < now - msMap[dateRangeFilter]) return false;
+      }
+
       return true;
     });
-  }, [trades, searchQuery, activeFilter]);
+  }, [trades, searchQuery, activeFilter, sessionFilter, dateRangeFilter]);
 
   // Quick stats computed on filtered list
   const stats = useMemo(() => {
     const closed = filteredTrades.filter(t => t.pnl !== null);
-    const wins = closed.filter(t => (t.pnl || 0) > 0).length;
+    const wins = closed.filter(t => t.result === 'TP' || (t.result !== 'SL' && t.result !== 'BE' && (t.pnl || 0) > 0)).length;
     const wr = closed.length > 0 ? (wins / closed.length) * 100 : 0;
     const totalPnl = closed.reduce((acc, t) => acc + (t.pnl || 0), 0);
     return { count: filteredTrades.length, wr, totalPnl };
   }, [filteredTrades]);
+
+  // ── Swipeable Row Component ──
+  const SWIPE_THRESHOLD = -80;
+
+  const SwipeableRow: React.FC<{
+    children: React.ReactNode;
+    onDelete: () => void;
+  }> = ({ children, onDelete }) => {
+    const translateX = useRef(new Animated.Value(0)).current;
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderMove: (_, gestureState) => {
+          if (gestureState.dx < 0) {
+            translateX.setValue(Math.max(gestureState.dx, -120));
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dx < SWIPE_THRESHOLD) {
+            // Reveal delete button
+            Animated.spring(translateX, { toValue: -80, useNativeDriver: true }).start();
+          } else {
+            // Snap back
+            Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+          }
+        },
+      })
+    ).current;
+
+    return (
+      <View style={{ overflow: 'hidden', marginBottom: 10 }}>
+        {/* Delete background */}
+        <View style={[styles.swipeDeleteBg, { position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, justifyContent: 'center', alignItems: 'center', borderTopRightRadius: theme.borderRadius.md, borderBottomRightRadius: theme.borderRadius.md }]}>
+          <TouchableOpacity
+            onPress={() => {
+              hapticLight();
+              Animated.timing(translateX, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+              onDelete();
+            }}
+            style={{ justifyContent: 'center', alignItems: 'center', flex: 1, width: 80 }}
+          >
+            <Trash2 size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 9, fontFamily: theme.fonts.monoBold, marginTop: 4 }}>{t('delete')}</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Foreground card */}
+        <Animated.View
+          style={{ transform: [{ translateX }], backgroundColor: theme.colors.card }}
+          {...panResponder.panHandlers}
+        >
+          {children}
+        </Animated.View>
+      </View>
+    );
+  };
 
   const renderTradeItem = ({ item }: { item: Trade }) => {
     const isWin = (item.pnl || 0) > 0;
@@ -205,6 +282,7 @@ export const TradesScreen: React.FC = () => {
     const isOpen = item.pnl === null;
 
     return (
+      <SwipeableRow onDelete={() => handleDeleteTrade(item.id)}>
       <TouchableOpacity
         style={styles.tradeCard}
         onPress={() => handleViewTrade(item)}
@@ -252,20 +330,21 @@ export const TradesScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Middle Row: Setup & Timeframe */}
+          {/* Middle Row: Setup */}
           <View style={styles.middleRow}>
-            <Text style={styles.setupText} numberOfLines={1}>
-              {item.setup_structures && item.setup_structures.length > 0
-                ? item.setup_structures.join(' · ')
-                : item.timeframe
-                ? `TF : ${item.timeframe}`
-                : t('setupStandard')}
-            </Text>
+            {(() => {
+              const realSetups = (item.setup_structures || []).filter(s => s !== 'BOS' && s !== 'TF');
+              if (realSetups.length > 0) {
+                return <Text style={styles.setupText} numberOfLines={1}>{realSetups.join(' · ')}</Text>;
+              }
+              return null;
+            })()}
             {item.r_multiple !== null && (
               <Badge
                 label={`${item.r_multiple >= 0 ? '+' : ''}${item.r_multiple.toFixed(1)}R`}
-                variant={item.r_multiple > 0 ? 'gold' : 'neutral'}
+                variant={item.r_multiple > 0 ? 'gold' : item.r_multiple < 0 ? 'red' : 'neutral'}
                 size="sm"
+                style={{ marginLeft: 'auto' }}
               />
             )}
           </View>
@@ -283,6 +362,7 @@ export const TradesScreen: React.FC = () => {
           </View>
         </View>
       </TouchableOpacity>
+      </SwipeableRow>
     );
   };
 
@@ -359,21 +439,49 @@ export const TradesScreen: React.FC = () => {
         />
       </View>
 
+      {/* Result Filter */}
       <View style={styles.filterRow}>
-        {(['ALL', 'WIN', 'LOSS', 'OPEN'] as FilterType[]).map(f => {
+        {(['ALL', 'WIN', 'LOSS', 'BE', 'OPEN'] as FilterType[]).map(f => {
           const isActive = activeFilter === f;
           return (
             <TouchableOpacity
               key={f}
               style={[styles.filterPill, isActive && styles.filterPillActive]}
-              onPress={() => setActiveFilter(f)}
+              onPress={() => { hapticLight(); setActiveFilter(f); }}
             >
               <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-                {f === 'ALL' ? t('filterAll') : f === 'WIN' ? t('filterWin') : f === 'LOSS' ? t('filterLoss') : t('filterOpen')}
+                {f === 'ALL' ? t('filterAll') : f === 'WIN' ? t('filterWin') : f === 'LOSS' ? t('filterLoss') : f === 'BE' ? 'BE' : t('filterOpen')}
               </Text>
             </TouchableOpacity>
           );
         })}
+      </View>
+
+      {/* Session & Date Range Filters */}
+      <View style={styles.filterRow}>
+        {['ALL', 'Asia', 'London', 'New York'].map(s => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.filterPill, sessionFilter === s && styles.filterPillActive]}
+            onPress={() => { hapticLight(); setSessionFilter(s); }}
+          >
+            <Text style={[styles.filterText, sessionFilter === s && styles.filterTextActive]}>
+              {s === 'ALL' ? t('filterAll') : s === 'New York' ? 'NY' : s}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <View style={{ width: 1, height: 20, backgroundColor: theme.colors.cardBorder, marginHorizontal: 4 }} />
+        {['ALL', '7d', '30d', '90d'].map(d => (
+          <TouchableOpacity
+            key={d}
+            style={[styles.filterPill, dateRangeFilter === d && styles.filterPillActive]}
+            onPress={() => { hapticLight(); setDateRangeFilter(d); }}
+          >
+            <Text style={[styles.filterText, dateRangeFilter === d && styles.filterTextActive]}>
+              {d === 'ALL' ? t('dateRangeAll') : d === '7d' ? t('dateRange7d') : d === '30d' ? t('dateRange30d') : t('dateRange90d')}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* ── 4. TRADES LIST ── */}
@@ -674,4 +782,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   greenText: { color: theme.colors.greenLight },
   redText: { color: theme.colors.redLight },
+  swipeDeleteBg: {
+    backgroundColor: theme.colors.red,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
 });

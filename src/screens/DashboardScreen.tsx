@@ -56,6 +56,7 @@ export const DashboardScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
+
   const { isLocked, lock } = useDailyLock();
   const m = usePerformanceMetrics(trades, lang);
 

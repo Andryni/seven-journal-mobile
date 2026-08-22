@@ -26,22 +26,17 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash-icon.png",
+          "image": "./assets/splash_transparent.png",
           "resizeMode": "contain",
-          "backgroundColor": "#07080a",
-          "ios": {
-            "backgroundColor": "#07080a"
-          },
-          "android": {
-            "backgroundColor": "#07080a"
-          }
+          "backgroundColor": "#07080a"
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "e7d3541d-d354-4292-be40-50dcbc015f0e"
+        "projectId": "8b73316b-6d3b-40da-a086-d4d7e70e17b0"
       }
-    }
+    },
+    "owner": "sevenkely"
   }
 }

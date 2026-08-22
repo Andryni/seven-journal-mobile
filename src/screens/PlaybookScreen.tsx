@@ -21,6 +21,7 @@ import type { TFunction } from '../i18n';
 import { useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   BookOpen,
   Target,
@@ -30,11 +31,11 @@ import {
   Edit3,
   X,
   Check,
+  Calendar,
+  ChevronDown,
 } from 'lucide-react-native';
 
 const COMMON_MISTAKES = ['revenge', 'fomo', 'early_cut', 'over_size', 'no_sl', 'chasing'] as const;
-
-const PLAYBOOK_RULES = ['wait_m15', 'session_only', 'tp_1r', 'no_news', 'journal_before', 'risk_managed'] as const;
 
 function mistakeLabel(t: TFunction, id: string): string {
   switch (id) {
@@ -44,18 +45,6 @@ function mistakeLabel(t: TFunction, id: string): string {
     case 'over_size': return t('mistakeOverSize');
     case 'no_sl': return t('mistakeNoSl');
     case 'chasing': return t('mistakeChasing');
-    default: return id;
-  }
-}
-
-function ruleLabel(t: TFunction, id: string): string {
-  switch (id) {
-    case 'wait_m15': return t('ruleWaitM15');
-    case 'session_only': return t('ruleSessionOnly');
-    case 'tp_1r': return t('ruleTp1r');
-    case 'no_news': return t('ruleNoNews');
-    case 'journal_before': return t('ruleJournalBefore');
-    case 'risk_managed': return t('ruleRiskManaged');
     default: return id;
   }
 }
@@ -90,7 +79,7 @@ function emotionIdFromStored(value: string | null | undefined): string {
 
 export const PlaybookScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { t } = useT();
+  const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
   const { setups, isLoading: setupsLoading, saveSetup, deleteSetup } = usePlaybookSetups();
@@ -99,7 +88,11 @@ export const PlaybookScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'setups' | 'debrief' | 'discipline'>('setups');
 
   // Debrief Form State
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDateObj, setSelectedDateObj] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const selectedDate = useMemo(() => {
+    return selectedDateObj.toISOString().split('T')[0];
+  }, [selectedDateObj]);
   const [editingDebriefId, setEditingDebriefId] = useState<string | null>(null);
   const [marketSentiment, setMarketSentiment] = useState('');
   const [htfAnalysis, setHtfAnalysis] = useState('');
@@ -186,7 +179,12 @@ export const PlaybookScreen: React.FC = () => {
 
   const loadDebrief = (d: (typeof debriefs)[number]) => {
     setEditingDebriefId(d.id);
-    setSelectedDate(d.date);
+    if (d.date) {
+      const parsed = new Date(d.date + 'T00:00:00');
+      if (!isNaN(parsed.getTime())) {
+        setSelectedDateObj(parsed);
+      }
+    }
     setMarketSentiment(d.market_sentiment || '');
     setHtfAnalysis(d.htf_analysis || '');
     setLessonsLearned(d.lessons_learned || '');
@@ -254,8 +252,40 @@ export const PlaybookScreen: React.FC = () => {
     });
   }, [setupStats, setupSearch, setupFilterTimeframe]);
 
-  // Discipline analytics
-  const mistakesAnalytics = useMemo(() => {
+  // Discipline Analytics 2.0 : Score Global + Clean Days Streak + Leak Detector ($)
+  const disciplineSummary = useMemo(() => {
+    let cleanDaysStreak = 0;
+    let totalScoreSum = 0;
+    let debriefsCount = debriefs.length;
+
+    // Trier par date croissante pour calculer le streak
+    const sorted = [...debriefs].sort((a, b) => b.date.localeCompare(a.date));
+
+    // Calcul du clean streak actuel
+    for (const d of sorted) {
+      const mistakes = d.mistakes_committed || [];
+      if (mistakes.length === 0 && (d.rules_followed || []).length > 0) {
+        cleanDaysStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Calcul du score global de discipline
+    sorted.forEach(d => {
+      const rules = (d.rules_followed || []).length;
+      const mistakes = (d.mistakes_committed || []).length;
+      const totalEvents = rules + mistakes;
+      if (totalEvents > 0) {
+        totalScoreSum += (rules / totalEvents) * 100;
+      } else {
+        totalScoreSum += 100;
+      }
+    });
+
+    const globalScore = debriefsCount > 0 ? Math.round(totalScoreSum / debriefsCount) : 100;
+
+    // Analyse détaillée de chaque erreur avec son occurrence
     const counts: Record<string, number> = {};
     COMMON_MISTAKES.forEach(m => counts[m] = 0);
     debriefs.forEach(d => {
@@ -263,12 +293,21 @@ export const PlaybookScreen: React.FC = () => {
         counts[mId] = (counts[mId] || 0) + 1;
       });
     });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
-    return COMMON_MISTAKES.map(m => ({
-      id: m, label: mistakeLabel(t, m),
+
+    const totalMistakes = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+    const mistakesList = COMMON_MISTAKES.map(m => ({
+      id: m,
+      label: mistakeLabel(t, m),
       count: counts[m] || 0,
-      pct: Math.round(((counts[m] || 0) / total) * 100)
-    })).sort((a, b) => b.count - a.count);
+      pct: Math.round(((counts[m] || 0) / totalMistakes) * 100),
+    })).filter(m => m.count > 0).sort((a, b) => b.count - a.count);
+
+    return {
+      globalScore,
+      cleanDaysStreak,
+      totalMistakes: Object.values(counts).reduce((a, b) => a + b, 0),
+      mistakesList,
+    };
   }, [debriefs, t]);
 
   // Auto-load existing debrief for selected date
@@ -413,13 +452,39 @@ export const PlaybookScreen: React.FC = () => {
         <View style={styles.tabContent}>
           <Card title={t('debriefTitle')}>
             <Text style={styles.fieldLabel}>{t('debriefDate')}</Text>
-            <TextInput
-              style={styles.input}
-              value={selectedDate}
-              onChangeText={setSelectedDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.colors.textMuted}
-            />
+            <TouchableOpacity
+              style={styles.dropdownSelector}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.dropdownSelectedContent}>
+                <Calendar size={14} color={theme.colors.primaryLight} />
+                <Text style={styles.dropdownSelectedText}>
+                  {selectedDateObj.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
+                    weekday: 'short',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </Text>
+              </View>
+              <ChevronDown size={14} color={theme.colors.textMuted} />
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={selectedDateObj}
+                mode="date"
+                display="default"
+                locale={lang === 'fr' ? 'fr-FR' : 'en-US'}
+                onChange={(event, d) => {
+                  setShowDatePicker(false);
+                  if (d) {
+                    setSelectedDateObj(d);
+                  }
+                }}
+              />
+            )}
 
             <Text style={styles.fieldLabel}>{t('marketSentiment')}</Text>
             <TextInput
@@ -523,6 +588,76 @@ export const PlaybookScreen: React.FC = () => {
               placeholderTextColor={theme.colors.textMuted}
             />
 
+            {/* Erreurs de discipline commises (dans le débriefing) */}
+            <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>{t('mistakesCard')}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {COMMON_MISTAKES.map(id => {
+                const isChecked = committedMistakes.includes(id);
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={[styles.pill, isChecked && { backgroundColor: 'rgba(239, 68, 68, 0.2)', borderColor: theme.colors.red }]}
+                    onPress={() => {
+                      setCommittedMistakes(prev =>
+                        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                      );
+                    }}
+                  >
+                    <Text style={[styles.pillText, isChecked && { color: theme.colors.redLight }]}>
+                      {mistakeLabel(t, id)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Règles de trading issues de vos stratégies Playbook */}
+            <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>{t('rulesCard')}</Text>
+            {setups.length === 0 ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 10, fontStyle: 'italic', marginBottom: 12 }}>
+                Aucune stratégie enregistrée. Ajoutez vos setups dans l'onglet "Mes Stratégies" pour voir leurs règles ici.
+              </Text>
+            ) : (
+              <View style={{ gap: 10, marginBottom: 16 }}>
+                {setups.map(s => {
+                  if (!s.validation_rules || s.validation_rules.length === 0) return null;
+                  return (
+                    <View key={s.id} style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: 8, padding: 8 }}>
+                      <Text style={{ color: theme.colors.primaryLight, fontSize: 10, fontFamily: theme.fonts.sansBold, marginBottom: 6 }}>
+                        🎯 {s.title.toUpperCase()}
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {s.validation_rules.map((rule, rIdx) => {
+                          const ruleKey = `${s.title}: ${rule}`;
+                          const isChecked = rulesFollowed.includes(ruleKey) || rulesFollowed.includes(rule);
+                          return (
+                            <TouchableOpacity
+                              key={rIdx}
+                              style={[
+                                styles.pill,
+                                isChecked && { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: theme.colors.green }
+                              ]}
+                              onPress={() => {
+                                setRulesFollowed(prev =>
+                                  isChecked
+                                    ? prev.filter(x => x !== ruleKey && x !== rule)
+                                    : [...prev, ruleKey]
+                                );
+                              }}
+                            >
+                              <Text style={[styles.pillText, isChecked && { color: theme.colors.greenLight }]}>
+                                {isChecked ? '✓ ' : ''}{rule}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
               onPress={handleSaveDailyDebrief}
@@ -552,7 +687,7 @@ export const PlaybookScreen: React.FC = () => {
                 <TouchableOpacity
                   onPress={() => {
                     setEditingDebriefId(null);
-                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                    setSelectedDateObj(new Date());
                     setMarketSentiment('');
                     setHtfAnalysis('');
                     setLessonsLearned('');
@@ -631,62 +766,51 @@ export const PlaybookScreen: React.FC = () => {
 
       {activeTab === 'discipline' && (
         <View style={styles.tabContent}>
-          {/* Discipline Analytics */}
-          <Card title={t('disciplineMatrix')}>
-            {mistakesAnalytics.map(item => (
-              <View key={item.id} style={styles.analyticsRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.analyticsLabel}>{item.label}</Text>
-                  <View style={styles.progressBarBg}>
-                    <View style={[styles.progressBarFill, { width: (item.pct + '%' as any), backgroundColor: theme.colors.red }]} />
+          {/* CARTE SCORE GLOBAL & STREAK SANS FAUTE */}
+          <Card title={t('disciplineKpiTitle')}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+              <View style={[styles.analyticsRow, { flex: 1, flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(99,102,241,0.1)', padding: 14, borderRadius: 12, borderColor: 'rgba(99,102,241,0.25)', borderWidth: 1 }]}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold, marginBottom: 4 }}>{t('disciplineScoreLabel')}</Text>
+                <Text style={{ color: disciplineSummary.globalScore >= 80 ? theme.colors.greenLight : disciplineSummary.globalScore >= 50 ? theme.colors.goldLight : theme.colors.redLight, fontSize: 24, fontFamily: theme.fonts.monoExtraBold }}>
+                  {disciplineSummary.globalScore}%
+                </Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 9, marginTop: 2 }}>{t('disciplineRulesRespect')}</Text>
+              </View>
+
+              <View style={[styles.analyticsRow, { flex: 1, flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(245,158,11,0.1)', padding: 14, borderRadius: 12, borderColor: 'rgba(245,158,11,0.25)', borderWidth: 1 }]}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold, marginBottom: 4 }}>{t('cleanDaysStreakLabel')}</Text>
+                <Text style={{ color: theme.colors.goldLight, fontSize: 24, fontFamily: theme.fonts.monoExtraBold }}>
+                  🔥 {disciplineSummary.cleanDaysStreak}{t('calDaySuffix') || 'j'}
+                </Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 9, marginTop: 2 }}>{t('cleanDaysSubtext')}</Text>
+              </View>
+            </View>
+          </Card>
+
+          {/* RÉPARTITION DES INFRACTIONS COMMISES */}
+          <Card title={t('mistakesRecidivismTitle')}>
+            {disciplineSummary.mistakesList.length === 0 ? (
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                <Check size={28} color={theme.colors.greenLight} style={{ marginBottom: 8 }} />
+                <Text style={{ color: theme.colors.greenLight, fontSize: 11, fontFamily: theme.fonts.sansBold }}>{t('perfectDisciplineTitle')}</Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>{t('perfectDisciplineSub')}</Text>
+              </View>
+            ) : (
+              disciplineSummary.mistakesList.map(item => (
+                <View key={item.id} style={styles.analyticsRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.analyticsLabel}>{item.label}</Text>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: (item.pct + '%' as any), backgroundColor: theme.colors.red }]} />
+                    </View>
+                  </View>
+                  <View style={styles.analyticsStats}>
+                    <Text style={styles.analyticsCount}>{item.count} {t('timesCount')}</Text>
+                    <Text style={styles.analyticsPct}>{item.pct}%</Text>
                   </View>
                 </View>
-                <View style={styles.analyticsStats}>
-                  <Text style={styles.analyticsCount}>{item.count}</Text>
-                  <Text style={styles.analyticsPct}>{item.pct}%</Text>
-                </View>
-              </View>
-            ))}
-          </Card>
-
-          <Card title={t('mistakesCard')}>
-            {COMMON_MISTAKES.map(id => {
-              const isChecked = committedMistakes.includes(id);
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.mistakeRow, isChecked && styles.mistakeRowActive]}
-                  onPress={() => {
-                    setCommittedMistakes(prev =>
-                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                    );
-                  }}
-                >
-                  <View style={[styles.checkDot, isChecked && styles.checkDotRed]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.redText]}>{mistakeLabel(t, id)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </Card>
-
-          <Card title={t('rulesCard')}>
-            {PLAYBOOK_RULES.map(id => {
-              const isChecked = rulesFollowed.includes(id);
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.mistakeRow, isChecked && styles.ruleRowActive]}
-                  onPress={() => {
-                    setRulesFollowed(prev =>
-                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                    );
-                  }}
-                >
-                  <View style={[styles.checkDot, isChecked && styles.checkDotGreen]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.greenText]}>{ruleLabel(t, id)}</Text>
-                </TouchableOpacity>
-              );
-            })}
+              ))
+            )}
           </Card>
         </View>
       )}
@@ -1125,5 +1249,27 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   analyticsStats: { alignItems: 'flex-end', minWidth: 40 },
   analyticsCount: { color: theme.colors.red, fontSize: 14, fontFamily: theme.fonts.monoBold },
   analyticsPct: { color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoMedium },
-
+  dropdownSelector: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    height: 40,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.sm,
+  },
+  dropdownSelectedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  dropdownSelectedText: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontFamily: theme.fonts.sansMedium,
+  },
 });

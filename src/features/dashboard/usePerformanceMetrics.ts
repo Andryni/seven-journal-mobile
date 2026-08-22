@@ -43,8 +43,8 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
     );
     const openTrades = trades.filter((t) => t.pnl === null);
 
-    const winTrades = closedTrades.filter((t) => (t.pnl || 0) > 0);
-    const lossTrades = closedTrades.filter((t) => (t.pnl || 0) <= 0);
+    const winTrades = closedTrades.filter((t) => t.result === 'TP' || (t.result !== 'SL' && t.result !== 'BE' && (t.pnl || 0) > 0));
+    const lossTrades = closedTrades.filter((t) => t.result === 'SL' || (t.result !== 'TP' && t.result !== 'BE' && (t.pnl || 0) < 0));
     const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length) * 100 : 0;
 
     const grossProfit = winTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);

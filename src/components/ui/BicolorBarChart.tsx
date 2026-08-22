@@ -10,6 +10,8 @@ interface BicolorBarChartProps {
   height?: number;
   width?: number;
   yAxisPrefix?: string;
+  valuePrefix?: string;
+  valueSuffix?: string;
 }
 
 const MIN_BAR_WIDTH = 28; // minimum px per bar (bar + gap)
@@ -20,6 +22,8 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   height = 160,
   width = MIN_CHART_WIDTH,
   yAxisPrefix = '$',
+  valuePrefix = '$',
+  valueSuffix = '',
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -47,7 +51,15 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const zeroY = paddingTop + chartHeight / 2;
   const barWidth = Math.min(22, chartWidth / data.length - 6);
 
-  const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
+  const activeIdx = selectedIdx !== null ? selectedIdx : data.length - 1;
+  const activeItem = data[activeIdx];
+  // Compute tooltip X so it stays fully visible
+  const activeBarX = activeIdx * (chartWidth / data.length) + (chartWidth / data.length) / 2;
+  const TOOLTIP_ESTIMATED_W = 110;
+  const tooltipFitsRight = activeBarX + TOOLTIP_ESTIMATED_W / 2 < chartWidth - 8;
+  const tooltipX = tooltipFitsRight
+    ? Math.max(8, Math.min(activeBarX - TOOLTIP_ESTIMATED_W / 2, chartWidth - TOOLTIP_ESTIMATED_W - 8))
+    : Math.max(8, activeBarX - TOOLTIP_ESTIMATED_W + 16);
 
   const formatCompact = (val: number) =>
     formatCurrency(val, { symbol: yAxisPrefix, compact: true, showPlus: false, decimals: 0 });
@@ -56,7 +68,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
     <View style={[styles.container, { height: totalHeight, width: effectiveChartWidth + yAxisWidth }]}>
       {/* Interactive Tooltip */}
       {activeItem && (
-        <View style={styles.tooltipBadge}>
+        <View style={[styles.tooltipBadge, { left: yAxisWidth + tooltipX, right: undefined }]}>
           <Text style={styles.tooltipDate}>{activeItem.label}</Text>
           <Text
             style={[
@@ -64,7 +76,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               activeItem.value >= 0 ? styles.greenText : styles.redText,
             ]}
           >
-            {formatCurrency(activeItem.value)}
+            {valuePrefix}{Math.abs(activeItem.value).toFixed(1)}{valueSuffix}
           </Text>
         </View>
       )}
@@ -241,7 +253,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   tooltipBadge: {
     position: 'absolute',
     top: 6,
-    right: 12,
     backgroundColor: theme.colors.backgroundElevated,
     borderColor: theme.colors.borderBright,
     borderWidth: 1,
@@ -252,6 +263,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     zIndex: 20,
+    overflow: 'visible',
   },
   tooltipDate: {
     color: theme.colors.textSecondary,

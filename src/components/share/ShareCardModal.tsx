@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useHaptic } from '../../hooks/useHaptic';
 import {
   Modal,
   View,
@@ -6,9 +7,20 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
-import * as Sharing from 'expo-sharing';
-import { X, Share2, Award, Check } from 'lucide-react-native';
+import { X, Share2, Award, Check, Download } from 'lucide-react-native';
+
+// Lazy-loaded native modules (each loaded independently)
+let captureRef: any = null;
+try { captureRef = require('react-native-view-shot').captureRef; } catch {}
+
+let Sharing: any = null;
+try { Sharing = require('expo-sharing'); } catch {}
+
+let MediaLibrary: any = null;
+try { MediaLibrary = require('expo-media-library'); } catch {}
+
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
@@ -31,6 +43,7 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const cardRef = useRef<View>(null);
 
   const closed = trades.filter((t) => t.pnl !== null);
   const totalPnL = closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
@@ -40,25 +53,85 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   const bestTrade = closed.reduce((max, t) => ((t.pnl || 0) > max ? (t.pnl || 0) : max), 0);
   const isPositive = totalPnL >= 0;
 
-  const handleShare = async () => {
-    try {
-      const text = [
-        '📊 Seven Journal — Performance',
-        '━━━━━━━━━━━━━━━━━━',
-        `💰 Net P&L: ${formatCurrency(totalPnL, { thousandsSeparator: true })}`,
-        `🎯 Win Rate: ${winRate.toFixed(1)}%`,
-        `📈 Positions: ${closed.length}`,
-        `⚡ Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
-        `🏆 Best Trade: ${formatCurrency(bestTrade, { decimals: 0 })}`,
-        '━━━━━━━━━━━━━━━━━━',
-        '✅ Verified by Seven Journal',
-      ].join('\n');
+  /** Build a text fallback for sharing P&L stats */
+  const buildTextShare = (): string => {
+    return [
+      '📊 Seven Journal — Performance',
+      '━━━━━━━━━━━━━━━━━━',
+      `💰 Net P&L: ${formatCurrency(totalPnL, { thousandsSeparator: true })}`,
+      `🎯 Win Rate: ${winRate.toFixed(1)}%`,
+      `📈 Positions: ${closed.length}`,
+      `⚡ Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
+      `🏆 Best Trade: ${formatCurrency(bestTrade, { decimals: 0 })}`,
+      '━━━━━━━━━━━━━━━━━━',
+      '✅ Verified by Seven Journal',
+    ].join('\n');
+  };
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(text);
+  /** Capture the card view as an image URI. Throws on failure. */
+  const captureCard = async (): Promise<string> => {
+    // Small delay to ensure the card view is fully laid out
+    await new Promise((r) => setTimeout(r, 300));
+    if (!cardRef.current) throw new Error('Card view not ready');
+    if (!captureRef) throw new Error('react-native-view-shot not available');
+    return await captureRef(cardRef, {
+      format: 'png',
+      quality: 1,
+      result: 'tmpfile',
+    });
+  };
+
+  const { light: hapticLight, success: hapticSuccess } = useHaptic();
+
+  const captureAndShare = async () => {
+    try {
+      const uri = await captureCard();
+      if (Sharing && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: t('scShareTitle'),
+          UTI: 'public.png',
+        });
+      } else {
+        // No expo-sharing — fallback to RN share with text
+        const { Share } = require('react-native');
+        await Share.share({ message: buildTextShare() });
       }
-    } catch (err) {
+      hapticSuccess();
+    } catch (err: unknown) {
       console.error('Share error:', err);
+      Alert.alert(t('confirmTitle'), err instanceof Error ? err.message : t('scCaptureError'));
+    }
+  };
+
+  const saveToGallery = async () => {
+    let imageUri: string | null = null;
+    try {
+      imageUri = await captureCard();
+    } catch (captureErr: unknown) {
+      console.error('Capture failed:', captureErr);
+      Alert.alert(t('confirmTitle'), t('scCaptureError') + '\n' + (captureErr instanceof Error ? captureErr.message : ''));
+      return;
+    }
+
+    if (!MediaLibrary) {
+      Alert.alert(t('confirmTitle'), t('mediaLibUnavailable'));
+      return;
+    }
+
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission', t('tfPermissionRequired'));
+        return;
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(imageUri);
+      hapticSuccess();
+      Alert.alert(t('scSavedTitle'), t('scSavedMsg', asset.filename || 'image.png'));
+    } catch (saveErr: unknown) {
+      console.error('Save to gallery failed:', saveErr);
+      Alert.alert(t('confirmTitle'), saveErr instanceof Error ? saveErr.message : t('scSaveError'));
     }
   };
 
@@ -79,7 +152,8 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-            <View style={styles.cardFrame}>
+            {/* ── Capture-able card ── */}
+            <View ref={cardRef} style={styles.cardFrame} collapsable={false}>
               <View style={styles.brandHeader}>
                 <View style={styles.logoBadge}>
                   <Text style={styles.logoText}>SEVEN JOURNAL</Text>
@@ -134,13 +208,19 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
                   <Check size={10} color={theme.colors.green} />
                   <Text style={styles.verifiedText}>{t('scVerified')}</Text>
                 </View>
-                <Text style={styles.watermark}>seventracking.app</Text>
+                <Text style={styles.watermark}>sevenjournal.app</Text>
               </View>
             </View>
 
-            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
+            {/* ── Action buttons ── */}
+            <TouchableOpacity style={styles.shareBtn} onPress={captureAndShare} activeOpacity={0.85}>
               <Share2 size={16} color={theme.colors.textPrimary} />
               <Text style={styles.shareBtnText}>{t('scExportShare')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={saveToGallery} activeOpacity={0.85}>
+              <Download size={16} color={theme.colors.primaryLight} />
+              <Text style={styles.saveBtnText}>{t('scSaveImage')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -336,6 +416,25 @@ const createStyles = (theme: AppTheme) =>
     },
     shareBtnText: {
       color: theme.colors.textPrimary,
+      fontSize: 11,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.8,
+    },
+    saveBtn: {
+      marginTop: 10,
+      width: '100%',
+      height: 44,
+      backgroundColor: 'transparent',
+      borderColor: theme.colors.primaryLight,
+      borderWidth: 1,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    saveBtnText: {
+      color: theme.colors.primaryLight,
       fontSize: 11,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,

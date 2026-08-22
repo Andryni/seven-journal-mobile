@@ -54,6 +54,7 @@ export const AccountsScreen: React.FC = () => {
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('challenge');
   const [instrumentType, setInstrumentType] = useState<'CFD' | 'Futures'>('CFD');
+  const [leverage, setLeverage] = useState('100');
   const [currency, setCurrency] = useState('USD');
 
   // Section 2: Capital & Garde-fou
@@ -73,6 +74,7 @@ export const AccountsScreen: React.FC = () => {
     setName('');
     setType('challenge');
     setInstrumentType('CFD');
+    setLeverage('100');
     setBalance('100000');
     setInitialBalance('100000');
     setCurrency('USD');
@@ -99,6 +101,7 @@ export const AccountsScreen: React.FC = () => {
     setConsistencyRulePercent((acc as any).consistency_rule_percent ? (acc as any).consistency_rule_percent.toString() : '15');
     setChallengeEndDate((acc as any).challenge_end_date || '');
     setInstrumentType((acc as any).instrument_type || 'CFD');
+    setLeverage((acc as any).leverage?.toString() || '100');
     setModalVisible(true);
   };
 
@@ -121,6 +124,7 @@ export const AccountsScreen: React.FC = () => {
       drawdown_type: drawdownType,
       consistency_rule_percent: consistencyRulePercent ? Number(consistencyRulePercent) : null,
       instrument_type: instrumentType,
+      leverage: instrumentType === 'CFD' ? Number(leverage) : undefined,
       challenge_end_date: challengeEndDate || null,
     };
 
@@ -397,6 +401,21 @@ export const AccountsScreen: React.FC = () => {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {/* CFD: Leverage */}
+                {instrumentType === 'CFD' && (
+                  <>
+                    <Text style={styles.fieldLabel}>{t('accountLeverage') || 'LEVIER'}</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={leverage}
+                      onChangeText={setLeverage}
+                      keyboardType="numeric"
+                      placeholder="100"
+                      placeholderTextColor={theme.colors.textMuted}
+                    />
+                  </>
+                )}
 
                 <Text style={styles.fieldLabel}>{t('accountTypeLabel')}</Text>
                 <View style={styles.typeGrid}>

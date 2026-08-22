@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { useUIStore } from '../../store/uiStore';
@@ -8,20 +8,44 @@ import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Card } from '../ui/Card';
 import { PickerModal } from '../ui/PickerModal';
-import { Calculator, Info } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 
-const INSTRUMENTS: Record<string, { pip: number; contractSize: number; label: string }> = {
-  XAUUSD: { pip: 0.01, contractSize: 100, label: 'Or (XAUUSD)' },
-  EURUSD: { pip: 0.0001, contractSize: 100000, label: 'EUR/USD' },
-  GBPUSD: { pip: 0.0001, contractSize: 100000, label: 'GBP/USD' },
-  USDJPY: { pip: 0.01, contractSize: 100000, label: 'USD/JPY' },
-  GBPJPY: { pip: 0.01, contractSize: 100000, label: 'GBP/JPY' },
-  US30: { pip: 1, contractSize: 1, label: 'US30 (Dow Jones)' },
-  NAS100: { pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)' },
-  BTCUSD: { pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)' },
+// ─── CFD / Forex instruments ───
+type CfdInstrument = { type: 'cfd'; pip: number; contractSize: number; label: string };
+type FuturesInstrument = {
+  type: 'futures';
+  tickSize: number;
+  tickValue: number;
+  pointValue: number;
+  label: string;
+};
+type Instrument = CfdInstrument | FuturesInstrument;
+
+const INSTRUMENTS: Record<string, Instrument> = {
+  // CFD
+  XAUUSD: { type: 'cfd', pip: 0.01, contractSize: 100, label: 'Or (XAUUSD)' },
+  EURUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'EUR/USD' },
+  GBPUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'GBP/USD' },
+  USDJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'USD/JPY' },
+  GBPJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'GBP/JPY' },
+  US30: { type: 'cfd', pip: 1, contractSize: 1, label: 'US30 (Dow Jones)' },
+  NAS100: { type: 'cfd', pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)' },
+  BTCUSD: { type: 'cfd', pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)' },
+  // Futures — E-mini & Micro
+  ES: { type: 'futures', tickSize: 0.25, tickValue: 12.5, pointValue: 50, label: 'ES — E-mini S&P 500' },
+  MES: { type: 'futures', tickSize: 0.25, tickValue: 1.25, pointValue: 5, label: 'MES — Micro E-mini S&P 500' },
+  NQ: { type: 'futures', tickSize: 0.25, tickValue: 5, pointValue: 20, label: 'NQ — E-mini Nasdaq' },
+  MNQ: { type: 'futures', tickSize: 0.25, tickValue: 0.5, pointValue: 2, label: 'MNQ — Micro E-mini Nasdaq' },
+  YM: { type: 'futures', tickSize: 1, tickValue: 5, pointValue: 10, label: 'YM — E-mini Dow' },
+  MYM: { type: 'futures', tickSize: 1, tickValue: 0.5, pointValue: 1, label: 'MYM — Micro E-mini Dow' },
+  GC: { type: 'futures', tickSize: 0.1, tickValue: 10, pointValue: 100, label: 'GC — Gold' },
+  MGC: { type: 'futures', tickSize: 0.1, tickValue: 1, pointValue: 10, label: 'MGC — Micro Gold' },
 };
 
-const INSTRUMENT_KEYS = Object.keys(INSTRUMENTS);
+type MarketType = 'cfd' | 'futures';
+
+const CFD_KEYS = Object.keys(INSTRUMENTS).filter((k) => INSTRUMENTS[k].type === 'cfd');
+const FUTURES_KEYS = Object.keys(INSTRUMENTS).filter((k) => INSTRUMENTS[k].type === 'futures');
 
 export const PositionCalculator: React.FC = () => {
   const { theme } = useTheme();
@@ -30,6 +54,7 @@ export const PositionCalculator: React.FC = () => {
   const { accounts } = useAccounts();
   const activeAccountId = useUIStore((s: { activeAccountId: string | null }) => s.activeAccountId);
 
+  const [marketType, setMarketType] = useState<MarketType>('cfd');
   const [instrument, setInstrument] = useState('XAUUSD');
   const [accountId, setAccountId] = useState(activeAccountId || accounts[0]?.id || '');
   const [riskType, setRiskType] = useState<'percent' | 'usd'>('percent');
@@ -40,10 +65,21 @@ export const PositionCalculator: React.FC = () => {
   const [accountPickerVisible, setAccountPickerVisible] = useState(false);
   const [instrumentPickerVisible, setInstrumentPickerVisible] = useState(false);
 
+  // Results
   const [lotSize, setLotSize] = useState<number | null>(null);
+  const [contracts, setContracts] = useState<number | null>(null);
   const [riskUsd, setRiskUsd] = useState<number | null>(null);
   const [pipValue, setPipValue] = useState<number | null>(null);
   const [slPips, setSlPips] = useState<number | null>(null);
+  const [slTicks, setSlTicks] = useState<number | null>(null);
+  const [slPoints, setSlPoints] = useState<number | null>(null);
+  const [minRiskUsd, setMinRiskUsd] = useState<number | null>(null);
+  const [riskTooLow, setRiskTooLow] = useState(false);
+
+  // Switch instrument list when market type changes
+  useEffect(() => {
+    setInstrument(marketType === 'cfd' ? 'XAUUSD' : 'ES');
+  }, [marketType]);
 
   useEffect(() => {
     if (activeAccountId && !accountId) setAccountId(activeAccountId);
@@ -59,29 +95,83 @@ export const PositionCalculator: React.FC = () => {
 
     if (!inst || entry <= 0 || sl <= 0 || entry === sl || risk <= 0 || balance <= 0) {
       setLotSize(null);
+      setContracts(null);
       setRiskUsd(null);
       setPipValue(null);
       setSlPips(null);
+      setSlTicks(null);
+      setSlPoints(null);
+      setMinRiskUsd(null);
+      setRiskTooLow(false);
       return;
     }
 
     const computedRiskUsd = riskType === 'percent' ? balance * (risk / 100) : risk;
     const slDistance = Math.abs(entry - sl);
-    const slInPips = slDistance / inst.pip;
-    const pipValuePerLot = inst.pip * inst.contractSize;
-    const computedLotSize = computedRiskUsd / (slInPips * pipValuePerLot);
 
     setRiskUsd(computedRiskUsd);
-    setSlPips(Math.round(slInPips * 10) / 10);
-    setPipValue(pipValuePerLot);
-    setLotSize(Math.round(computedLotSize * 100) / 100);
+    setSlPoints(Math.round(slDistance * 100) / 100);
+
+    if (inst.type === 'cfd') {
+      const slInPips = slDistance / inst.pip;
+      const pipValuePerLot = inst.pip * inst.contractSize;
+      const computedLotSize = computedRiskUsd / (slInPips * pipValuePerLot);
+      setSlPips(Math.round(slInPips * 10) / 10);
+      setSlTicks(null);
+      setPipValue(pipValuePerLot);
+      setLotSize(Math.round(computedLotSize * 100) / 100);
+      setContracts(null);
+    } else {
+      // Futures: ticks = slDistance / tickSize, value per tick = tickValue
+      const slInTicks = slDistance / inst.tickSize;
+      const riskPerContract = slInTicks * inst.tickValue;
+      const computedContracts = computedRiskUsd / riskPerContract;
+      const minRisk = riskPerContract; // minimum risk for 1 contract
+      setSlTicks(Math.round(slInTicks * 10) / 10);
+      setSlPips(null);
+      setPipValue(inst.tickValue);
+      setMinRiskUsd(Math.round(minRisk * 100) / 100);
+      if (computedContracts < 1) {
+        // Risk too small for even 1 contract
+        setRiskTooLow(true);
+        setContracts(null);
+      } else {
+        setRiskTooLow(false);
+        setContracts(Math.round(computedContracts));
+      }
+      setLotSize(null);
+    }
   }, [entryPrice, stopLossPrice, riskValue, riskType, instrument, accountId, accounts]);
 
   const activeAccount = accounts.find((a) => a.id === accountId);
   const riskLabel = riskType === 'percent' ? '%' : '$';
+  const currentInst = INSTRUMENTS[instrument];
+  const isFutures = currentInst?.type === 'futures';
+
+  const instrumentKeys = marketType === 'cfd' ? CFD_KEYS : FUTURES_KEYS;
 
   return (
     <Card title={t('posCalcTitle')}>
+      {/* Market Type Toggle */}
+      <View style={styles.row}>
+        <View style={styles.marketTypeContainer}>
+          <Text style={styles.fieldLabel}>{t('posCalcMarketType')}</Text>
+          <View style={styles.marketTypeRow}>
+            {(['cfd', 'futures'] as const).map((mt) => (
+              <TouchableOpacity
+                key={mt}
+                style={[styles.marketTypeBtn, marketType === mt && styles.marketTypeBtnActive]}
+                onPress={() => setMarketType(mt)}
+              >
+                <Text style={[styles.marketTypeText, marketType === mt && styles.marketTypeTextActive]}>
+                  {mt === 'cfd' ? 'CFD' : 'FUTURES'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+
       {/* Account + Instrument */}
       <View style={styles.row}>
         <TouchableOpacity
@@ -101,7 +191,7 @@ export const PositionCalculator: React.FC = () => {
         >
           <Text style={styles.pickerLabel}>{t('posCalcInstrument')}</Text>
           <Text style={styles.pickerValue} numberOfLines={1}>
-            {INSTRUMENTS[instrument]?.label || instrument}
+            {currentInst?.label || instrument}
           </Text>
         </TouchableOpacity>
       </View>
@@ -146,7 +236,7 @@ export const PositionCalculator: React.FC = () => {
             value={entryPrice}
             onChangeText={setEntryPrice}
             keyboardType="decimal-pad"
-            placeholder="2350.50"
+            placeholder={isFutures ? '5200.00' : '2350.50'}
             placeholderTextColor={theme.colors.textMuted}
           />
         </View>
@@ -157,41 +247,93 @@ export const PositionCalculator: React.FC = () => {
             value={stopLossPrice}
             onChangeText={setStopLossPrice}
             keyboardType="decimal-pad"
-            placeholder="2345.00"
+            placeholder={isFutures ? '5180.00' : '2345.00'}
             placeholderTextColor={theme.colors.textMuted}
           />
         </View>
       </View>
 
       {/* Result */}
-      {lotSize !== null ? (
+      {lotSize !== null || contracts !== null || riskTooLow ? (
         <Animated.View entering={FadeIn.duration(400)} style={styles.resultBox}>
-          <Text style={styles.resultLabel}>{t('posCalcRecommendedLot')}</Text>
-          <Text style={styles.resultValue}>{lotSize.toFixed(2)}</Text>
-          <Text style={styles.resultUnit}>{t('posCalcLotsUnit')}</Text>
-          <View style={styles.resultRow}>
-            <View style={styles.resultItem}>
-              <Text style={styles.resultItemLabel}>{t('posCalcRiskUsd')}</Text>
-              <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
-                ${riskUsd?.toFixed(2)}
+          {/* Risk too low for Futures */}
+          {riskTooLow && isFutures && minRiskUsd !== null && (
+            <View style={styles.warningBox}>
+              <Text style={styles.warningTitle}>⚠️ {t('posCalcRiskTooLow')}</Text>
+              <Text style={styles.warningText}>
+                {t('posCalcRiskTooLowMsg')} ${minRiskUsd.toFixed(2)} {t('posCalcRiskTooLowWith')}
               </Text>
-              {activeAccount && (
-                <Text style={styles.resultItemSub}>
-                  {((riskUsd! / activeAccount.balance) * 100).toFixed(2)}%
+              <Text style={styles.warningSuggestion}>
+                {t('posCalcRiskSuggestion')} ${minRiskUsd.toFixed(2)} {t('posCalcRiskOrMore')}
+              </Text>
+            </View>
+          )}
+
+          {/* Normal result */}
+          {!riskTooLow && (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.resultLabel}>
+                {isFutures ? t('posCalcRecommendedContracts') : t('posCalcRecommendedLot')}
+              </Text>
+              <Text style={styles.resultValue}>
+                {isFutures ? contracts : lotSize?.toFixed(2)}
+              </Text>
+              <Text style={styles.resultUnit}>
+                {isFutures ? t('posCalcContractsUnit') : t('posCalcLotsUnit')}
+              </Text>
+            </View>
+          )}
+
+          {/* Instrument info for Futures */}
+          {isFutures && currentInst.type === 'futures' && (
+            <View style={styles.futuresInfoRow}>
+              <View style={styles.futuresInfoItem}>
+                <Text style={styles.futuresInfoLabel}>TICK</Text>
+                <Text style={styles.futuresInfoValue}>{currentInst.tickSize}</Text>
+              </View>
+              <View style={styles.futuresInfoItem}>
+                <Text style={styles.futuresInfoLabel}>TICK VAL</Text>
+                <Text style={styles.futuresInfoValue}>${currentInst.tickValue}</Text>
+              </View>
+              <View style={styles.futuresInfoItem}>
+                <Text style={styles.futuresInfoLabel}>POINT VAL</Text>
+                <Text style={styles.futuresInfoValue}>${currentInst.pointValue}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Details row — always shown when we have data */}
+          {riskUsd !== null && (
+            <View style={styles.resultRow}>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultItemLabel}>{t('posCalcRiskUsd')}</Text>
+                <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
+                  ${riskUsd?.toFixed(2)}
                 </Text>
-              )}
+                {activeAccount && (
+                  <Text style={styles.resultItemSub}>
+                    {((riskUsd / activeAccount.balance) * 100).toFixed(2)}%
+                  </Text>
+                )}
+              </View>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultItemLabel}>
+                  {isFutures ? t('posCalcSlTicks') : t('posCalcSlPips')}
+                </Text>
+                <Text style={styles.resultItemValue}>
+                  {isFutures ? slTicks : slPips}
+                </Text>
+              </View>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultItemLabel}>
+                  {isFutures ? t('posCalcTickValue') : t('posCalcPipValue')}
+                </Text>
+                <Text style={[styles.resultItemValue, { color: theme.colors.goldLight }]}>
+                  ${pipValue?.toFixed(2)}
+                </Text>
+              </View>
             </View>
-            <View style={styles.resultItem}>
-              <Text style={styles.resultItemLabel}>{t('posCalcSlPips')}</Text>
-              <Text style={styles.resultItemValue}>{slPips}</Text>
-            </View>
-            <View style={styles.resultItem}>
-              <Text style={styles.resultItemLabel}>{t('posCalcPipValue')}</Text>
-              <Text style={[styles.resultItemValue, { color: theme.colors.goldLight }]}>
-                ${pipValue?.toFixed(2)}
-              </Text>
-            </View>
-          </View>
+          )}
         </Animated.View>
       ) : (
         <View style={styles.infoBox}>
@@ -221,7 +363,7 @@ export const PositionCalculator: React.FC = () => {
         visible={instrumentPickerVisible}
         onClose={() => setInstrumentPickerVisible(false)}
         title={t('posCalcPickInstrument')}
-        items={INSTRUMENT_KEYS.map((k) => ({
+        items={instrumentKeys.map((k) => ({
           label: INSTRUMENTS[k].label,
           id: k,
         }))}
@@ -241,6 +383,33 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       gap: theme.spacing.sm,
       marginBottom: theme.spacing.md,
+    },
+    marketTypeContainer: {
+      flex: 1,
+    },
+    marketTypeRow: {
+      flexDirection: 'row',
+    },
+    marketTypeBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
+    },
+    marketTypeBtnActive: {
+      backgroundColor: 'rgba(99, 102, 241, 0.2)',
+      borderColor: theme.colors.primary,
+    },
+    marketTypeText: {
+      color: theme.colors.textMuted,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    marketTypeTextActive: {
+      color: theme.colors.primaryLight,
     },
     pickerBtn: {
       flex: 1,
@@ -332,7 +501,31 @@ const createStyles = (theme: AppTheme) =>
     resultUnit: {
       color: theme.colors.textMuted,
       fontSize: 10,
-      marginBottom: 12,
+      marginBottom: 8,
+    },
+    futuresInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '100%',
+      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+      borderRadius: theme.borderRadius.sm,
+      padding: theme.spacing.sm,
+      marginBottom: 10,
+    },
+    futuresInfoItem: {
+      alignItems: 'center',
+    },
+    futuresInfoLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 7,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      marginBottom: 2,
+    },
+    futuresInfoValue: {
+      color: theme.colors.primaryLight,
+      fontSize: 11,
+      fontFamily: theme.fonts.monoBold,
     },
     resultRow: {
       flexDirection: 'row',
@@ -376,5 +569,32 @@ const createStyles = (theme: AppTheme) =>
       fontSize: 9,
       flex: 1,
       letterSpacing: 0.3,
+    },
+    warningBox: {
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderColor: 'rgba(239, 68, 68, 0.35)',
+      borderWidth: 1,
+      borderRadius: theme.borderRadius.md,
+      padding: theme.spacing.md,
+      width: '100%',
+      marginBottom: theme.spacing.sm,
+    },
+    warningTitle: {
+      color: theme.colors.redLight,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    warningText: {
+      color: theme.colors.textSecondary,
+      fontSize: 11,
+      fontFamily: theme.fonts.sans,
+      marginBottom: 4,
+    },
+    warningSuggestion: {
+      color: theme.colors.goldLight,
+      fontSize: 11,
+      fontFamily: theme.fonts.sansSemiBold,
     },
   });
