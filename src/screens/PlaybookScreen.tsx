@@ -22,6 +22,7 @@ import { useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   BookOpen,
   Target,
@@ -33,6 +34,11 @@ import {
   Check,
   Calendar,
   ChevronDown,
+  Sparkles,
+  ListOrdered,
+  Clock,
+  Tag,
+  AlignLeft,
 } from 'lucide-react-native';
 
 const COMMON_MISTAKES = ['revenge', 'fomo', 'early_cut', 'over_size', 'no_sl', 'chasing'] as const;
@@ -113,15 +119,34 @@ export const PlaybookScreen: React.FC = () => {
   const [setupTitle, setSetupTitle] = useState('');
   const [setupDesc, setSetupDesc] = useState('');
   const [setupTimeframes, setSetupTimeframes] = useState('M5, M15');
-  const [setupRules, setSetupRules] = useState('');
+  const [setupRules, setSetupRules] = useState('1. ');
   const [setupTags, setSetupTags] = useState('#Forex, #Indices');
+
+  // Format rules text automatically with sequential numbering 1. 2. 3.
+  const handleRulesTextChange = (text: string) => {
+    if (!text.trim()) {
+      setSetupRules('');
+      return;
+    }
+
+    // Split into lines
+    const rawLines = text.split('\n');
+    const processedLines = rawLines.map((line, idx) => {
+      // Remove any existing leading numbers/bullets (e.g. "1. ", "1 - ", "• ", "- ")
+      const cleanLine = line.replace(/^(\d+[\.\)\-]?\s*|[•\-\*]\s*)/, '');
+      const expectedPrefix = `${idx + 1}. `;
+      return `${expectedPrefix}${cleanLine}`;
+    });
+
+    setSetupRules(processedLines.join('\n'));
+  };
 
   const openAddSetup = () => {
     setEditingSetup(null);
     setSetupTitle('');
     setSetupDesc('');
     setSetupTimeframes('M5, M15');
-    setSetupRules('');
+    setSetupRules('1. ');
     setSetupTags('#Forex, #Indices');
     setSetupModalVisible(true);
   };
@@ -131,7 +156,15 @@ export const PlaybookScreen: React.FC = () => {
     setSetupTitle(s.title);
     setSetupDesc(s.description || '');
     setSetupTimeframes(s.timeframes.join(', '));
-    setSetupRules(s.validation_rules.join('\n'));
+    if (s.validation_rules && s.validation_rules.length > 0) {
+      const formatted = s.validation_rules.map((r, i) => {
+        const clean = r.replace(/^(\d+[\.\)\-]?\s*|[•\-\*]\s*)/, '');
+        return `${i + 1}. ${clean}`;
+      }).join('\n');
+      setSetupRules(formatted);
+    } else {
+      setSetupRules('1. ');
+    }
     setSetupTags(s.tags.join(', '));
     setSetupModalVisible(true);
   };
@@ -141,11 +174,16 @@ export const PlaybookScreen: React.FC = () => {
       alert(t('setupNameRequired'));
       return;
     }
+    const cleanRules = setupRules
+      .split('\n')
+      .map(r => r.replace(/^(\d+[\.\)\-]?\s*|[•\-\*]\s*)/, '').trim())
+      .filter(Boolean);
+
     const payload = {
       title: setupTitle.trim(),
       description: setupDesc.trim() || null,
       timeframes: setupTimeframes.split(',').map(s => s.trim()).filter(Boolean),
-      validation_rules: setupRules.split('\n').map(s => s.trim()).filter(Boolean),
+      validation_rules: cleanRules,
       tags: setupTags.split(',').map(s => s.trim()).filter(Boolean),
       image_url: null,
     };
@@ -819,51 +857,121 @@ export const PlaybookScreen: React.FC = () => {
       <Modal visible={setupModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingSetup ? t('editSetup') : t('newSetup')}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(99, 102, 241, 0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Target size={15} color={theme.colors.primaryLight} />
+                </View>
+                <Text style={styles.modalTitle}>
+                  {editingSetup ? t('editSetup') : t('newSetup')}
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setSetupModalVisible(false)}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yCloseSetupForm')}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' }}
               >
-                <X size={20} color={theme.colors.textPrimary} />
+                <X size={16} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>{t('setupTitleLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('phSetupTitle')}
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupTitle}
-              onChangeText={setSetupTitle}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              {/* Nom du Setup */}
+              <View style={styles.formGroup}>
+                <View style={styles.formLabelRow}>
+                  <Sparkles size={12} color={theme.colors.primaryLight} />
+                  <Text style={styles.fieldLabel}>{t('setupTitleLabel')}</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('phSetupTitle') || 'Ex: Continuation Trend, Turtle Soup, FVG...'}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupTitle}
+                  onChangeText={setSetupTitle}
+                />
+              </View>
 
-            <Text style={styles.fieldLabel}>{t('setupTimeframesLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="M5, M15, H1"
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupTimeframes}
-              onChangeText={setSetupTimeframes}
-            />
+              {/* Timeframes */}
+              <View style={styles.formGroup}>
+                <View style={styles.formLabelRow}>
+                  <Clock size={12} color={theme.colors.cyan} />
+                  <Text style={styles.fieldLabel}>{t('setupTimeframesLabel')}</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="M1, M5, M15, H1, H4"
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupTimeframes}
+                  onChangeText={setSetupTimeframes}
+                />
+              </View>
 
-            <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder={t('phSetupRules')}
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupRules}
-              onChangeText={setSetupRules}
-              multiline
-              numberOfLines={3}
-            />
+              {/* Description */}
+              <View style={styles.formGroup}>
+                <View style={styles.formLabelRow}>
+                  <AlignLeft size={12} color={theme.colors.textSecondary} />
+                  <Text style={styles.fieldLabel}>{t('description') || 'Description du setup'}</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { height: 50, paddingTop: 8 }]}
+                  placeholder="Contexte d'entrée, confirmation de tendance, etc."
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupDesc}
+                  onChangeText={setSetupDesc}
+                  multiline
+                  numberOfLines={2}
+                />
+              </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveSetup}>
-              <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
+              {/* Règles de validation (Liste numérotée automatique 1, 2, 3...) */}
+              <View style={styles.formGroup}>
+                <View style={styles.formLabelRow}>
+                  <ListOrdered size={12} color={theme.colors.greenLight} />
+                  <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
+                  <Text style={{ fontSize: 9, color: theme.colors.textMuted, marginLeft: 'auto', fontStyle: 'italic' }}>
+                    (Numérotation auto 1, 2, 3...)
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.input, styles.rulesTextArea]}
+                  placeholder={"1. Sweep de liquidité en HTF\n2. Shift de structure en M5\n3. Retracement dans la FVG"}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupRules}
+                  onChangeText={handleRulesTextChange}
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+
+              {/* Tags / Marchés */}
+              <View style={styles.formGroup}>
+                <View style={styles.formLabelRow}>
+                  <Tag size={12} color={theme.colors.goldLight} />
+                  <Text style={styles.fieldLabel}>Tags / Marchés</Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="#Forex, #Indices, #Crypto"
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupTags}
+                  onChangeText={setSetupTags}
+                />
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.saveSetupModalBtn} onPress={handleSaveSetup} activeOpacity={0.8}>
+              <LinearGradient
+                colors={[theme.colors.primary, theme.colors.primaryDeep]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.saveSetupGrad}
+              >
+                <Check size={14} color={theme.colors.textPrimary} />
+                <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -1271,5 +1379,33 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 12,
     fontFamily: theme.fonts.sansMedium,
+  },
+  formGroup: {
+    marginBottom: theme.spacing.sm,
+  },
+  formLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  rulesTextArea: {
+    height: 90,
+    paddingTop: 8,
+    fontFamily: theme.fonts.monoMedium,
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  saveSetupModalBtn: {
+    borderRadius: theme.borderRadius.md,
+    overflow: 'hidden',
+    marginTop: theme.spacing.md,
+  },
+  saveSetupGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
   },
 });
