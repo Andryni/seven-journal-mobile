@@ -218,7 +218,7 @@ export default function App() {
 
         {/* ── Splash overlay on top — smoothly covers until animation ends ── */}
         {showSplash && (
-          <View style={StyleSheet.absoluteFill} pointerEvents={splashFinished ? 'none' : 'auto'}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#060709', zIndex: 99999 }]} pointerEvents={splashFinished ? 'none' : 'auto'}>
             <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
           </View>
         )}
