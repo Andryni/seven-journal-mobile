@@ -14,6 +14,7 @@ import { useAccounts } from '../../features/accounts/useAccounts';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
+import { SevenLogo } from './SevenLogo';
 import { Wallet, ChevronDown, Check, LogOut, Sun, Moon, Languages } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -37,7 +38,7 @@ export const TopAccountBar: React.FC = () => {
         <View style={styles.logoWrapper}>
           <Image
             source={require('../../assets/seven_tracking_logo.png')}
-            style={styles.logoImg}
+            style={{ width: 34, height: 34, borderRadius: 8 }}
             resizeMode="cover"
           />
         </View>
