@@ -114,15 +114,15 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     // ── Phase 6: Loading Progress Bar & Status Badges ──
     const p6Progress = Animated.parallel([
       Animated.timing(progressWidth, { toValue: 1, duration: 800, useNativeDriver: false }),
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
+      Animated.timing(statusOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
+      Animated.timing(tickerOpacity, { toValue: 1, duration: 300, useNativeDriver: false }),
     ]);
 
     // ── Phase 7: Exit Transition ──
     const p7Exit = Animated.parallel([
-      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: true }),
-      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: true }),
+      Animated.timing(containerFade, { toValue: 0, duration: 350, useNativeDriver: false }),
+      Animated.timing(logoScale, { toValue: 1.06, duration: 350, useNativeDriver: false }),
     ]);
 
     // Run master sequence
