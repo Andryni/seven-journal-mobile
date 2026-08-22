@@ -716,7 +716,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               {/* Volume & Prix d'entrée */}
               <View style={styles.row2}>
                 <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{isFutures ? 'CONTRATS' : t('tfVolume')}</Text>
+                  <Text style={styles.fieldLabel}>{isFutures ? t('tfVolumeFutures') : t('tfVolume')}</Text>
                   <TextInput
                     style={styles.input}
                     placeholder="1.0"
