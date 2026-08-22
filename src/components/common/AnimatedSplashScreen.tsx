@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
 import Svg, { Path, Rect, Line, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -19,6 +19,11 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
 
   // Background Grid Opacity
   const gridOpacity = useRef(new Animated.Value(0)).current;
+
+  // Official Logo Reveal
+  const logoScale = useRef(new Animated.Value(0.7)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoGlow = useRef(new Animated.Value(0.3)).current;
 
   // Candlesticks Animation (3 candlesticks: SL sweep, Rejection, Bullish Expansion)
   const candle1Height = useRef(new Animated.Value(0)).current;
@@ -59,20 +64,21 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
       useNativeDriver: true,
     });
 
-    // ── Phase 2: Candlesticks sequential draw ──
-    const p2Candles = Animated.parallel([
+    // ── Phase 2: Official Logo Emblem springs in ──
+    const p2Logo = Animated.parallel([
+      Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 50, useNativeDriver: true }),
+      Animated.timing(logoGlow, { toValue: 0.8, duration: 400, useNativeDriver: true }),
+    ]);
+
+    // ── Phase 3: Candlesticks sequential draw ──
+    const p3Candles = Animated.parallel([
       Animated.timing(candlesOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.stagger(120, [
+      Animated.stagger(100, [
         Animated.spring(candle1Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
         Animated.spring(candle2Height, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
         Animated.spring(candle3Height, { toValue: 1, friction: 5, tension: 45, useNativeDriver: true }),
       ]),
-    ]);
-
-    // ── Phase 3: Glowing Equity Curve draws ──
-    const p3Equity = Animated.parallel([
-      Animated.timing(equityProgress, { toValue: 1, duration: 650, useNativeDriver: true }),
-      Animated.timing(equityGlow, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]);
 
     // ── Phase 4: Brand Reveal ("SEVEN" + "JOURNAL") ──
@@ -93,17 +99,16 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
     // ── Phase 6: Exit Transition ──
     const p6Exit = Animated.parallel([
       Animated.timing(containerFade, { toValue: 0, duration: 400, useNativeDriver: true }),
-      Animated.timing(sevenScale, { toValue: 1.05, duration: 400, useNativeDriver: true }),
+      Animated.timing(logoScale, { toValue: 1.08, duration: 400, useNativeDriver: true }),
     ]);
 
     // Run main sequence
     Animated.sequence([
       p1Grid,
-      p2Candles,
-      p3Equity,
+      Animated.parallel([p2Logo, p3Candles]),
       p4Brand,
       p5Status,
-      Animated.delay(1000),
+      Animated.delay(1100),
       p6Exit,
     ]).start(() => {
       onAnimationFinish();
@@ -190,27 +195,25 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({ onAn
         </Svg>
       </Animated.View>
 
-      {/* Main Visual Center: Trading Candles + Neon Equity Arc */}
+      {/* Main Visual Center: Official Logo + Trading Elements */}
       <View style={styles.centerStage}>
-        {/* Candlesticks Visualization */}
-        <Animated.View style={[styles.candlesRow, { opacity: candlesOpacity }]}>
-          {/* Candle 1 (Bearish Pullback / Sweep) */}
-          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle1Height }] }]}>
-            <View style={[styles.candleWick, { height: 36, backgroundColor: 'rgba(239, 68, 68, 0.6)' }]} />
-            <View style={[styles.candleBody, { height: 18, backgroundColor: '#EF4444' }]} />
-          </Animated.View>
-
-          {/* Candle 2 (Doji / Rejection) */}
-          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle2Height }] }]}>
-            <View style={[styles.candleWick, { height: 44, backgroundColor: 'rgba(245, 158, 11, 0.6)' }]} />
-            <View style={[styles.candleBody, { height: 6, backgroundColor: '#F59E0B' }]} />
-          </Animated.View>
-
-          {/* Candle 3 (Strong Bullish Expansion) */}
-          <Animated.View style={[styles.candleItem, { transform: [{ scaleY: candle3Height }] }]}>
-            <View style={[styles.candleWick, { height: 56, backgroundColor: 'rgba(16, 185, 129, 0.6)' }]} />
-            <View style={[styles.candleBody, { height: 32, backgroundColor: '#10B981' }]} />
-          </Animated.View>
+        {/* Official Hexagonal Logo with Glow & Pulse */}
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            {
+              opacity: logoOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        >
+          {/* Logo Glow Aura */}
+          <Animated.View style={[styles.logoAura, { opacity: logoGlow }]} />
+          <Image
+            source={require('../../assets/seven_tracking_logo.png')}
+            style={styles.officialLogoImg}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         {/* Brand Reveal : SEVEN JOURNAL */}
@@ -312,26 +315,24 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: 'center',
       paddingHorizontal: 24,
     },
-    candlesRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      gap: 16,
-      height: 70,
-      marginBottom: 20,
-    },
-    candleItem: {
+    logoContainer: {
+      width: 100,
+      height: 100,
       alignItems: 'center',
       justifyContent: 'center',
-      width: 14,
+      marginBottom: 16,
     },
-    candleWick: {
+    logoAura: {
       position: 'absolute',
-      width: 2,
-      borderRadius: 1,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
+      backgroundColor: 'rgba(99, 102, 241, 0.25)',
     },
-    candleBody: {
-      width: 12,
-      borderRadius: 2,
+    officialLogoImg: {
+      width: 90,
+      height: 90,
+      borderRadius: 18,
     },
     brandBlock: {
       alignItems: 'center',
