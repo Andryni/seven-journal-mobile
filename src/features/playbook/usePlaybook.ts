@@ -166,7 +166,7 @@ export function usePlaybookSetups() {
     },
   });
 
-  const { mutateAsync: saveSetup } = useMutation({
+  const saveSetupMutation = useMutation({
     mutationFn: async (payload: SetupPayload) => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id || 'anon';
