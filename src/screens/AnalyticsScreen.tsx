@@ -273,7 +273,7 @@ const BreakdownRow: React.FC<{
               {item.count > 0 ? `${item.winRate.toFixed(1)}% WR` : '—'}
             </Text>
             <Text style={{ color: item.pnl >= 0 ? t.colors.greenLight : t.colors.redLight, fontSize: 10, marginTop: 2 }}>
-              {item.count > 0 ? `${item.pnl >= 0 ? '+' : ''}$${item.pnl.toFixed(2)}` : '$0.00'}
+              {item.count > 0 ? `${item.pnl >= 0 ? '+' : '-'}$${Math.abs(item.pnl).toFixed(2)}` : '$0.00'}
             </Text>
           </View>
         </View>
@@ -415,7 +415,7 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
-                  <Text style={[s.kpiVal, data.totalPnL >= 0 ? s.greenText : s.redText]}>{data.totalPnL >= 0 ? '+' : ''}${data.totalPnL.toFixed(2)}</Text>
+                  <Text style={[s.kpiVal, data.totalPnL >= 0 ? s.greenText : s.redText]}>{data.totalPnL >= 0 ? '+' : '-'}${Math.abs(data.totalPnL).toFixed(2)}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('winRate')}</Text>
@@ -439,7 +439,7 @@ export const AnalyticsScreen: React.FC = () => {
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('expectancy')}</Text>
-                  <Text style={[s.kpiVal, data.expectancy >= 0 ? s.greenText : s.redText]}>{data.expectancy >= 0 ? '+' : ''}${data.expectancy.toFixed(2)}</Text>
+                  <Text style={[s.kpiVal, data.expectancy >= 0 ? s.greenText : s.redText]}>{data.expectancy >= 0 ? '+' : '-'}${Math.abs(data.expectancy).toFixed(2)}</Text>
                 </View>
               </View>
             </Card>
@@ -492,7 +492,7 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxDrawdown')}</Text>
-                  <Text style={[s.kpiVal, s.redText]}>${data.maxDrawdown.toFixed(2)}</Text>
+                  <Text style={[s.kpiVal, s.redText]}>-${Math.abs(data.maxDrawdown).toFixed(2)}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('currentDrawdown')}</Text>
@@ -541,7 +541,7 @@ export const AnalyticsScreen: React.FC = () => {
                       <View style={{ flex: 1 }}><Text style={s.boldWhite}>⏱️ {ht.label}</Text><Text style={s.subMuted}>{ht.count} trades</Text></View>
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[s.boldVal, ht.winRate >= 50 ? s.greenText : ht.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>{ht.count > 0 ? `${ht.winRate.toFixed(1)}% WR` : '—'}</Text>
-                        <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>{ht.count > 0 ? `${ht.pnl >= 0 ? '+' : ''}${ht.pnl.toFixed(2)}` : `$0.00`}</Text>
+                        <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>{ht.count > 0 ? `${ht.pnl >= 0 ? '+' : '-'}$${Math.abs(ht.pnl).toFixed(2)}` : `$0.00`}</Text>
                       </View>
                     </View>
                   </Animated.View>
@@ -621,7 +621,7 @@ export const AnalyticsScreen: React.FC = () => {
                       <View style={{ flex: 1 }}><Text style={s.boldWhite}>{t(sb.labelKey as never)}</Text><Text style={s.subMuted}>{sb.count} {t('tradesCount').toLowerCase()} · Avg R: {sb.avgR >= 0 ? '+' : ''}{sb.avgR.toFixed(2)}</Text></View>
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[s.boldVal, sb.winRate >= 50 ? s.greenText : sb.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>{sb.count > 0 ? `${sb.winRate.toFixed(1)}% WR` : '—'}</Text>
-                        <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>{sb.count > 0 ? `${sb.pnl >= 0 ? '+' : ''}${sb.pnl.toFixed(2)}` : `$0.00`}</Text>
+                        <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>{sb.count > 0 ? `${sb.pnl >= 0 ? '+' : '-'}$${Math.abs(sb.pnl).toFixed(2)}` : `$0.00`}</Text>
                       </View>
                     </View>
                   </Animated.View>
@@ -699,7 +699,7 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(80).duration(350)}>
             <Card title={t('challengeProgress')}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
-                <ProgressRing progress={data.propFirmData.profitPct} color={theme.colors.green} label={t('target')} value={`$${data.totalPnL >= 0 ? '+' : ''}${data.totalPnL.toFixed(0)}`} theme={theme} delay={200} />
+                <ProgressRing progress={data.propFirmData.profitPct} color={theme.colors.green} label={t('target')} value={`${data.totalPnL >= 0 ? '+' : '-'}$${Math.abs(data.totalPnL).toFixed(0)}`} theme={theme} delay={200} />
                 <ProgressRing progress={1 - data.propFirmData.drawdownPct} color={data.propFirmData.drawdownPct > 0.9 ? theme.colors.red : theme.colors.cyan} label={t('tgDrawdown')} value={`${((1 - data.propFirmData.drawdownPct) * 100).toFixed(0)}%`} theme={theme} delay={300} />
                 <ProgressRing progress={data.propFirmData.wrPct} color={theme.colors.primaryLight} label={t('winRate')} value={`${data.winRate.toFixed(0)}%`} theme={theme} delay={400} />
               </View>
@@ -717,8 +717,8 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(240).duration(350)}>
             <Card title={t('challengeStats')}>
               <View style={s.grid2}>
-                <View style={s.kpiBox}><Text style={s.kpiLabel}>{t('bestDay')}</Text><Text style={[s.kpiVal, s.greenText]}>+${data.propFirmData.bestDay.toFixed(2)}</Text></View>
-                <View style={s.kpiBox}><Text style={s.kpiLabel}>{t('worstDay')}</Text><Text style={[s.kpiVal, s.redText]}>${data.propFirmData.worstDay.toFixed(2)}</Text></View>
+                <View style={s.kpiBox}><Text style={s.kpiLabel}>{t('bestDay')}</Text><Text style={[s.kpiVal, s.greenText]}>+${Math.abs(data.propFirmData.bestDay).toFixed(2)}</Text></View>
+                <View style={s.kpiBox}><Text style={s.kpiLabel}>{t('worstDay')}</Text><Text style={[s.kpiVal, s.redText]}>-${Math.abs(data.propFirmData.worstDay).toFixed(2)}</Text></View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}><Text style={s.kpiLabel}>{t('maxWinStreak')}</Text><Text style={[s.kpiVal, s.greenText]}>🔥 {data.propFirmData.maxConsecWins}</Text></View>

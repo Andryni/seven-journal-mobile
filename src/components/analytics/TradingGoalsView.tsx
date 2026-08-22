@@ -44,7 +44,7 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
   const tradesProgress = goals.dailyTradeCount > 0 ? Math.min(weekTradesPerDay / goals.dailyTradeCount, 1.5) : 0;
 
   const goalItems = [
-    { label: t('tgWeeklyPnl'), current: `$${weekPnl >= 0 ? '+' : ''}${weekPnl.toFixed(0)}`, target: `$${goals.weeklyPnlTarget}`, progress: pnlProgress, per: t('perWeek'), icon: '💰', achieved: weekPnl >= goals.weeklyPnlTarget },
+    { label: t('tgWeeklyPnl'), current: `${weekPnl >= 0 ? '+' : '-'}$${Math.abs(weekPnl).toFixed(0)}`, target: `$${goals.weeklyPnlTarget}`, progress: pnlProgress, per: t('perWeek'), icon: '💰', achieved: weekPnl >= goals.weeklyPnlTarget },
     { label: t('tgWinRate'), current: `${weekWr.toFixed(1)}%`, target: `${goals.winRateTarget}%`, progress: wrProgress, per: '', icon: '🎯', achieved: weekWr >= goals.winRateTarget },
     { label: t('tgTrades'), current: `${weekTradesPerDay.toFixed(1)}`, target: `${goals.dailyTradeCount}`, progress: tradesProgress, per: t('perDay'), icon: '📊', achieved: weekTradesPerDay >= goals.dailyTradeCount },
   ];
@@ -65,13 +65,13 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
             {/* Weekly P&L */}
             <View style={s.editRow}>
               <Text style={s.editLabel}>💰 {t('weeklyPnlTarget')}</Text>
-              <TextInput style={s.editInput} keyboardType="decimal-pad" value={String(draft.weeklyPnlTarget)} onChangeText={(v: string) => setDraft(d => ({ ...d, weeklyPnlTarget: parseFloat(v) || 0 }))} />
+              <TextInput style={s.editInput} keyboardType="decimal-pad" value={String(draft.weeklyPnlTarget)} onChangeText={(v: string) => setDraft(d => ({ ...d, weeklyPnlTarget: parseFloat(v.replace(',', '.')) || 0 }))} />
             </View>
             {/* Win Rate */}
             <View style={s.editRow}>
               <Text style={s.editLabel}>🎯 {t('winRateTarget')}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.winRateTarget)} onChangeText={(v: string) => setDraft(d => ({ ...d, winRateTarget: parseFloat(v) || 0 }))} />
+                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.winRateTarget)} onChangeText={(v: string) => setDraft(d => ({ ...d, winRateTarget: parseFloat(v.replace(',', '.')) || 0 }))} />
                 <Text style={s.editUnit}>%</Text>
               </View>
             </View>
@@ -79,7 +79,7 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
             <View style={s.editRow}>
               <Text style={s.editLabel}>📉 {t('maxDrawdownPct')}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.maxDrawdownValue)} onChangeText={(v: string) => setDraft(d => ({ ...d, maxDrawdownValue: parseFloat(v) || 0 }))} />
+                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.maxDrawdownValue)} onChangeText={(v: string) => setDraft(d => ({ ...d, maxDrawdownValue: parseFloat(v.replace(',', '.')) || 0 }))} />
                 <View style={{ flexDirection: 'row', borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.cardBorder }}>
                   <TouchableOpacity style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: drawdownUnit === '$' ? theme.colors.primary : theme.colors.surface }} onPress={() => setDraft(d => ({ ...d, maxDrawdownUnit: '$' }))}>
                     <Text style={{ color: drawdownUnit === '$' ? '#fff' : theme.colors.textMuted, fontSize: 10, fontFamily: theme.fonts.monoBold }}>$</Text>
@@ -99,7 +99,7 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
             <View style={s.editRow}>
               <Text style={s.editLabel}>⚠️ {t('riskPerTrade')}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.riskPerTrade)} onChangeText={(v: string) => setDraft(d => ({ ...d, riskPerTrade: parseFloat(v) || 0 }))} />
+                <TextInput style={[s.editInput, { width: 60 }]} keyboardType="decimal-pad" value={String(draft.riskPerTrade)} onChangeText={(v: string) => setDraft(d => ({ ...d, riskPerTrade: parseFloat(v.replace(',', '.')) || 0 }))} />
                 <Text style={s.editUnit}>%</Text>
               </View>
             </View>
@@ -123,7 +123,7 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
       <Animated.View entering={FadeIn.delay(0).duration(350)}>
         <Card title={t('tgProgress')}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
-            <ProgressRing progress={pnlProgress} color={theme.colors.green} label={t('weeklyPnlTarget')} value={`$${weekPnl >= 0 ? '+' : ''}${weekPnl.toFixed(0)}`} theme={theme} delay={0} />
+            <ProgressRing progress={pnlProgress} color={theme.colors.green} label={t('weeklyPnlTarget')} value={`${weekPnl >= 0 ? '+' : '-'}$${Math.abs(weekPnl).toFixed(0)}`} theme={theme} delay={0} />
             <ProgressRing progress={wrProgress} color={theme.colors.primaryLight} label={t('winRateTarget')} value={`${weekWr.toFixed(0)}%`} theme={theme} delay={100} />
             <ProgressRing progress={tradesProgress} color={theme.colors.cyan} label={t('dailyTradeCount')} value={`${weekTradesPerDay.toFixed(1)}`} theme={theme} delay={200} />
           </View>
