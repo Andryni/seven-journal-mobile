@@ -444,7 +444,7 @@ export const TradesScreen: React.FC = () => {
       </View>
 
       {/* Result Filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }} contentContainerStyle={{ gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 8 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {(['ALL', 'WIN', 'LOSS', 'BE', 'OPEN'] as FilterType[]).map(f => {
           const isActive = activeFilter === f;
           return (
@@ -462,7 +462,7 @@ export const TradesScreen: React.FC = () => {
       </ScrollView>
 
       {/* Session & Date Range Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: theme.spacing.md }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: theme.spacing.md }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {['ALL', 'Asia', 'London', 'New York', 'Over Session'].map(s => (
           <TouchableOpacity
             key={s}
@@ -665,8 +665,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   filterPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: 20,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
@@ -678,8 +681,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   filterText: {
     color: theme.colors.textMuted,
-    fontSize: 9,
-    fontFamily: theme.fonts.monoBold,
+    fontSize: 11,
+    fontFamily: theme.fonts.sansSemiBold,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   filterTextActive: {
     color: theme.colors.textPrimary,
