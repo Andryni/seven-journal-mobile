@@ -211,7 +211,9 @@ export function usePlaybookSetups() {
     },
   });
 
-  const { mutateAsync: deleteSetup } = useMutation({
+  const { mutateAsync: saveSetup, isPending: isSavingSetup } = saveSetupMutation;
+
+  const { mutateAsync: deleteSetup, isPending: isDeletingSetup } = useMutation({
     mutationFn: async (id: string) => {
       try {
         await supabase.from('playbook_setups').delete().eq('id', id);
@@ -227,5 +229,5 @@ export function usePlaybookSetups() {
     },
   });
 
-  return { setups, isLoading, saveSetup, deleteSetup };
+  return { setups, isLoading, saveSetup, deleteSetup, isSaving: isSavingSetup, isDeleting: isDeletingSetup };
 }

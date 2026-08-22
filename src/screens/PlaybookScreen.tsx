@@ -88,7 +88,7 @@ export const PlaybookScreen: React.FC = () => {
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
-  const { setups, isLoading: setupsLoading, saveSetup, deleteSetup } = usePlaybookSetups();
+  const { setups, isLoading: setupsLoading, saveSetup, deleteSetup, isSaving: isSavingSetup } = usePlaybookSetups();
   const { trades } = useTrades();
 
   const [activeTab, setActiveTab] = useState<'setups' | 'debrief' | 'discipline'>('setups');
@@ -913,11 +913,11 @@ export const PlaybookScreen: React.FC = () => {
               <View style={styles.formGroup}>
                 <View style={styles.formLabelRow}>
                   <AlignLeft size={12} color={theme.colors.textSecondary} />
-                  <Text style={styles.fieldLabel}>{t('description') || 'Description du setup'}</Text>
+                  <Text style={styles.fieldLabel}>{t('setupDescriptionLabel')}</Text>
                 </View>
                 <TextInput
                   style={[styles.input, { height: 50, paddingTop: 8 }]}
-                  placeholder="Contexte d'entrée, confirmation de tendance, etc."
+                  placeholder={lang === 'en' ? 'Entry context, trend confirmation, etc.' : "Contexte d'entrée, confirmation de tendance, etc."}
                   placeholderTextColor={theme.colors.textMuted}
                   value={setupDesc}
                   onChangeText={setSetupDesc}
@@ -932,12 +932,12 @@ export const PlaybookScreen: React.FC = () => {
                   <ListOrdered size={12} color={theme.colors.greenLight} />
                   <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
                   <Text style={{ fontSize: 9, color: theme.colors.textMuted, marginLeft: 'auto', fontStyle: 'italic' }}>
-                    (Numérotation auto 1, 2, 3...)
+                    {t('setupRulesAutoNumbering')}
                   </Text>
                 </View>
                 <TextInput
                   style={[styles.input, styles.rulesTextArea]}
-                  placeholder={"1. Sweep de liquidité en HTF\n2. Shift de structure en M5\n3. Retracement dans la FVG"}
+                  placeholder={lang === 'en' ? "1. HTF Liquidity sweep\n2. M5 structure shift\n3. Retracement into FVG" : "1. Sweep de liquidité en HTF\n2. Shift de structure en M5\n3. Retracement dans la FVG"}
                   placeholderTextColor={theme.colors.textMuted}
                   value={setupRules}
                   onChangeText={handleRulesTextChange}
@@ -950,7 +950,7 @@ export const PlaybookScreen: React.FC = () => {
               <View style={styles.formGroup}>
                 <View style={styles.formLabelRow}>
                   <Tag size={12} color={theme.colors.goldLight} />
-                  <Text style={styles.fieldLabel}>Tags / Marchés</Text>
+                  <Text style={styles.fieldLabel}>{t('setupTagsLabel')}</Text>
                 </View>
                 <TextInput
                   style={styles.input}
@@ -962,15 +962,26 @@ export const PlaybookScreen: React.FC = () => {
               </View>
             </ScrollView>
 
-            <TouchableOpacity style={styles.saveSetupModalBtn} onPress={handleSaveSetup} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[styles.saveSetupModalBtn, isSavingSetup && styles.saveBtnDisabled]}
+              onPress={handleSaveSetup}
+              activeOpacity={0.8}
+              disabled={isSavingSetup}
+            >
               <LinearGradient
                 colors={[theme.colors.primary, theme.colors.primaryDeep]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.saveSetupGrad}
               >
-                <Check size={14} color={theme.colors.textPrimary} />
-                <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
+                {isSavingSetup ? (
+                  <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                ) : (
+                  <>
+                    <Check size={14} color={theme.colors.textPrimary} />
+                    <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
+                  </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>

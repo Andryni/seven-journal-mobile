@@ -41,7 +41,7 @@ export const AccountsScreen: React.FC = () => {
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
-  const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const { accounts, isLoading, createAccount, updateAccount, deleteAccount, isCreating, isUpdating } = useAccounts();
   const { trades } = useTrades();
   const [refreshing, setRefreshing] = useState(false);
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -572,11 +572,19 @@ export const AccountsScreen: React.FC = () => {
               )}
 
               {/* Action Buttons */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.8}>
-                  <Text style={styles.saveBtnText}>
-                    {editingAcc ? t('saveChanges') : t('createAccount')}
-                  </Text>
+                <TouchableOpacity
+                  style={[styles.saveBtn, (isCreating || isUpdating) && { opacity: 0.6 }]}
+                  onPress={handleSave}
+                  activeOpacity={0.8}
+                  disabled={isCreating || isUpdating}
+                >
+                  {isCreating || isUpdating ? (
+                    <ActivityIndicator color={theme.colors.textPrimary} size="small" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>
+                      {editingAcc ? t('saveChanges') : t('createAccount')}
+                    </Text>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity

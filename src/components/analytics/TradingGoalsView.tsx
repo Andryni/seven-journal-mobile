@@ -57,6 +57,8 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
 
   const drawdownUnit = draft.maxDrawdownUnit;
 
+  const [isSavingGoals, setIsSavingGoals] = useState(false);
+
   if (editing) {
     return (
       <>
@@ -106,10 +108,36 @@ export const TradingGoalsView: React.FC<Props> = ({ goals, updateGoals, resetGoa
           </Card>
         </Animated.View>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-          <TouchableOpacity style={s.saveBtn} onPress={() => { hapticLight(); updateGoals(draft); setEditing(false); }}>
-            <Text style={s.saveBtnText}>{t('tgSave')}</Text>
+          <TouchableOpacity
+            style={[s.saveBtn, isSavingGoals && { opacity: 0.6 }]}
+            onPress={async () => {
+              hapticLight();
+              setIsSavingGoals(true);
+              try {
+                await updateGoals(draft);
+              } finally {
+                setIsSavingGoals(false);
+                setEditing(false);
+              }
+            }}
+            disabled={isSavingGoals}
+          >
+            {isSavingGoals ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={s.saveBtnText}>{t('tgSave')}</Text>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity style={s.resetBtn} onPress={() => { hapticLight(); resetGoals(); setDraft(goals); setEditing(false); }}>
+          <TouchableOpacity
+            style={s.resetBtn}
+            onPress={async () => {
+              hapticLight();
+              await resetGoals();
+              setDraft(goals);
+              setEditing(false);
+            }}
+            disabled={isSavingGoals}
+          >
             <Text style={s.resetBtnText}>{t('tgResetBtn')}</Text>
           </TouchableOpacity>
         </View>
