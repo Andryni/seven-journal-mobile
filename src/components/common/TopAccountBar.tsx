@@ -49,7 +49,7 @@ export const TopAccountBar: React.FC = () => {
           </View>
           <View style={styles.liveIndicatorRow}>
             <View style={styles.liveDot} />
-            <Text style={styles.terminalSub}>FINTECH TERMINAL</Text>
+            <Text style={styles.terminalSub}>{t('fintechTerminal')}</Text>
           </View>
         </View>
       </View>

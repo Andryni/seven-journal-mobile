@@ -21,6 +21,8 @@ export const translations = {
     logout: 'Se déconnecter',
     switchTheme: 'Changer de thème (sombre/clair)',
     switchLanguage: 'Changer de langue (FR/EN)',
+    fintechTerminal: 'TERMINAL FINTECH',
+    lockReasonAntiRevenge: 'Limite de perte journalière atteinte. Mode anti-revenge trading activé.',
 
     // Shared
     loading: 'Chargement...',
@@ -697,6 +699,8 @@ export const translations = {
     logout: 'Sign out',
     switchTheme: 'Switch theme (dark/light)',
     switchLanguage: 'Switch language (FR/EN)',
+    fintechTerminal: 'FINTECH TERMINAL',
+    lockReasonAntiRevenge: 'Daily loss limit reached. Anti-revenge trading mode activated.',
 
     // Shared
     loading: 'Loading...',

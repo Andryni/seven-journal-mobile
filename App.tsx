@@ -204,7 +204,7 @@ export default function App() {
 
                       <DailyLockOverlay
                         visible={isDailySessionLocked && lockOverlayDismissed === false}
-                        reason="Limite de perte journalière atteinte. Mode anti-revenge trading activé."
+                        reason={t('lockReasonAntiRevenge')}
                         onDismiss={() => setLockOverlayDismissed(true)}
                       />
                     </>

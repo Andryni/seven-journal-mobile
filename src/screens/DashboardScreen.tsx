@@ -43,10 +43,9 @@ import { StatRow } from '../components/ui/StatRow';
 function getMarketSessions(date: Date) {
   const utcHour = date.getUTCHours();
   return [
-    { name: 'Tokyo', open: utcHour >= 0 && utcHour < 9 },
-    { name: 'Londres', open: utcHour >= 7 && utcHour < 16 },
-    { name: 'New York', open: utcHour >= 12 && utcHour < 21 },
-    { name: 'Sydney', open: utcHour >= 21 || utcHour < 6 },
+    { key: 'sessionAsia',    name: 'Asia',     open: utcHour >= 0  && utcHour < 9  },
+    { key: 'sessionLondon',  name: 'London',   open: utcHour >= 7  && utcHour < 16 },
+    { key: 'sessionNewYork', name: 'New York', open: utcHour >= 12 && utcHour < 21 },
   ];
 }
 
@@ -181,7 +180,7 @@ export const DashboardScreen: React.FC = () => {
                     s.open ? styles.sessionTextOpen : styles.sessionTextClosed,
                   ]}
                 >
-                  {s.name}
+                  {t(s.key as any)}
                 </Text>
               </View>
             ))}
