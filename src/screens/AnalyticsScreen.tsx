@@ -31,6 +31,7 @@ import { DonutChart } from '../components/charts/DonutChart';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShareCardModal } from '../components/share/ShareCardModal';
+import { ExportPdfModal } from '../components/export/ExportPdfModal';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import {
   Activity,
@@ -43,6 +44,7 @@ import {
   Flame,
   Shield,
   Share2,
+  FileText,
   CheckCircle2,
   AlertOctagon,
   ShieldAlert,
@@ -377,10 +379,16 @@ export const AnalyticsScreen: React.FC = () => {
           <Text style={s.screenTitle}>{t('tabAnalytics')}</Text>
           <Text style={s.screenSubtitle}>{t('screenSubtitleAnalytics')}</Text>
         </View>
-        <TouchableOpacity style={s.shareBtn} onPress={() => setShareModalVisible(true)} activeOpacity={0.7}>
-          <Share2 size={13} color={theme.colors.primaryLight} />
-          <Text style={s.shareBtnText}>{t('sharePnl')}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <TouchableOpacity style={s.shareBtn} onPress={() => setPdfModalVisible(true)} activeOpacity={0.7}>
+            <FileText size={13} color={theme.colors.primaryLight} />
+            <Text style={s.shareBtnText}>PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.shareBtn} onPress={() => setShareModalVisible(true)} activeOpacity={0.7}>
+            <Share2 size={13} color={theme.colors.primaryLight} />
+            <Text style={s.shareBtnText}>{t('sharePnl')}</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
       {/* TABS */}
@@ -601,7 +609,7 @@ export const AnalyticsScreen: React.FC = () => {
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={[s.boldVal, count > 0 ? (isPos ? s.greenText : s.redText) : { color: theme.colors.textMuted }]}>
-                          {count > 0 ? (isPos ? `+${formatCurrency(pnl)}` : formatCurrency(pnl)) : '$0.00'}
+                          {count > 0 ? formatCurrency(pnl) : '$0.00'}
                         </Text>
                       </View>
                     </View>
@@ -698,7 +706,7 @@ export const AnalyticsScreen: React.FC = () => {
                 <View style={[s.kpiBox, { flex: 1, backgroundColor: data.whatIfSimulation.isBetter ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
                   <Text style={s.kpiLabel}>{t('whatIfImpactLabel')}</Text>
                   <Text style={[s.kpiVal, data.whatIfSimulation.diff >= 0 ? s.greenText : s.redText]}>
-                    {data.whatIfSimulation.diff >= 0 ? `+${formatCurrency(data.whatIfSimulation.diff)}` : formatCurrency(data.whatIfSimulation.diff)}
+                    {formatCurrency(data.whatIfSimulation.diff)}
                   </Text>
                   <Text style={[s.subMuted, { fontSize: 8, marginTop: 2 }]}>
                     {t('whatIfTradesOverRisk', data.whatIfSimulation.improvedCount)}
@@ -751,7 +759,7 @@ export const AnalyticsScreen: React.FC = () => {
                       : '—'}
                   </Text>
                   <Text style={[s.subMuted, { fontSize: 9, marginTop: 2, color: theme.colors.greenLight }]}>
-                    {data.planDiscipline.respectedPnL >= 0 ? `+${formatCurrency(data.planDiscipline.respectedPnL)}` : formatCurrency(data.planDiscipline.respectedPnL)} ({data.planDiscipline.respectedCount} trades)
+                    {formatCurrency(data.planDiscipline.respectedPnL)} ({data.planDiscipline.respectedCount} trades)
                   </Text>
                 </View>
 
@@ -767,7 +775,7 @@ export const AnalyticsScreen: React.FC = () => {
                       : '—'}
                   </Text>
                   <Text style={[s.subMuted, { fontSize: 9, marginTop: 2, color: theme.colors.redLight }]}>
-                    {data.planDiscipline.violatedPnL >= 0 ? `+${formatCurrency(data.planDiscipline.violatedPnL)}` : formatCurrency(data.planDiscipline.violatedPnL)} ({data.planDiscipline.violatedCount} trades)
+                    {formatCurrency(data.planDiscipline.violatedPnL)} ({data.planDiscipline.violatedCount} trades)
                   </Text>
                 </View>
               </View>
@@ -790,11 +798,11 @@ export const AnalyticsScreen: React.FC = () => {
                         <View key={mKey} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomColor: 'rgba(255,255,255,0.04)', borderBottomWidth: 1 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={s.boldWhite}>{mistakeLabel(t, mKey)}</Text>
-                            <Text style={s.subMuted}>{stats.count} occurrence(s) · {stats.losses} perte(s)</Text>
+                            <Text style={s.subMuted}>{stats.count} {t('leakOccurrences')} · {stats.losses} {t('leakLosses')}</Text>
                           </View>
                           <View style={{ alignItems: 'flex-end' }}>
                             <Text style={[s.boldVal, isNeg ? s.redText : s.greenText]}>
-                              {cost >= 0 ? `+${formatCurrency(cost)}` : formatCurrency(cost)}
+                              {formatCurrency(cost)}
                             </Text>
                           </View>
                         </View>
@@ -910,6 +918,7 @@ export const AnalyticsScreen: React.FC = () => {
       <View style={{ height: 40 }} />
 
       <ShareCardModal visible={shareModalVisible} onClose={() => setShareModalVisible(false)} trades={data.trades} accountName={data.selectedAccount?.name || 'Tous les comptes'} />
+      <ExportPdfModal visible={pdfModalVisible} onClose={() => setPdfModalVisible(false)} accounts={data.accounts} trades={data.trades} />
     </ScrollView>
   );
 };

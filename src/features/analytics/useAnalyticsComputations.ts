@@ -62,6 +62,7 @@ export function useAnalyticsComputations(dateRange: DateRange) {
       violatedWins: 0,
       violatedPnL: 0,
     };
+    const gradeMap: Record<string, { count: number; wins: number; pnl: number }> = {};
     const styleMap: Record<string, { count: number; wins: number; pnl: number }> = {
       scalping: { count: 0, wins: 0, pnl: 0 },
       intraday: { count: 0, wins: 0, pnl: 0 },
@@ -532,8 +533,8 @@ export function useAnalyticsComputations(dateRange: DateRange) {
         if (st === 'focused' && wr >= 55) {
           insights.push({
             type: 'positive',
-            textFr: `Excellente discipline : Votre winrate est de ${wr.toFixed(0)}% (+${formatCurrency(pnl)}) lorsque vous tradez en état CONCENTRÉ.`,
-            textEn: `Great discipline: Your win rate is ${wr.toFixed(0)}% (+${formatCurrency(pnl)}) when trading FOCUSED.`,
+            textFr: `Excellente discipline : Votre winrate est de ${wr.toFixed(0)}% (${formatCurrency(pnl)}) lorsque vous tradez en état CONCENTRÉ.`,
+            textEn: `Great discipline: Your win rate is ${wr.toFixed(0)}% (${formatCurrency(pnl)}) when trading FOCUSED.`,
           });
         } else if ((st === 'fomo' || st === 'revenge') && wr < 40) {
           insights.push({
