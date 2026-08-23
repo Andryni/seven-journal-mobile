@@ -59,6 +59,7 @@ export const RadialGaugeSpeedometer: React.FC<RadialGaugeSpeedometerProps> = ({
   }, [percentage]);
 
   const polarToCartesian = (centerX: number, centerY: number, r: number, angleInDegrees: number) => {
+    'worklet';
     const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
     return {
       x: centerX + r * Math.cos(angleInRadians),
