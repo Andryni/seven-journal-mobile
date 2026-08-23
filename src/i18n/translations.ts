@@ -644,6 +644,9 @@ export const translations = {
     posCalcRiskTooLowWith: "avec cet SL.",
     posCalcRiskSuggestion: "Augmentez votre risque à",
     posCalcRiskOrMore: "ou plus.",
+    posCalcMarginRequired: "MARGE REQUISE",
+    posCalcLeverageUsed: "LEVIER",
+    posCalcMarginWarn: "Marge requise élevée par rapport au solde",
     // Achievements
     achievementsTitle: "SUCCÈS",
     achievementsSubtitle: "Succès",
@@ -1384,6 +1387,9 @@ export const translations = {
     posCalcRiskTooLowWith: "with this SL.",
     posCalcRiskSuggestion: "Increase your risk to",
     posCalcRiskOrMore: "or more.",
+    posCalcMarginRequired: "REQUIRED MARGIN",
+    posCalcLeverageUsed: "LEVERAGE",
+    posCalcMarginWarn: "Required margin is high relative to balance",
     // Achievements
     achievementsTitle: "ACHIEVEMENTS",
     achievementsSubtitle: "Achievements",

@@ -361,11 +361,30 @@ export const TradesScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Footer: Date & Result */}
+          {/* Footer: Account info, Date & Result */}
           <View style={styles.tradeFooter}>
-            <Text style={styles.dateText}>
-              {new Date(item.entry_time).toLocaleDateString(localeFor(lang))} · {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+              {(() => {
+                const acc = accounts.find(a => a.id === item.account_id);
+                if (!acc) return null;
+                const isFutures = (acc as any)?.instrument_type === 'Futures';
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[styles.accountNameText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                      {acc.name}
+                    </Text>
+                    <Badge
+                      label={isFutures ? 'FUTURES' : 'CFD'}
+                      variant={isFutures ? 'gold' : 'blue'}
+                      size="sm"
+                    />
+                  </View>
+                );
+              })()}
+              <Text style={styles.dateText}>
+                {new Date(item.entry_time).toLocaleDateString(localeFor(lang))} · {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
             <Badge
               label={item.result || (isOpen ? 'OPEN' : 'CLOSED')}
               variant={item.result === 'TP' ? 'green' : item.result === 'SL' ? 'red' : 'neutral'}
@@ -775,6 +794,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderTopColor: theme.colors.cardBorder,
     paddingTop: 6,
     marginTop: 2,
+  },
+  accountNameText: {
+    fontSize: 9,
+    fontFamily: theme.fonts.sansBold,
+    maxWidth: 90,
   },
   dateText: {
     color: theme.colors.textMuted,

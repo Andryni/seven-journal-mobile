@@ -250,7 +250,7 @@ const RRDistributionChart: React.FC<{
         return (
           <View key={b.label} style={{ marginBottom: 8 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-              <Text style={{ color: '#fff', fontSize: 11, fontFamily: theme.fonts.monoBold }}>{b.label}</Text>
+              <Text style={{ color: theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.monoBold }}>{b.label}</Text>
               <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{b.count} trades ({pct.toFixed(0)}%)</Text>
             </View>
             <View style={{ height: 8, backgroundColor: theme.colors.surface, borderRadius: 4, overflow: 'hidden' }}>
@@ -275,7 +275,7 @@ const BreakdownRow: React.FC<{
       <Animated.View key={item.name} entering={FadeIn.delay(i * 60).duration(300)}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: t.spacing.sm, borderBottomColor: t.colors.cardBorder, borderBottomWidth: 1 }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#ffffff', fontSize: 13, fontFamily: t.fonts.sansBold }}>{icon} {nameKey ? nameKey(item) : item.name}</Text>
+            <Text style={{ color: t.colors.textPrimary, fontSize: 13, fontFamily: t.fonts.sansBold }}>{icon} {nameKey ? nameKey(item) : item.name}</Text>
             <Text style={{ color: t.colors.textMuted, fontSize: 10, marginTop: 2 }}>{item.count} trades</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>

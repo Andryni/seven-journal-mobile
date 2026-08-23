@@ -104,6 +104,24 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             {/* Détails Exécution */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>{t('tdExecutionParams')}</Text>
+              {(() => {
+                const acc = accounts.find(a => a.id === displayTrade.account_id);
+                if (!acc) return null;
+                const isFutures = (acc as any)?.instrument_type === 'Futures';
+                return (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.label}>{t('tabAccounts') || 'Compte'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.val, { fontWeight: '800' }]}>{acc.name}</Text>
+                      <Badge
+                        label={isFutures ? 'FUTURES' : 'CFD'}
+                        variant={isFutures ? 'gold' : 'blue'}
+                        size="sm"
+                      />
+                    </View>
+                  </View>
+                );
+              })()}
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdEntryDate')}</Text>
                 <Text style={styles.val}>{new Date(displayTrade.entry_time).toLocaleString(localeFor(lang))}</Text>

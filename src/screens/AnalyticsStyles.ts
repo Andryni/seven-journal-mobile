@@ -21,13 +21,13 @@ export const createAnalyticsStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 18,
     fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1,
   },
   screenSubtitle: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.textSecondary,
     fontSize: 10,
     fontFamily: theme.fonts.sansSemiBold,
     marginTop: 2,
@@ -48,7 +48,7 @@ export const createAnalyticsStyles = (theme: AppTheme) => StyleSheet.create({
     marginRight: theme.spacing.sm,
   },
   tabItemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
     borderColor: theme.colors.primary,
   },
   tabText: {
@@ -58,7 +58,7 @@ export const createAnalyticsStyles = (theme: AppTheme) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: theme.colors.primaryLight,
   },
   tabContent: {
     paddingBottom: theme.spacing.xxl,
@@ -84,7 +84,7 @@ export const createAnalyticsStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 4,
   },
   kpiVal: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
@@ -104,7 +104,7 @@ export const createAnalyticsStyles = (theme: AppTheme) => StyleSheet.create({
     borderBottomWidth: 1,
   },
   boldWhite: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontFamily: theme.fonts.sansBold,
   },

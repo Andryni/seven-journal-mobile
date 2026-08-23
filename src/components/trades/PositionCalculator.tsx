@@ -11,7 +11,13 @@ import { PickerModal } from '../ui/PickerModal';
 import { Info } from 'lucide-react-native';
 
 // ─── CFD / Forex instruments ───
-type CfdInstrument = { type: 'cfd'; pip: number; contractSize: number; label: string };
+type CfdInstrument = {
+  type: 'cfd';
+  pip: number;
+  contractSize: number;
+  label: string;
+  defaultLeverage: number;
+};
 type FuturesInstrument = {
   type: 'futures';
   tickSize: number;
@@ -22,15 +28,15 @@ type FuturesInstrument = {
 type Instrument = CfdInstrument | FuturesInstrument;
 
 const INSTRUMENTS: Record<string, Instrument> = {
-  // CFD
-  XAUUSD: { type: 'cfd', pip: 0.01, contractSize: 100, label: 'Or (XAUUSD)' },
-  EURUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'EUR/USD' },
-  GBPUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'GBP/USD' },
-  USDJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'USD/JPY' },
-  GBPJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'GBP/JPY' },
-  US30: { type: 'cfd', pip: 1, contractSize: 1, label: 'US30 (Dow Jones)' },
-  NAS100: { type: 'cfd', pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)' },
-  BTCUSD: { type: 'cfd', pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)' },
+  // CFD: Forex 1:100, Indices 1:50, Gold/Commodities 1:50, Crypto 1:2
+  XAUUSD: { type: 'cfd', pip: 0.01, contractSize: 100, label: 'Or (XAUUSD)', defaultLeverage: 50 },
+  EURUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'EUR/USD', defaultLeverage: 100 },
+  GBPUSD: { type: 'cfd', pip: 0.0001, contractSize: 100000, label: 'GBP/USD', defaultLeverage: 100 },
+  USDJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'USD/JPY', defaultLeverage: 100 },
+  GBPJPY: { type: 'cfd', pip: 0.01, contractSize: 100000, label: 'GBP/JPY', defaultLeverage: 100 },
+  US30: { type: 'cfd', pip: 1, contractSize: 1, label: 'US30 (Dow Jones)', defaultLeverage: 50 },
+  NAS100: { type: 'cfd', pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)', defaultLeverage: 50 },
+  BTCUSD: { type: 'cfd', pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)', defaultLeverage: 2 },
   // Futures — E-mini & Micro
   ES: { type: 'futures', tickSize: 0.25, tickValue: 12.5, pointValue: 50, label: 'ES — E-mini S&P 500' },
   MES: { type: 'futures', tickSize: 0.25, tickValue: 1.25, pointValue: 5, label: 'MES — Micro E-mini S&P 500' },
@@ -76,6 +82,8 @@ export const PositionCalculator: React.FC = () => {
   const [slPoints, setSlPoints] = useState<number | null>(null);
   const [minRiskUsd, setMinRiskUsd] = useState<number | null>(null);
   const [riskTooLow, setRiskTooLow] = useState(false);
+  const [marginRequired, setMarginRequired] = useState<number | null>(null);
+  const [effectiveLeverage, setEffectiveLeverage] = useState<number | null>(null);
 
   // Switch instrument list when market type changes
   useEffect(() => {
@@ -105,6 +113,8 @@ export const PositionCalculator: React.FC = () => {
       setSlPoints(null);
       setMinRiskUsd(null);
       setRiskTooLow(false);
+      setMarginRequired(null);
+      setEffectiveLeverage(null);
       return;
     }
 
@@ -121,12 +131,19 @@ export const PositionCalculator: React.FC = () => {
       const roundedLotSize = Math.round(computedLotSize * 100) / 100;
       const realRisk = roundedLotSize * slInPips * pipValuePerLot;
 
+      // Leverage calculation
+      const lev = acc?.leverage || inst.defaultLeverage;
+      const notional = roundedLotSize * inst.contractSize * entry;
+      const margin = lev > 0 ? notional / lev : 0;
+
       setSlPips(Math.round(slInPips * 10) / 10);
       setSlTicks(null);
       setPipValue(pipValuePerLot);
       setLotSize(roundedLotSize);
       setActualRiskUsd(Math.round(realRisk * 100) / 100);
       setContracts(null);
+      setMarginRequired(Math.round(margin * 100) / 100);
+      setEffectiveLeverage(lev);
     } else {
       // Futures: ticks = slDistance / tickSize, value per tick = tickValue
       const slInTicks = slDistance / inst.tickSize;
@@ -137,6 +154,8 @@ export const PositionCalculator: React.FC = () => {
       setSlPips(null);
       setPipValue(inst.tickValue);
       setMinRiskUsd(Math.round(minRisk * 100) / 100);
+      setMarginRequired(null);
+      setEffectiveLeverage(null);
       if (computedContracts < 1) {
         // Risk too small for even 1 contract
         setRiskTooLow(true);
@@ -361,6 +380,33 @@ export const PositionCalculator: React.FC = () => {
                   ${pipValue?.toFixed(2)}
                 </Text>
               </View>
+
+              {/* CFD Margin Required */}
+              {!isFutures && marginRequired !== null && (
+                <View style={styles.resultItem}>
+                  <Text style={[styles.resultItemLabel, { color: theme.colors.cyanLight }]}>
+                    {t('posCalcMarginRequired')}
+                  </Text>
+                  <Text style={[styles.resultItemValue, { color: theme.colors.cyanLight, fontWeight: '800' }]}>
+                    ${marginRequired.toFixed(2)}
+                  </Text>
+                  {effectiveLeverage !== null && (
+                    <Text style={[styles.resultItemSub, { color: theme.colors.textMuted }]}>
+                      1:{effectiveLeverage}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Margin Warning for CFD if margin exceeds 50% of balance */}
+          {!isFutures && marginRequired !== null && activeAccount && marginRequired > activeAccount.balance * 0.5 && (
+            <View style={[styles.warningBox, { marginTop: 10, marginBottom: 0 }]}>
+              <Text style={styles.warningTitle}>⚠️ {t('posCalcMarginWarn')}</Text>
+              <Text style={styles.warningText}>
+                ${marginRequired.toFixed(2)} / ${activeAccount.balance.toLocaleString()} ({((marginRequired / activeAccount.balance) * 100).toFixed(0)}% {t('posCalcMarginRequired').toLowerCase()})
+              </Text>
             </View>
           )}
         </Animated.View>
