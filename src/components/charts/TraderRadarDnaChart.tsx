@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Polygon, Line, Circle, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
+import { useT } from '../../i18n';
 
 interface TraderRadarDnaChartProps {
   stats: {
@@ -20,6 +21,7 @@ export const TraderRadarDnaChart: React.FC<TraderRadarDnaChartProps> = ({
   size = Dimensions.get('window').width - 64,
 }) => {
   const { theme } = useTheme();
+  const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const cx = size / 2;
@@ -27,11 +29,11 @@ export const TraderRadarDnaChart: React.FC<TraderRadarDnaChartProps> = ({
   const radius = size * 0.36;
 
   const axes = [
-    { key: 'discipline', label: 'DISCIPLINE', value: Math.min(Math.max(stats.discipline, 15), 100) },
-    { key: 'riskControl', label: 'RISK CONTROL', value: Math.min(Math.max(stats.riskControl, 15), 100) },
-    { key: 'consistency', label: 'CONSISTENCY', value: Math.min(Math.max(stats.consistency, 15), 100) },
-    { key: 'psychology', label: 'PSYCHOLOGY', value: Math.min(Math.max(stats.psychology, 15), 100) },
-    { key: 'patience', label: 'PATIENCE', value: Math.min(Math.max(stats.patience, 15), 100) },
+    { key: 'discipline', label: t('chartAxisDiscipline'), value: Math.min(Math.max(stats.discipline, 15), 100) },
+    { key: 'riskControl', label: t('chartAxisRiskControl'), value: Math.min(Math.max(stats.riskControl, 15), 100) },
+    { key: 'consistency', label: t('chartAxisConsistency'), value: Math.min(Math.max(stats.consistency, 15), 100) },
+    { key: 'psychology', label: t('chartAxisPsychology'), value: Math.min(Math.max(stats.psychology, 15), 100) },
+    { key: 'patience', label: t('chartAxisPatience'), value: Math.min(Math.max(stats.patience, 15), 100) },
   ];
 
   const numAxes = axes.length;
@@ -69,9 +71,9 @@ export const TraderRadarDnaChart: React.FC<TraderRadarDnaChartProps> = ({
   return (
     <View style={[styles.container, { width: size, height: size + 20 }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>PROFIL DNA DU TRADER</Text>
+        <Text style={styles.title}>{t('chartRadarDnaTitle')}</Text>
         <View style={styles.scoreBadge}>
-          <Text style={styles.scoreText}>SCORE: {globalScore}/100</Text>
+          <Text style={styles.scoreText}>{t('chartRadarScore', globalScore)}</Text>
         </View>
       </View>
 

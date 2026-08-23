@@ -742,6 +742,22 @@ export const translations = {
     perfectDisciplineTitle: 'DISCIPLINE PARFAITE',
     perfectDisciplineSub: 'Aucune infraction enregistrée dans vos débriefings.',
     timesCount: 'fois',
+
+    // New Charts & Terminal UI
+    chartDualEquityTitle: "ÉQUITÉ & UNDERWATER DRAWDOWN",
+    chartDualEquitySub: "Croissance et recul historique du capital",
+    chartRRHistogramTitle: "DISTRIBUTION DES R-MULTIPLES",
+    chartRRHistogramSub: "Répartition statistique des gains et pertes en R",
+    chartTradesAnalyzed: (n: number) => `${n} trades analysés`,
+    chartRadarDnaTitle: "PROFIL DNA DU TRADER",
+    chartRadarScore: (score: number) => `SCORE: ${score}/100`,
+    chartAxisDiscipline: "DISCIPLINE",
+    chartAxisRiskControl: "GESTION DU RISQUE",
+    chartAxisConsistency: "RÉGULARITÉ",
+    chartAxisPsychology: "PSYCHOLOGIE",
+    chartAxisPatience: "PATIENCE",
+    timeIn: "IN",
+    timeOut: "OUT",
   },
   en: {
     // Navigation
@@ -1484,6 +1500,22 @@ export const translations = {
     perfectDisciplineTitle: 'PERFECT DISCIPLINE',
     perfectDisciplineSub: 'No violation recorded in your debriefings.',
     timesCount: 'times',
+
+    // New Charts & Terminal UI
+    chartDualEquityTitle: "EQUITY & UNDERWATER DRAWDOWN",
+    chartDualEquitySub: "Equity growth and historical capital drawdowns",
+    chartRRHistogramTitle: "R-MULTIPLE DISTRIBUTION",
+    chartRRHistogramSub: "Statistical distribution of gains and losses in R",
+    chartTradesAnalyzed: (n: number) => `${n} trades analyzed`,
+    chartRadarDnaTitle: "TRADER DNA PROFILE",
+    chartRadarScore: (score: number) => `SCORE: ${score}/100`,
+    chartAxisDiscipline: "DISCIPLINE",
+    chartAxisRiskControl: "RISK CONTROL",
+    chartAxisConsistency: "CONSISTENCY",
+    chartAxisPsychology: "PSYCHOLOGY",
+    chartAxisPatience: "PATIENCE",
+    timeIn: "IN",
+    timeOut: "OUT",
   },
 } as const;
 

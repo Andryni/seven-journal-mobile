@@ -4,6 +4,7 @@ import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line, G } from 'react-na
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useT } from '../../i18n';
 
 interface DualEquityUnderwaterChartProps {
   equityData: { date: string; value: number }[];
@@ -17,6 +18,7 @@ export const DualEquityUnderwaterChart: React.FC<DualEquityUnderwaterChartProps>
   width = Dimensions.get('window').width - 48,
 }) => {
   const { theme } = useTheme();
+  const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -102,7 +104,7 @@ export const DualEquityUnderwaterChart: React.FC<DualEquityUnderwaterChartProps>
       {/* Top Banner Status */}
       <View style={styles.topBanner}>
         <View>
-          <Text style={styles.bannerTitle}>ÉQUITÉ & UNDERWATER DRAWDOWN</Text>
+          <Text style={styles.bannerTitle}>{t('chartDualEquityTitle')}</Text>
           <Text style={styles.bannerSub}>Trade #{active.index} · {active.date}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>

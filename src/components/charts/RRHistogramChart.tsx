@@ -5,6 +5,7 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useHaptic } from '../../hooks/useHaptic';
+import { useT } from '../../i18n';
 
 interface RRHistogramChartProps {
   rMultiples: number[];
@@ -28,6 +29,7 @@ export const RRHistogramChart: React.FC<RRHistogramChartProps> = ({
 }) => {
   const { theme } = useTheme();
   const { light } = useHaptic();
+  const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
@@ -66,7 +68,7 @@ export const RRHistogramChart: React.FC<RRHistogramChartProps> = ({
     <View style={[styles.container, { width, height }]}>
       {/* Header Info */}
       <View style={styles.header}>
-        <Text style={styles.title}>DISTRIBUTION DES R-MULTIPLES</Text>
+        <Text style={styles.title}>{t('chartRRHistogramTitle')}</Text>
         {selectedBucket ? (
           <Text style={styles.selectedInfo}>
             {selectedBucket.label} :{' '}
@@ -75,7 +77,7 @@ export const RRHistogramChart: React.FC<RRHistogramChartProps> = ({
             </Text>
           </Text>
         ) : (
-          <Text style={styles.subtext}>{totalCount} trades analysés</Text>
+          <Text style={styles.subtext}>{t('chartTradesAnalyzed', totalCount)}</Text>
         )}
       </View>
 
