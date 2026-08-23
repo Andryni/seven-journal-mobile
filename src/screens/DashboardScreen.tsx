@@ -226,12 +226,19 @@ export const DashboardScreen: React.FC = () => {
         <KpiCard
           label={t('netPnlTotal')}
           value={formatCurrency(m.netPnL, { thousandsSeparator: true })}
+          numValue={m.netPnL}
+          prefix={m.netPnL >= 0 ? '+$' : '-$'}
+          decimals={2}
           valueColor={isPositive ? theme.colors.greenLight : theme.colors.redLight}
           sub={`${m.totalTrades} ${t('positions')}`}
+          glow={isPositive}
         />
         <KpiCard
           label={t('winRateGlobal')}
           value={`${m.winRate.toFixed(1)}%`}
+          numValue={m.winRate}
+          suffix="%"
+          decimals={1}
           valueColor={m.winRate >= 50 ? theme.colors.greenLight : theme.colors.redLight}
           sub={
             <Text>
@@ -245,12 +252,17 @@ export const DashboardScreen: React.FC = () => {
         <KpiCard
           label={t('profitFactor')}
           value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
+          numValue={m.profitFactor === Infinity ? undefined : m.profitFactor}
+          decimals={2}
           valueColor={theme.colors.primaryLight}
           sub={`G: ${formatCurrency(m.grossProfit, { showPlus: false, decimals: 0 })} · P: ${formatCurrency(m.grossLoss, { showPlus: false, decimals: 0 })}`}
         />
         <KpiCard
           label={t('profitLossRatio')}
           value={`${m.avgLoss !== 0 ? (m.avgWin / m.avgLoss).toFixed(2) : '1.00'}x`}
+          numValue={m.avgLoss !== 0 ? m.avgWin / m.avgLoss : 1}
+          suffix="x"
+          decimals={2}
           valueColor={theme.colors.cyan}
           sub={`${formatCurrency(m.avgWin, { decimals: 0 })} / ${formatCurrency(-m.avgLoss, { decimals: 0 })}`}
         />

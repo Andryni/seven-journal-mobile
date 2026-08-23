@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import type { Trade } from '../../types/domain';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Card } from '../ui/Card';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { useHaptic } from '../../hooks/useHaptic';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -20,8 +22,10 @@ interface SessionHeatmapCardProps {
 export const SessionHeatmapCard: React.FC<SessionHeatmapCardProps> = ({ trades }) => {
   const { theme } = useTheme();
   const { t, lang } = useT();
+  const { light: hapticLight } = useHaptic();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const DAYS = lang === 'en' ? DAYS_EN : DAYS_FR;
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const heatData = useMemo(() => {
     const grid: Record<string, { totalPnL: number; count: number }> = {};
@@ -76,9 +80,25 @@ export const SessionHeatmapCard: React.FC<SessionHeatmapCardProps> = ({ trades }
     );
   }
 
+  const selectedStats = selectedKey ? heatData[selectedKey] : null;
+  const [selectedDayIdx, selectedHour] = selectedKey ? selectedKey.split('-').map(Number) : [-1, -1];
+
   return (
     <Card title={t('sessionHeatmapTitle')}>
-      <Text style={styles.subtitle}>{t('sessionHeatmapSubtitle')}</Text>
+      {/* Selected Cell Tooltip Banner */}
+      {selectedStats && selectedStats.count > 0 ? (
+        <View style={styles.activeCellBanner}>
+          <Text style={styles.activeCellLabel}>
+            📍 {DAYS[selectedDayIdx]} {selectedHour}h00 :{' '}
+            <Text style={{ fontWeight: '800', color: selectedStats.totalPnL >= 0 ? theme.colors.greenLight : theme.colors.redLight }}>
+              {formatCurrency(selectedStats.totalPnL)}
+            </Text>{' '}
+            ({selectedStats.count} trade{selectedStats.count > 1 ? 's' : ''})
+          </Text>
+        </View>
+      ) : (
+        <Text style={styles.subtitle}>{t('sessionHeatmapSubtitle')}</Text>
+      )}
 
       {/* Hour labels */}
       <View style={styles.hourRow}>
@@ -99,19 +119,35 @@ export const SessionHeatmapCard: React.FC<SessionHeatmapCardProps> = ({ trades }
           {HOURS.map((hour) => {
             const key = `${dayIdx}-${hour}`;
             const v = heatData[key];
+            const isSelected = selectedKey === key;
             return (
-              <Animated.View
+              <TouchableOpacity
                 key={hour}
-                entering={FadeIn.delay((dayIdx * 24 + hour) * 1).duration(150)}
-                style={[
-                  styles.cell,
-                  { width: CELL_SIZE, backgroundColor: getCellColor(dayIdx, hour) },
-                ]}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (v && v.count > 0) {
+                    hapticLight();
+                    setSelectedKey(isSelected ? null : key);
+                  }
+                }}
               >
-                {v && v.count > 0 && (
-                  <Text style={styles.cellCount}>{v.count}</Text>
-                )}
-              </Animated.View>
+                <Animated.View
+                  entering={FadeIn.delay((dayIdx * 24 + hour) * 1).duration(150)}
+                  style={[
+                    styles.cell,
+                    {
+                      width: CELL_SIZE,
+                      backgroundColor: getCellColor(dayIdx, hour),
+                      borderColor: isSelected ? theme.colors.primaryLight : 'transparent',
+                      borderWidth: isSelected ? 1 : 0,
+                    },
+                  ]}
+                >
+                  {v && v.count > 0 && (
+                    <Text style={styles.cellCount}>{v.count}</Text>
+                  )}
+                </Animated.View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -222,6 +258,21 @@ const createStyles = (theme: AppTheme) =>
       fontSize: 8,
       fontFamily: theme.fonts.monoBold,
       marginLeft: 'auto',
+    },
+    activeCellBanner: {
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.primaryLight,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      marginBottom: 8,
+      alignSelf: 'center',
+    },
+    activeCellLabel: {
+      color: theme.colors.textPrimary,
+      fontSize: 10,
+      fontFamily: theme.fonts.monoBold,
     },
     emptyContainer: {
       height: 150,

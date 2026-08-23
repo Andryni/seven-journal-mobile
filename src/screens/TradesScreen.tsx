@@ -32,6 +32,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
+import { AnimatedNumberTicker } from '../components/ui/AnimatedNumberTicker';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'BE' | 'OPEN';
 
@@ -280,7 +281,7 @@ export const TradesScreen: React.FC = () => {
     );
   };
 
-  const renderTradeItem = ({ item }: { item: Trade }) => {
+  const renderTradeItem = ({ item, index }: { item: Trade; index: number }) => {
     const isWin = (item.pnl || 0) > 0;
     const isLoss = (item.pnl || 0) < 0;
     const isOpen = item.pnl === null;
@@ -288,7 +289,7 @@ export const TradesScreen: React.FC = () => {
     return (
       <SwipeableRow onDelete={() => handleDeleteTrade(item.id)}>
       <TouchableOpacity
-        style={styles.tradeCard}
+        style={[styles.tradeCard, isOpen && styles.tradeCardOpenGlow]}
         onPress={() => handleViewTrade(item)}
         activeOpacity={0.85}
       >
@@ -440,21 +441,31 @@ export const TradesScreen: React.FC = () => {
       <View style={styles.summaryBar}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>{t('tradesCount')}</Text>
-          <Text style={styles.summaryVal}>{stats.count}</Text>
+          <AnimatedNumberTicker
+            value={stats.count}
+            decimals={0}
+            style={styles.summaryVal}
+          />
         </View>
         <View style={styles.dividerV} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>{t('winRate')}</Text>
-          <Text style={[styles.summaryVal, stats.wr >= 50 ? styles.greenText : styles.redText]}>
-            {stats.wr.toFixed(1)}%
-          </Text>
+          <AnimatedNumberTicker
+            value={stats.wr}
+            suffix="%"
+            decimals={1}
+            style={[styles.summaryVal, stats.wr >= 50 ? styles.greenText : styles.redText]}
+          />
         </View>
         <View style={styles.dividerV} />
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>{t('netPnl')}</Text>
-          <Text style={[styles.summaryVal, stats.totalPnl >= 0 ? styles.greenText : styles.redText]}>
-            {formatCurrency(stats.totalPnl)}
-          </Text>
+          <AnimatedNumberTicker
+            value={stats.totalPnl}
+            prefix={stats.totalPnl >= 0 ? '+$' : '-$'}
+            decimals={2}
+            style={[styles.summaryVal, stats.totalPnl >= 0 ? styles.greenText : styles.redText]}
+          />
         </View>
       </View>
 
@@ -727,6 +738,14 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderColor: theme.colors.cardBorder,
     marginBottom: theme.spacing.sm,
     overflow: 'hidden',
+  },
+  tradeCardOpenGlow: {
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+    shadowColor: theme.colors.gold,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   stripIndicator: {
     width: 4,

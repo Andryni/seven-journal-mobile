@@ -57,6 +57,7 @@ import { useTradingGoals } from '../features/analytics/useTradingGoals';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '../store/uiStore';
 import { createAnalyticsStyles } from './AnalyticsStyles';
+import { AnimatedNumberTicker } from '../components/ui/AnimatedNumberTicker';
 
 type TabType = 'overview' | 'equity' | 'distribution' | 'breakdown' | 'timing' | 'psychology' | 'propfirm' | 'goals';
 
@@ -431,31 +432,65 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
-                  <Text style={[s.kpiVal, data.totalPnL >= 0 ? s.greenText : s.redText]}>{data.totalPnL >= 0 ? '+' : '-'}${Math.abs(data.totalPnL).toFixed(2)}</Text>
+                  <AnimatedNumberTicker
+                    value={data.totalPnL}
+                    prefix={data.totalPnL >= 0 ? '+$' : '-$'}
+                    decimals={2}
+                    style={[s.kpiVal, data.totalPnL >= 0 ? s.greenText : s.redText]}
+                  />
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('winRate')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{data.winRate.toFixed(1)}%</Text>
+                  <AnimatedNumberTicker
+                    value={data.winRate}
+                    suffix="%"
+                    decimals={1}
+                    style={[s.kpiVal, { color: theme.colors.cyan }]}
+                  />
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('profitFactor')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.primaryLight }]}>{data.profitFactor === Infinity ? '∞' : data.profitFactor.toFixed(2)}</Text>
+                  {data.profitFactor === Infinity ? (
+                    <Text style={[s.kpiVal, { color: theme.colors.primaryLight }]}>∞</Text>
+                  ) : (
+                    <AnimatedNumberTicker
+                      value={data.profitFactor}
+                      decimals={2}
+                      style={[s.kpiVal, { color: theme.colors.primaryLight }]}
+                    />
+                  )}
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('profitLossRatio')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>{data.avgLoss > 0 ? (data.avgWin / data.avgLoss).toFixed(2) : '1.0'}x</Text>
+                  <AnimatedNumberTicker
+                    value={data.avgLoss > 0 ? data.avgWin / data.avgLoss : 1}
+                    suffix="x"
+                    decimals={2}
+                    style={[s.kpiVal, { color: theme.colors.goldLight }]}
+                  />
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('avgRMultiple')}</Text>
-                  <Text style={[s.kpiVal, data.avgR >= 0 ? s.greenText : s.redText]}>{data.avgR >= 0 ? '+' : ''}{data.avgR.toFixed(2)}R</Text>
+                  <AnimatedNumberTicker
+                    value={data.avgR}
+                    prefix={data.avgR >= 0 ? '+' : ''}
+                    suffix="R"
+                    decimals={2}
+                    style={[s.kpiVal, data.avgR >= 0 ? s.greenText : s.redText]}
+                  />
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('expectancy')}</Text>
-                  <Text style={[s.kpiVal, data.expectancy >= 0 ? s.greenText : s.redText]}>{data.expectancy >= 0 ? '+' : '-'}${Math.abs(data.expectancy).toFixed(2)}</Text>
+                  <AnimatedNumberTicker
+                    value={data.expectancy}
+                    prefix={data.expectancy >= 0 ? '+$' : '-$'}
+                    decimals={2}
+                    style={[s.kpiVal, data.expectancy >= 0 ? s.greenText : s.redText]}
+                  />
                 </View>
               </View>
             </Card>
