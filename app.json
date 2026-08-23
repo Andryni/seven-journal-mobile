@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Seven Journal",
-    "slug": "seven-journal-mobile",
+    "slug": "andryproject",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,9 +34,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "8b73316b-6d3b-40da-a086-d4d7e70e17b0"
+        "projectId": "ac1ff59d-44b9-4a9f-ab6b-a45100d41487"
       }
     },
-    "owner": "sevenkely"
+    "owner": "andrikelys-team"
   }
 }

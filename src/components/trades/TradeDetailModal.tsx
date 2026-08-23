@@ -107,6 +107,12 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <Text style={styles.label}>{t('tdEntryDate')}</Text>
                 <Text style={styles.val}>{new Date(displayTrade.entry_time).toLocaleString(localeFor(lang))}</Text>
               </View>
+              {displayTrade.exit_time && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>{t('tdExitDate')}</Text>
+                  <Text style={styles.val}>{new Date(displayTrade.exit_time).toLocaleString(localeFor(lang))}</Text>
+                </View>
+              )}
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdTimeframe')}</Text>
                 <Text style={styles.val}>{displayTrade.timeframe}</Text>

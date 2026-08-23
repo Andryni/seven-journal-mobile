@@ -42,7 +42,7 @@ export const TopAccountBar: React.FC = () => {
             resizeMode="contain"
           />
         </View>
-        <View>
+        <View style={{ flexShrink: 0 }}>
           <View style={styles.flexRow}>
             <Text style={styles.brandTextSeven}>SEVEN </Text>
             <Text style={styles.brandTextTerminal}>JOURNAL</Text>

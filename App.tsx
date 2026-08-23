@@ -215,15 +215,15 @@ export default function App() {
             </SafeAreaView>
           )}
         </QueryClientProvider>
-
-        {/* ── Splash overlay on top — smoothly covers until animation ends ── */}
-        {showSplash && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#060709', zIndex: 99999 }]} pointerEvents={splashFinished ? 'none' : 'auto'}>
-            <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
-          </View>
-        )}
         </View>
       </ErrorBoundary>
+
+      {/* ── Splash overlay — outermost layer, covers EVERYTHING ── */}
+      {showSplash && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#060709', zIndex: 99999, elevation: 99999 }]}>
+          <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }
