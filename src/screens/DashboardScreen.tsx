@@ -31,8 +31,11 @@ import {
   Flame,
   Snowflake,
   AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react-native';
 import { ShareCardModal } from '../components/share/ShareCardModal';
+import { TradeDetailModal } from '../components/trades/TradeDetailModal';
 import { ChecklistCard } from '../components/dashboard/ChecklistCard';
 import { PositionCalculator } from '../components/trades/PositionCalculator';
 import { AchievementsCard } from '../components/dashboard/AchievementsCard';
@@ -63,6 +66,7 @@ export const DashboardScreen: React.FC = () => {
 
   const [now, setNow] = useState(new Date());
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
@@ -273,18 +277,6 @@ export const DashboardScreen: React.FC = () => {
         />
       </View>
 
-      {/* ── 4b. WIN RATE RADIAL SPEEDOMETER ── */}
-      {m.totalTrades > 0 && (
-        <Card title={t('winRateGlobal')}>
-          <RadialGaugeSpeedometer
-            value={m.winRate}
-            label={t('winRate')}
-            unit="%"
-            target={60}
-          />
-        </Card>
-      )}
-
       {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS BICOLORE ── */}
       <Card title={t('equityLive')}>
         <GlowingEquityAreaChart
@@ -388,33 +380,124 @@ export const DashboardScreen: React.FC = () => {
         )}
       </Card>
 
-      {/* ── 9. RECENT TRADES SECTION ── */}
+      {/* ── 9. RECENT TRADES SECTION (RICH DETAILS) ── */}
       <Card title={t('lastTrades')}>
         {m.recentTrades.length === 0 ? (
           <Text style={styles.emptyText}>{t('noRecentTrades')}</Text>
         ) : (
-          m.recentTrades.map((t: Trade) => (
-            <View key={t.id} style={styles.recentRow}>
-              <View>
-                <View style={styles.flexRow}>
-                  <Text style={styles.recentPair}>{t.pair}</Text>
-                  <Badge label={t.direction} variant={t.direction === 'BUY' ? 'blue' : 'gold'} />
-                </View>
-                <Text style={styles.recentDate}>
-                  {new Date(t.entry_time).toLocaleDateString(localeFor(lang))} {new Date(t.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              </View>
+          m.recentTrades.map((trade: Trade) => {
+            const isWin = (trade.pnl || 0) > 0;
+            const isLoss = (trade.pnl || 0) < 0;
+            const isOpen = trade.pnl === null;
+            const acc = accounts.find(a => a.id === trade.account_id);
+            const isFutures = (acc as any)?.instrument_type === 'Futures';
 
-              <View style={styles.alignRight}>
-                <Text style={[styles.recentPnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
-                  {t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN'}
-                </Text>
-                <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} />
-              </View>
-            </View>
-          ))
+            return (
+              <PressableScale
+                key={trade.id}
+                style={styles.recentTradeCard}
+                onPress={() => setSelectedTrade(trade)}
+              >
+                {/* Left Indicator Strip */}
+                <View
+                  style={[
+                    styles.recentStrip,
+                    isWin && styles.stripWin,
+                    isLoss && styles.stripLoss,
+                    isOpen && styles.stripOpen,
+                  ]}
+                />
+
+                <View style={styles.recentCardContent}>
+                  {/* Top Row: Symbol, Direction, Size, PnL */}
+                  <View style={styles.recentHeaderRow}>
+                    <View style={styles.recentPairWrap}>
+                      <Text style={styles.recentPairText}>{trade.pair}</Text>
+                      <Badge
+                        label={trade.direction}
+                        variant={trade.direction === 'BUY' ? 'green' : 'blue'}
+                        size="sm"
+                      />
+                      <Text style={styles.recentLotText}>
+                        {trade.size || 1} {isFutures ? t('contracts') : t('lots')}
+                      </Text>
+                    </View>
+
+                    <View style={styles.recentPnlWrap}>
+                      <Text
+                        style={[
+                          styles.recentPnlVal,
+                          isWin && styles.greenText,
+                          isLoss && styles.redText,
+                          isOpen && styles.goldText,
+                        ]}
+                      >
+                        {!isOpen ? formatCurrency(trade.pnl!) : t('openTradeStatus')}
+                      </Text>
+                      {isWin ? (
+                        <ArrowUpRight size={13} color={theme.colors.greenLight} />
+                      ) : isLoss ? (
+                        <ArrowDownRight size={13} color={theme.colors.redLight} />
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Middle Row: Setup & R:R */}
+                  <View style={styles.recentMiddleRow}>
+                    {(() => {
+                      const realSetups = (trade.setup_structures || []).filter(s => s !== 'BOS' && s !== 'TF');
+                      if (realSetups.length > 0) {
+                        return <Text style={styles.recentSetupText} numberOfLines={1}>{realSetups.join(' · ')}</Text>;
+                      }
+                      return null;
+                    })()}
+                    {trade.r_multiple !== null && (
+                      <Badge
+                        label={`${trade.r_multiple >= 0 ? '+' : ''}${trade.r_multiple.toFixed(1)}R`}
+                        variant={trade.r_multiple > 0 ? 'gold' : trade.r_multiple < 0 ? 'red' : 'neutral'}
+                        size="sm"
+                        style={{ marginLeft: 'auto' }}
+                      />
+                    )}
+                  </View>
+
+                  {/* Footer: Account, Entry & Exit Date/Time, Result */}
+                  <View style={styles.recentFooterRow}>
+                    <View style={styles.recentAccDateWrap}>
+                      {acc && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.recentAccName} numberOfLines={1}>{acc.name}</Text>
+                          <Badge label={isFutures ? 'FUTURES' : 'CFD'} variant={isFutures ? 'gold' : 'blue'} size="sm" />
+                        </View>
+                      )}
+                      <Text style={styles.recentDateDetails}>
+                        IN: {new Date(trade.entry_time).toLocaleDateString(localeFor(lang))} {new Date(trade.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
+                        {trade.exit_time && ` · OUT: ${new Date(trade.exit_time).toLocaleDateString(localeFor(lang))} ${new Date(trade.exit_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}`}
+                      </Text>
+                    </View>
+                    <Badge
+                      label={trade.result || (isOpen ? 'OPEN' : 'CLOSED')}
+                      variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'}
+                      size="sm"
+                    />
+                  </View>
+                </View>
+              </PressableScale>
+            );
+          })
         )}
       </Card>
+
+      {/* Trade Detail Modal */}
+      {selectedTrade && (
+        <TradeDetailModal
+          trade={selectedTrade}
+          visible={!!selectedTrade}
+          onClose={() => setSelectedTrade(null)}
+          onEdit={() => {}}
+          onDelete={() => {}}
+        />
+      )}
 
       {/* Share P&L Card Modal */}
       <ShareCardModal
@@ -801,6 +884,97 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 14,
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
+  },
+  recentTradeCard: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    marginBottom: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  recentStrip: {
+    width: 4,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  stripWin: {
+    backgroundColor: theme.colors.green,
+  },
+  stripLoss: {
+    backgroundColor: theme.colors.red,
+  },
+  stripOpen: {
+    backgroundColor: theme.colors.gold,
+  },
+  recentCardContent: {
+    flex: 1,
+    padding: 10,
+  },
+  recentHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  recentPairWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recentPairText: {
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    fontFamily: theme.fonts.sansBold,
+  },
+  recentLotText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
+  },
+  recentPnlWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  recentPnlVal: {
+    fontSize: 13,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+  },
+  recentMiddleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  recentSetupText: {
+    color: theme.colors.primaryLight,
+    fontSize: 10,
+    fontFamily: theme.fonts.sansSemiBold,
+  },
+  recentFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  recentAccDateWrap: {
+    flex: 1,
+    marginRight: 6,
+  },
+  recentAccName: {
+    color: theme.colors.textPrimary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+  },
+  recentDateDetails: {
+    color: theme.colors.textMuted,
+    fontSize: 8,
+    fontFamily: theme.fonts.monoMedium,
+    marginTop: 2,
   },
   emptyText: {
     color: theme.colors.textMuted,

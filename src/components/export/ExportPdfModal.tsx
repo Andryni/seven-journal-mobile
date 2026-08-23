@@ -11,6 +11,7 @@ import {
 import { X, FileText, Download, Check, Calendar, Wallet } from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
@@ -319,7 +320,22 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
       `;
 
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      
+      // On Android / Expo Go, sharing cache files directly can be rejected. Copy to permanent documentDirectory:
+      const fileName = `SevenJournal_Report_${selectedRange}_${Date.now()}.pdf`;
+      const targetUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.copyAsync({ from: uri, to: targetUri });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(targetUri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: t('pdfExportTitle'),
+        });
+      } else {
+        Alert.alert(t('pdfExportTitle'), `PDF exporté: ${targetUri}`);
+      }
       onClose();
     } catch (err: any) {
       Alert.alert(t('pdfErrorTitle'), err?.message || t('pdfErrorGenerate'));

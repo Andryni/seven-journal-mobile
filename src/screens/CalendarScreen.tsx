@@ -17,7 +17,10 @@ import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useAccounts } from '../features/accounts/useAccounts';
+import { TradeDetailModal } from '../components/trades/TradeDetailModal';
+import { PressableScale } from '../components/ui/PressableScale';
+import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 
 const screenWidth = Dimensions.get('window').width;
 const CALENDAR_PADDING = 16; // horizontal padding inside the calendar frame
@@ -32,8 +35,10 @@ export const CalendarScreen: React.FC = () => {
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading } = useTrades();
+  const { accounts } = useAccounts();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+  const [selectedTradeModal, setSelectedTradeModal] = useState<Trade | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -263,28 +268,119 @@ export const CalendarScreen: React.FC = () => {
           {selectedTrades.length === 0 ? (
             <Text style={styles.emptyText}>{t('noTradeThatDay')}</Text>
           ) : (
-            selectedTrades.map((t: Trade) => (
-              <View key={t.id} style={styles.tradeRow}>
-                <View>
-                  <View style={styles.flexRow}>
-                    <Text style={styles.tradePair}>{t.pair}</Text>
-                    <Badge label={t.direction} variant={t.direction === 'BUY' ? 'green' : 'blue'} size="sm" />
-                  </View>
-                  <Text style={styles.tradeTime}>
-                    {new Date(t.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
+            selectedTrades.map((trade: Trade) => {
+              const isWin = (trade.pnl || 0) > 0;
+              const isLoss = (trade.pnl || 0) < 0;
+              const isOpen = trade.pnl === null;
+              const acc = accounts.find(a => a.id === trade.account_id);
+              const isFutures = (acc as any)?.instrument_type === 'Futures';
 
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.tradePnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
-                    {t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN'}
-                  </Text>
-                  <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} size="sm" />
-                </View>
-              </View>
-            ))
+              return (
+                <PressableScale
+                  key={trade.id}
+                  style={styles.calTradeCard}
+                  onPress={() => setSelectedTradeModal(trade)}
+                >
+                  {/* Left Indicator Strip */}
+                  <View
+                    style={[
+                      styles.calStrip,
+                      isWin && styles.stripWin,
+                      isLoss && styles.stripLoss,
+                      isOpen && styles.stripOpen,
+                    ]}
+                  />
+
+                  <View style={styles.calCardContent}>
+                    {/* Top Row: Symbol, Direction, Size, PnL */}
+                    <View style={styles.calHeaderRow}>
+                      <View style={styles.calPairWrap}>
+                        <Text style={styles.calPairText}>{trade.pair}</Text>
+                        <Badge
+                          label={trade.direction}
+                          variant={trade.direction === 'BUY' ? 'green' : 'blue'}
+                          size="sm"
+                        />
+                        <Text style={styles.calLotText}>
+                          {trade.size || 1} {isFutures ? t('contracts') : t('lots')}
+                        </Text>
+                      </View>
+
+                      <View style={styles.calPnlWrap}>
+                        <Text
+                          style={[
+                            styles.calPnlVal,
+                            isWin && styles.greenText,
+                            isLoss && styles.redText,
+                            isOpen && styles.goldText,
+                          ]}
+                        >
+                          {!isOpen ? formatCurrency(trade.pnl!) : t('openTradeStatus')}
+                        </Text>
+                        {isWin ? (
+                          <ArrowUpRight size={13} color={theme.colors.greenLight} />
+                        ) : isLoss ? (
+                          <ArrowDownRight size={13} color={theme.colors.redLight} />
+                        ) : null}
+                      </View>
+                    </View>
+
+                    {/* Middle Row: Setup & R:R */}
+                    <View style={styles.calMiddleRow}>
+                      {(() => {
+                        const realSetups = (trade.setup_structures || []).filter(s => s !== 'BOS' && s !== 'TF');
+                        if (realSetups.length > 0) {
+                          return <Text style={styles.calSetupText} numberOfLines={1}>{realSetups.join(' · ')}</Text>;
+                        }
+                        return null;
+                      })()}
+                      {trade.r_multiple !== null && (
+                        <Badge
+                          label={`${trade.r_multiple >= 0 ? '+' : ''}${trade.r_multiple.toFixed(1)}R`}
+                          variant={trade.r_multiple > 0 ? 'gold' : trade.r_multiple < 0 ? 'red' : 'neutral'}
+                          size="sm"
+                          style={{ marginLeft: 'auto' }}
+                        />
+                      )}
+                    </View>
+
+                    {/* Footer: Account, Entry & Exit Date/Time, Result */}
+                    <View style={styles.calFooterRow}>
+                      <View style={styles.calAccDateWrap}>
+                        {acc && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={styles.calAccName} numberOfLines={1}>{acc.name}</Text>
+                            <Badge label={isFutures ? 'FUTURES' : 'CFD'} variant={isFutures ? 'gold' : 'blue'} size="sm" />
+                          </View>
+                        )}
+                        <Text style={styles.calDateDetails}>
+                          IN: {new Date(trade.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
+                          {trade.exit_time && ` · OUT: ${new Date(trade.exit_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}`}
+                        </Text>
+                      </View>
+                      <Badge
+                        label={trade.result || (isOpen ? 'OPEN' : 'CLOSED')}
+                        variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'}
+                        size="sm"
+                      />
+                    </View>
+                  </View>
+                </PressableScale>
+              );
+            })
           )}
         </Card>
+      )}
+
+      {/* Trade Detail Modal */}
+      {selectedTradeModal && (
+        <TradeDetailModal
+          trade={selectedTradeModal}
+          visible={!!selectedTradeModal}
+          onClose={() => setSelectedTradeModal(null)}
+          onEdit={() => {}}
+          onDelete={() => {}}
+        />
       )}
 
       <View style={{ height: 32 }} />
@@ -533,6 +629,98 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },
+  calTradeCard: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    marginBottom: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  calStrip: {
+    width: 4,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  stripWin: {
+    backgroundColor: theme.colors.green,
+  },
+  stripLoss: {
+    backgroundColor: theme.colors.red,
+  },
+  stripOpen: {
+    backgroundColor: theme.colors.gold,
+  },
+  calCardContent: {
+    flex: 1,
+    padding: 10,
+  },
+  calHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  calPairWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calPairText: {
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    fontFamily: theme.fonts.sansBold,
+  },
+  calLotText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
+  },
+  calPnlWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  calPnlVal: {
+    fontSize: 13,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+  },
+  calMiddleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  calSetupText: {
+    color: theme.colors.primaryLight,
+    fontSize: 10,
+    fontFamily: theme.fonts.sansSemiBold,
+  },
+  calFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  calAccDateWrap: {
+    flex: 1,
+    marginRight: 6,
+  },
+  calAccName: {
+    color: theme.colors.textPrimary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+  },
+  calDateDetails: {
+    color: theme.colors.textMuted,
+    fontSize: 8,
+    fontFamily: theme.fonts.monoMedium,
+    marginTop: 2,
+  },
+  goldText: { color: theme.colors.goldLight },
   emptyText: {
     color: theme.colors.textMuted,
     fontSize: 11,

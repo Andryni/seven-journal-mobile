@@ -383,7 +383,8 @@ export const TradesScreen: React.FC = () => {
                 );
               })()}
               <Text style={styles.dateText}>
-                {new Date(item.entry_time).toLocaleDateString(localeFor(lang))} · {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
+                IN: {new Date(item.entry_time).toLocaleDateString(localeFor(lang))} {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}
+                {item.exit_time && ` · OUT: ${new Date(item.exit_time).toLocaleDateString(localeFor(lang))} ${new Date(item.exit_time).toLocaleTimeString(localeFor(lang), { hour: '2-digit', minute: '2-digit' })}`}
               </Text>
             </View>
             <Badge
