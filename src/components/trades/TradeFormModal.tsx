@@ -22,7 +22,7 @@ import { useAccounts } from '../../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../../features/playbook/usePlaybook';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState, ExecutionGrade, MistakeTag } from '../../types/domain';
-import { calculateRMultiple } from '../../utils/financials';
+import { calculateRMultiple, calculateAccuratePnL } from '../../utils/financials';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -257,58 +257,90 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setErrorMsg('');
   };
 
-  // Live Auto-Calculation Effect
+  // Live Auto-Calculation Effect (P&L, R-Multiple, and Result)
   useEffect(() => {
     const entry = Number(entryPrice);
     const sl = Number(stopLoss);
     const tp = Number(takeProfit);
     const exit = exitPrice ? Number(exitPrice) : null;
     const rVal = Number(riskValue);
-
-    // Auto-detect result from exit price
-    if (exit !== null && exit > 0 && entry > 0 && sl > 0 && tp > 0 && entry !== sl) {
-      if (Math.abs(exit - tp) < 0.001) setResult('TP');
-      else if (Math.abs(exit - sl) < 0.001) setResult('SL');
-      else if (Math.abs(exit - entry) < Math.abs(entry - sl) * 0.05) setResult('BE');
-    }
+    const lotSize = Number(size) || 1;
 
     if (!isNaN(entry) && !isNaN(sl) && entry > 0 && sl > 0 && entry !== sl) {
       const selectedAccount = accounts.find(acc => acc.id === accountId);
+      const isFuturesAccount = selectedAccount?.instrument_type === 'Futures';
       const balance = selectedAccount ? selectedAccount.balance : 100000;
 
-      let calculatedRiskUsd = 0;
+      let targetRiskUsd = 0;
       if (!isNaN(rVal) && rVal > 0) {
-        calculatedRiskUsd = riskType === 'percent' ? balance * (rVal / 100) : rVal;
+        targetRiskUsd = riskType === 'percent' ? balance * (rVal / 100) : rVal;
       }
 
       const slDist = Math.abs(entry - sl);
-      let r = 0;
-      if (result === 'TP') {
-        r = Math.abs(tp - entry) / slDist;
-      } else if (result === 'SL') {
-        r = -1;
-      } else if (result === 'BE') {
-        r = 0;
-      } else if (exit !== null && exit > 0) {
-        r = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
-      }
+      let calculatedR = 0;
 
-      if (r !== 0 && !isNaN(r)) {
-        const nextR = r.toFixed(2);
-        setManualRMultiple(nextR);
+      // 1. If Exit Price is filled, compute accurate R and P&L from exit price
+      if (exit !== null && exit > 0) {
+        calculatedR = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
 
-        if (calculatedRiskUsd > 0) {
-          setManualPnl((r * calculatedRiskUsd).toFixed(2));
+        // Auto-detect result (TP / SL / BE)
+        if (Math.abs(calculatedR) < 0.15) {
+          setResult('BE');
+        } else if (calculatedR > 0) {
+          setResult('TP');
         } else {
-          const lot = Number(size) || 1;
-          const pnl = direction === 'BUY'
-            ? ((exit ?? tp) - entry) * lot * 100
-            : (entry - (exit ?? tp)) * lot * 100;
-          setManualPnl(pnl.toFixed(2));
+          setResult('SL');
+        }
+
+        // Calculate accurate P&L
+        const exactPnl = calculateAccuratePnL({
+          pair,
+          direction,
+          entryPrice: entry,
+          exitPrice: exit,
+          size: lotSize,
+          isFutures: isFuturesAccount,
+          futuresSize,
+        });
+
+        setManualRMultiple(calculatedR.toFixed(2));
+        setManualPnl(exactPnl.toFixed(2));
+      } else {
+        // 2. If Trade is still OPEN or no exit price yet, calculate based on selected Result (TP/SL)
+        if (result === 'TP' && tp > 0) {
+          calculatedR = Math.abs(tp - entry) / slDist;
+          if (direction === 'SELL' && tp > entry) calculatedR = -calculatedR;
+          setManualRMultiple(calculatedR.toFixed(2));
+
+          const tpPnl = calculateAccuratePnL({
+            pair,
+            direction,
+            entryPrice: entry,
+            exitPrice: tp,
+            size: lotSize,
+            isFutures: isFuturesAccount,
+            futuresSize,
+          });
+          setManualPnl(tpPnl.toFixed(2));
+        } else if (result === 'SL') {
+          setManualRMultiple('-1.00');
+          const slPnl = calculateAccuratePnL({
+            pair,
+            direction,
+            entryPrice: entry,
+            exitPrice: sl,
+            size: lotSize,
+            isFutures: isFuturesAccount,
+            futuresSize,
+          });
+          setManualPnl(slPnl.toFixed(2));
+        } else if (result === 'BE') {
+          setManualRMultiple('0.00');
+          setManualPnl('0.00');
         }
       }
     }
-  }, [entryPrice, stopLoss, takeProfit, exitPrice, direction, result, size, riskValue, riskType, accountId, accounts]);
+  }, [entryPrice, stopLoss, takeProfit, exitPrice, direction, result, size, riskValue, riskType, pair, futuresSize, accountId, accounts]);
 
   // Image Picker Handler
   const pickImage = async (target: 'before' | 'after') => {
@@ -746,7 +778,43 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               {/* Volume & Prix d'entrée */}
               <View style={styles.row2}>
                 <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{isFutures ? t('tfVolumeFutures') : t('tfVolume')}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.fieldLabel}>{isFutures ? t('tfVolumeFutures') : t('tfVolume')}</Text>
+                    {/* Auto-Calculate Position Size Button */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        const ent = Number(entryPrice);
+                        const s = Number(stopLoss);
+                        const r = Number(riskValue);
+                        const bal = selectedAccount ? selectedAccount.balance : 100000;
+                        if (ent > 0 && s > 0 && ent !== s && r > 0) {
+                          const riskUsd = riskType === 'percent' ? bal * (r / 100) : r;
+                          const slDist = Math.abs(ent - s);
+                          if (isFutures && futuresInfo) {
+                            const slTicks = slDist / futuresInfo.tickSize;
+                            const riskPerContract = slTicks * futuresInfo.tickValue;
+                            const c = Math.max(1, Math.round(riskUsd / riskPerContract));
+                            setSize(c.toString());
+                          } else {
+                            // CFD
+                            const p = pair.toUpperCase();
+                            let pointValPerLot = 100;
+                            if (p === 'XAUUSD' || p === 'GOLD') pointValPerLot = 100;
+                            else if (p === 'NAS100') pointValPerLot = 20;
+                            else if (p === 'US30') pointValPerLot = 1;
+                            else if (p.includes('USD') || p.includes('EUR')) pointValPerLot = 1000;
+
+                            const computedLots = riskUsd / (slDist * pointValPerLot);
+                            const finalLots = Math.max(0.01, Math.round(computedLots * 100) / 100);
+                            setSize(finalLots.toString());
+                          }
+                        }
+                      }}
+                      style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(99, 102, 241, 0.15)', borderRadius: 4 }}
+                    >
+                      <Text style={{ color: theme.colors.primaryLight, fontSize: 9, fontFamily: theme.fonts.sansBold }}>⚡ Auto-Calc</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TextInput
                     style={styles.input}
                     placeholder="1.0"
