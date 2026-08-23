@@ -27,6 +27,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { parseTradeScreenshotAI } from '../../utils/aiTradeParser';
+import { detectSessionFromDate } from '../../utils/formatDate';
 import {
   X,
   AlertCircle,
@@ -220,16 +221,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   }, [editingTrade, visible]);
 
   const resetForm = () => {
+    const now = new Date();
     setAccountId(activeAccountId || (accounts[0]?.id ?? ''));
     setAccountPickerVisible(false);
     setSessionPickerVisible(false);
     setPair('XAUUSD');
-    setEntryDateObj(new Date());
+    setEntryDateObj(now);
     setShowDatePicker(false);
     setShowTimePicker(false);
     setDirection('BUY');
     setTimeframe('M5');
-    setSession('London');
+    setSession(detectSessionFromDate(now));
     setSize('1.0');
     setEntryPrice('');
     setStopLoss('');
@@ -642,6 +644,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       const updated = new Date(entryDateObj);
                       updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
                       setEntryDateObj(updated);
+                      setSession(detectSessionFromDate(updated));
                     }
                   }}
                 />
@@ -662,6 +665,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       const updated = new Date(entryDateObj);
                       updated.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
                       setEntryDateObj(updated);
+                      setSession(detectSessionFromDate(updated));
                     }
                   }}
                 />

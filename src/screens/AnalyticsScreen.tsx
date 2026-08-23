@@ -563,13 +563,61 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB: BREAKDOWN ── */}
       {activeTab === 'breakdown' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
-          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+          {/* Alerte Dérive M1 > 1h */}
+          {data.abnormalM1Trades.length > 0 && (
+            <Animated.View entering={FadeIn.delay(0).duration(350)}>
+              <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)', borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <Text style={{ color: theme.colors.redLight, fontSize: 11, fontFamily: theme.fonts.sansBold, marginBottom: 4 }}>
+                  {t('m1DriftAlert')}
+                </Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 10, lineHeight: 14 }}>
+                  {t('m1DriftDesc', data.abnormalM1Trades.length, formatCurrency(data.abnormalM1Trades.reduce((acc, tr) => acc + (tr.pnl || 0), 0)))}
+                </Text>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Performance par Style de Trading (Scalp / Intraday / Swing) */}
+          <Animated.View entering={FadeIn.delay(40).duration(350)}>
+            <Card title={t('perfByTradeStyle')}>
+              <View style={{ gap: 8 }}>
+                {[
+                  { key: 'scalping', label: t('tradeStyleScalping'), icon: '⚡' },
+                  { key: 'intraday', label: t('tradeStyleIntraday'), icon: '📈' },
+                  { key: 'swing', label: t('tradeStyleSwing'), icon: '🌊' },
+                ].map(st => {
+                  const item = data.styleMap[st.key];
+                  const count = item?.count || 0;
+                  const wins = item?.wins || 0;
+                  const pnl = item?.pnl || 0;
+                  const wr = count > 0 ? (wins / count) * 100 : 0;
+                  const isPos = pnl >= 0;
+
+                  return (
+                    <View key={st.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomColor: 'rgba(255,255,255,0.04)', borderBottomWidth: 1 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.boldWhite}>{st.icon} {st.label}</Text>
+                        <Text style={s.subMuted}>{count} trade(s) · {count > 0 ? `${wr.toFixed(0)}% WR` : '—'}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[s.boldVal, count > 0 ? (isPos ? s.greenText : s.redText) : { color: theme.colors.textMuted }]}>
+                          {count > 0 ? (isPos ? `+${formatCurrency(pnl)}` : formatCurrency(pnl)) : '$0.00'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(80).duration(350)}>
             <Card title={t('winRateBySetup')}><BreakdownRow items={data.setupBreakdown} icon="🎯" theme={theme}  /></Card>
           </Animated.View>
-          <Animated.View entering={FadeIn.delay(100).duration(350)}>
+          <Animated.View entering={FadeIn.delay(120).duration(350)}>
             <Card title={t('perfByInstrument')}><BreakdownRow items={data.pairBreakdown} theme={theme}  /></Card>
           </Animated.View>
-          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+          <Animated.View entering={FadeIn.delay(160).duration(350)}>
             <Card title={t('perfByTimeframe')}><BreakdownRow items={data.tfBreakdown} theme={theme}  /></Card>
           </Animated.View>
         </Animated.View>

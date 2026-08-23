@@ -1,4 +1,4 @@
-﻿-- ==========================================================
+-- ==========================================================
 -- SEVEN JOURNAL - MIGRATION GLOBALE SUPABASE (2026)
 -- Exécutez ce script dans l'éditeur SQL de votre dashboard Supabase
 -- ==========================================================
@@ -40,11 +40,14 @@ ALTER TABLE trading_accounts
   ADD COLUMN IF NOT EXISTS leverage INTEGER DEFAULT 100,
   ADD COLUMN IF NOT EXISTS challenge_end_date DATE;
 
--- 3. Colonnes et types nécessaires sur la table 	rades
+-- 3. Colonnes et types nécessaires sur la table trades
 ALTER TABLE trades
   ADD COLUMN IF NOT EXISTS exit_time TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS mental_state TEXT DEFAULT 'focused',
-  ADD COLUMN IF NOT EXISTS session TEXT;
+  ADD COLUMN IF NOT EXISTS session TEXT,
+  ADD COLUMN IF NOT EXISTS plan_respected BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS execution_grade TEXT DEFAULT 'A',
+  ADD COLUMN IF NOT EXISTS mistakes JSONB DEFAULT '[]'::jsonb;
 
 -- 4. Colonnes nécessaires sur daily_debriefs
 ALTER TABLE daily_debriefs

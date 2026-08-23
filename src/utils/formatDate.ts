@@ -46,17 +46,56 @@ export function formatShortDate(input: string | Date, lang: 'fr' | 'en' = 'fr'):
 }
 
 /**
- * Formats a date to short DD/MM or M/D format (no year).
- * Used when year is not needed on chart labels.
+ * Formats a duration in minutes into a clean human-readable string.
+ * e.g. 15m, 2h 30m, 1j 4h (FR) or 15m, 2h 30m, 1d 4h (EN)
  */
-export function formatShortDateNoYear(input: string | Date, lang: 'fr' | 'en' = 'fr'): string {
-  const full = formatShortDate(input, lang);
-  const parts = full.split('/');
-  if (parts.length === 3) {
-    if (lang === 'en') {
-      return `${parts[0]}/${parts[1]}`;
-    }
-    return `${parts[0]}/${parts[1]}`;
+export function formatTradeDuration(minutes: number, lang: 'fr' | 'en' = 'fr'): string {
+  if (minutes < 0 || isNaN(minutes)) return '—';
+  if (minutes < 1) return '< 1m';
+
+  const totalMins = Math.floor(minutes);
+  if (totalMins < 60) {
+    return `${totalMins}m`;
   }
-  return full;
+
+  const hours = Math.floor(totalMins / 60);
+  const remMins = totalMins % 60;
+
+  if (hours < 24) {
+    return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  const dayUnit = lang === 'en' ? 'd' : 'j';
+  return remHours > 0 ? `${days}${dayUnit} ${remHours}h` : `${days}${dayUnit}`;
+}
+
+export type TradeStyle = 'scalping' | 'intraday' | 'swing';
+
+/**
+ * Classifies a trade style based on its holding duration (in minutes).
+ * - < 30 min -> Scalping
+ * - 30 min to 24h -> Intraday
+ * - > 24h -> Swing Trading
+ */
+export function classifyTradeStyle(durationMinutes: number): TradeStyle {
+  if (durationMinutes < 30) return 'scalping';
+  if (durationMinutes <= 24 * 60) return 'intraday';
+  return 'swing';
+}
+
+/**
+ * Automatically detects the trading session from a Date object based on UTC time.
+ * - Asia: 00:00 - 07:00 UTC
+ * - London: 07:00 - 13:00 UTC
+ * - New York: 13:00 - 21:00 UTC
+ * - Over Session: 21:00 - 00:00 UTC
+ */
+export function detectSessionFromDate(date: Date): 'Asia' | 'London' | 'New York' | 'Over Session' {
+  const utcHours = date.getUTCHours();
+  if (utcHours >= 0 && utcHours < 7) return 'Asia';
+  if (utcHours >= 7 && utcHours < 13) return 'London';
+  if (utcHours >= 13 && utcHours < 21) return 'New York';
+  return 'Over Session';
 }

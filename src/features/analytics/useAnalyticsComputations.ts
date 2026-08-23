@@ -4,7 +4,7 @@ import { useAccounts } from '../accounts/useAccounts';
 import { usePlaybookSetups } from '../playbook/usePlaybook';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade } from '../../types/domain';
-import { formatShortDate } from '../../utils/formatDate';
+import { formatShortDate, classifyTradeStyle } from '../../utils/formatDate';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useI18nStore } from '../../i18n';
 import { translations } from '../../i18n/translations';
@@ -62,7 +62,12 @@ export function useAnalyticsComputations(dateRange: DateRange) {
       violatedWins: 0,
       violatedPnL: 0,
     };
-    const gradeMap: Record<string, { count: number; wins: number; pnl: number }> = {};
+    const styleMap: Record<string, { count: number; wins: number; pnl: number }> = {
+      scalping: { count: 0, wins: 0, pnl: 0 },
+      intraday: { count: 0, wins: 0, pnl: 0 },
+      swing: { count: 0, wins: 0, pnl: 0 },
+    };
+    const abnormalM1Trades: Trade[] = [];
     const hourMap: Record<number, number> = {};
     const dayMap: Record<number, { pnl: number; wins: number; total: number }> = {};
     const holdingBuckets = [
@@ -151,10 +156,22 @@ export function useAnalyticsComputations(dateRange: DateRange) {
       dayMap[dayIdx].pnl += pnl;
       if (isWin) dayMap[dayIdx].wins++;
 
-      // Holding time: use exit_time, fallback to now for open trades
+      // Holding time & Style classification
       const exitTime = t.exit_time ? new Date(t.exit_time).getTime() : Date.now();
       if (t.entry_time) {
         const mins = (exitTime - entryDate.getTime()) / 60000;
+        const style = classifyTradeStyle(mins);
+        if (styleMap[style]) {
+          styleMap[style].count++;
+          styleMap[style].pnl += pnl;
+          if (isWin) styleMap[style].wins++;
+        }
+
+        // Detect M1 scalp trades held > 60 minutes (Style drift / Hope trading)
+        if (t.timeframe === 'M1' && mins >= 60) {
+          abnormalM1Trades.push(t);
+        }
+
         for (const b of holdingBuckets) {
           if (mins >= b.min && mins < b.max) {
             b.count++;
@@ -169,12 +186,12 @@ export function useAnalyticsComputations(dateRange: DateRange) {
     return {
       wins, losses, breakeven,
       totalPnL, grossProfit, grossLoss: grossLossAbs, totalR,
-      pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, hourMap, dayMap,
+      pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, styleMap, abnormalM1Trades, hourMap, dayMap,
       holdingBuckets,
     };
   }, [closed]);
 
-  const { wins, losses, breakeven, totalPnL, grossProfit, grossLoss, pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, hourMap, dayMap, holdingBuckets } = computed;
+  const { wins, losses, breakeven, totalPnL, grossProfit, grossLoss, pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, styleMap, abnormalM1Trades, hourMap, dayMap, holdingBuckets } = computed;
   const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99.9 : 0;
   const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
   const avgWin = wins.length > 0 ? grossProfit / wins.length : 0;
@@ -588,6 +605,7 @@ export function useAnalyticsComputations(dateRange: DateRange) {
     timingBreakdown, mentalBreakdown, sessionBreakdown,
     dayOfWeekAnalysis, holdingTimeData,
     planDiscipline, gradeMap, mistakeMap,
+    styleMap, abnormalM1Trades,
     // Prop Firm
     expectancyR, propFirmData, ddProjection, consistencyData, challengeCountdown,
     // Features avancées

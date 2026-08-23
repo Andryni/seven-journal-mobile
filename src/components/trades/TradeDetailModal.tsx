@@ -15,10 +15,11 @@ import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, mistakeLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { formatTradeDuration, classifyTradeStyle } from '../../utils/formatDate';
 import { useTrades } from '../../features/trades/useTrades';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { Badge } from '../ui/Badge';
-import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
+import { X, Edit3, Trash2, ExternalLink, Clock, Zap } from 'lucide-react-native';
 
 interface TradeDetailModalProps {
   visible: boolean;
@@ -108,10 +109,37 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <Text style={styles.val}>{new Date(displayTrade.entry_time).toLocaleString(localeFor(lang))}</Text>
               </View>
               {displayTrade.exit_time && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>{t('tdExitDate')}</Text>
-                  <Text style={styles.val}>{new Date(displayTrade.exit_time).toLocaleString(localeFor(lang))}</Text>
-                </View>
+                <>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.label}>{t('tdExitDate')}</Text>
+                    <Text style={styles.val}>{new Date(displayTrade.exit_time).toLocaleString(localeFor(lang))}</Text>
+                  </View>
+                  {(() => {
+                    const entryMs = new Date(displayTrade.entry_time).getTime();
+                    const exitMs = new Date(displayTrade.exit_time).getTime();
+                    const diffMins = Math.max(0, (exitMs - entryMs) / 60000);
+                    const styleKey = classifyTradeStyle(diffMins);
+                    const isStyleScalp = styleKey === 'scalping';
+                    const isStyleIntra = styleKey === 'intraday';
+
+                    return (
+                      <>
+                        <View style={styles.detailRow}>
+                          <Text style={styles.label}>{t('tdDuration')}</Text>
+                          <Text style={[styles.val, { color: theme.colors.primaryLight, fontWeight: '800' }]}>
+                            ⏱️ {formatTradeDuration(diffMins, lang)}
+                          </Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                          <Text style={styles.label}>{t('tdTradeStyle')}</Text>
+                          <Text style={[styles.val, { color: isStyleScalp ? theme.colors.cyanLight : isStyleIntra ? theme.colors.goldLight : theme.colors.purpleLight, fontWeight: '800' }]}>
+                            {styleKey === 'scalping' ? t('tradeStyleScalping') : styleKey === 'intraday' ? t('tradeStyleIntraday') : t('tradeStyleSwing')}
+                          </Text>
+                        </View>
+                      </>
+                    );
+                  })()}
+                </>
               )}
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdTimeframe')}</Text>
