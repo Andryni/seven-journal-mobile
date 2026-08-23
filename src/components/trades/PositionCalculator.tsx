@@ -69,6 +69,7 @@ export const PositionCalculator: React.FC = () => {
   const [lotSize, setLotSize] = useState<number | null>(null);
   const [contracts, setContracts] = useState<number | null>(null);
   const [riskUsd, setRiskUsd] = useState<number | null>(null);
+  const [actualRiskUsd, setActualRiskUsd] = useState<number | null>(null);
   const [pipValue, setPipValue] = useState<number | null>(null);
   const [slPips, setSlPips] = useState<number | null>(null);
   const [slTicks, setSlTicks] = useState<number | null>(null);
@@ -97,6 +98,7 @@ export const PositionCalculator: React.FC = () => {
       setLotSize(null);
       setContracts(null);
       setRiskUsd(null);
+      setActualRiskUsd(null);
       setPipValue(null);
       setSlPips(null);
       setSlTicks(null);
@@ -116,10 +118,14 @@ export const PositionCalculator: React.FC = () => {
       const slInPips = slDistance / inst.pip;
       const pipValuePerLot = inst.pip * inst.contractSize;
       const computedLotSize = computedRiskUsd / (slInPips * pipValuePerLot);
+      const roundedLotSize = Math.round(computedLotSize * 100) / 100;
+      const realRisk = roundedLotSize * slInPips * pipValuePerLot;
+
       setSlPips(Math.round(slInPips * 10) / 10);
       setSlTicks(null);
       setPipValue(pipValuePerLot);
-      setLotSize(Math.round(computedLotSize * 100) / 100);
+      setLotSize(roundedLotSize);
+      setActualRiskUsd(Math.round(realRisk * 100) / 100);
       setContracts(null);
     } else {
       // Futures: ticks = slDistance / tickSize, value per tick = tickValue
@@ -135,9 +141,13 @@ export const PositionCalculator: React.FC = () => {
         // Risk too small for even 1 contract
         setRiskTooLow(true);
         setContracts(null);
+        setActualRiskUsd(null);
       } else {
+        const roundedContracts = Math.round(computedContracts);
+        const realRisk = roundedContracts * riskPerContract;
         setRiskTooLow(false);
-        setContracts(Math.round(computedContracts));
+        setContracts(roundedContracts);
+        setActualRiskUsd(Math.round(realRisk * 100) / 100);
       }
       setLotSize(null);
     }
@@ -305,6 +315,23 @@ export const PositionCalculator: React.FC = () => {
           {/* Details row — always shown when we have data */}
           {riskUsd !== null && (
             <View style={styles.resultRow}>
+              {/* Vrai risque réel basé sur l'arrondi de lot/contrat */}
+              {actualRiskUsd !== null && (
+                <View style={styles.resultItem}>
+                  <Text style={[styles.resultItemLabel, { color: theme.colors.primaryLight }]}>
+                    {t('posCalcActualRiskUsd')}
+                  </Text>
+                  <Text style={[styles.resultItemValue, { color: theme.colors.primaryLight, fontWeight: '900' }]}>
+                    ${actualRiskUsd?.toFixed(2)}
+                  </Text>
+                  {activeAccount && (
+                    <Text style={[styles.resultItemSub, { color: theme.colors.primaryLight }]}>
+                      {((actualRiskUsd / activeAccount.balance) * 100).toFixed(2)}%
+                    </Text>
+                  )}
+                </View>
+              )}
+
               <View style={styles.resultItem}>
                 <Text style={styles.resultItemLabel}>{t('posCalcRiskUsd')}</Text>
                 <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
@@ -316,6 +343,7 @@ export const PositionCalculator: React.FC = () => {
                   </Text>
                 )}
               </View>
+
               <View style={styles.resultItem}>
                 <Text style={styles.resultItemLabel}>
                   {isFutures ? t('posCalcSlTicks') : t('posCalcSlPips')}
@@ -324,6 +352,7 @@ export const PositionCalculator: React.FC = () => {
                   {isFutures ? slTicks : slPips}
                 </Text>
               </View>
+
               <View style={styles.resultItem}>
                 <Text style={styles.resultItemLabel}>
                   {isFutures ? t('posCalcTickValue') : t('posCalcPipValue')}

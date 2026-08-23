@@ -24,7 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
-import { useT, type TFunction } from '../i18n';
+import { useT, type TFunction, mistakeLabel } from '../i18n';
 import { formatCurrency } from '../utils/formatCurrency';
 import { Card } from '../components/ui/Card';
 import { DonutChart } from '../components/charts/DonutChart';
@@ -43,6 +43,9 @@ import {
   Flame,
   Shield,
   Share2,
+  CheckCircle2,
+  AlertOctagon,
+  ShieldAlert,
 } from 'lucide-react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAnalyticsComputations, type DateRange } from '../features/analytics/useAnalyticsComputations';
@@ -684,7 +687,77 @@ export const AnalyticsScreen: React.FC = () => {
             </Animated.View>
           )}
 
+          {/* PLAN DISCIPLINE COMPARISON (EDGE CRÉATEUR) */}
+          <Animated.View entering={FadeIn.delay(60).duration(350)}>
+            <Card title={t('planRespectedCard')}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                {/* Plan Respecté */}
+                <View style={[s.kpiBox, { flex: 1, backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.25)', borderWidth: 1 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <CheckCircle2 size={12} color={theme.colors.greenLight} />
+                    <Text style={[s.kpiLabel, { color: theme.colors.greenLight }]}>{t('tfPlanYes')}</Text>
+                  </View>
+                  <Text style={[s.kpiVal, s.greenText]}>
+                    {data.planDiscipline.respectedCount > 0
+                      ? `${((data.planDiscipline.respectedWins / data.planDiscipline.respectedCount) * 100).toFixed(0)}% WR`
+                      : '—'}
+                  </Text>
+                  <Text style={[s.subMuted, { fontSize: 9, marginTop: 2, color: theme.colors.greenLight }]}>
+                    {data.planDiscipline.respectedPnL >= 0 ? `+${formatCurrency(data.planDiscipline.respectedPnL)}` : formatCurrency(data.planDiscipline.respectedPnL)} ({data.planDiscipline.respectedCount} trades)
+                  </Text>
+                </View>
+
+                {/* Plan Violé */}
+                <View style={[s.kpiBox, { flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.25)', borderWidth: 1 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                    <AlertOctagon size={12} color={theme.colors.redLight} />
+                    <Text style={[s.kpiLabel, { color: theme.colors.redLight }]}>{t('tfPlanNo')}</Text>
+                  </View>
+                  <Text style={[s.kpiVal, s.redText]}>
+                    {data.planDiscipline.violatedCount > 0
+                      ? `${((data.planDiscipline.violatedWins / data.planDiscipline.violatedCount) * 100).toFixed(0)}% WR`
+                      : '—'}
+                  </Text>
+                  <Text style={[s.subMuted, { fontSize: 9, marginTop: 2, color: theme.colors.redLight }]}>
+                    {data.planDiscipline.violatedPnL >= 0 ? `+${formatCurrency(data.planDiscipline.violatedPnL)}` : formatCurrency(data.planDiscipline.violatedPnL)} ({data.planDiscipline.violatedCount} trades)
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+
+          {/* LEAK DETECTOR (COÛT FINANCIER DES ERREURS) */}
           <Animated.View entering={FadeIn.delay(80).duration(350)}>
+            <Card title={t('leakDetectorCard')}>
+              {Object.keys(data.mistakeMap).length === 0 ? (
+                <Text style={s.emptyText}>{t('noMistakesRecorded')}</Text>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {Object.entries(data.mistakeMap)
+                    .sort(([, a], [, b]) => a.pnl - b.pnl)
+                    .map(([mKey, stats], idx) => {
+                      const cost = stats.pnl;
+                      const isNeg = cost < 0;
+                      return (
+                        <View key={mKey} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomColor: 'rgba(255,255,255,0.04)', borderBottomWidth: 1 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.boldWhite}>{mistakeLabel(t, mKey)}</Text>
+                            <Text style={s.subMuted}>{stats.count} occurrence(s) · {stats.losses} perte(s)</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[s.boldVal, isNeg ? s.redText : s.greenText]}>
+                              {cost >= 0 ? `+${formatCurrency(cost)}` : formatCurrency(cost)}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                </View>
+              )}
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(100).duration(350)}>
             <Card title={t('mentalImpact')}>
               <BreakdownRow items={data.mentalBreakdown} icon="🧠" theme={theme} />
             </Card>

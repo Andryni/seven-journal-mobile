@@ -66,6 +66,22 @@ export function sessionLabel(t: TFunction, id: string | null | undefined): strin
   return key ? t(key) : id ? id.toUpperCase() : '—';
 }
 
+const MISTAKE_KEYS: Record<string, FrKeys> = {
+  early_exit: 'mistakeEarlyExit',
+  moved_sl: 'mistakeMovedSl',
+  fomo_entry: 'mistakeFomoEntry',
+  overleveraged: 'mistakeOverleveraged',
+  counter_trend: 'mistakeCounterTrend',
+  impatience: 'mistakeImpatience',
+  revenge_trade: 'mistakeRevengeTrade',
+};
+
+/** Libellé traduit d'une erreur (ids stockés en DB : early_exit, moved_sl, fomo_entry, overleveraged, counter_trend, impatience, revenge_trade). */
+export function mistakeLabel(t: TFunction, id: string | null | undefined): string {
+  const key = id !== null && id !== undefined ? MISTAKE_KEYS[id] : undefined;
+  return key ? t(key) : id || '—';
+}
+
 /** Libellé traduit d'un type de compte (ids stockés en DB : challenge, funded, personal, demo). */
 export function accountTypeLabel(t: TFunction, id: string | null | undefined): string {
   const key = id !== null && id !== undefined ? ACCOUNT_TYPE_KEYS[id] : undefined;

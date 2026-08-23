@@ -53,6 +53,16 @@ export function useAnalyticsComputations(dateRange: DateRange) {
     const tfMap: Record<string, { pnl: number; wins: number; total: number }> = {};
     const sessionMap: Record<string, { pnl: number; wins: number; total: number; totalR: number }> = {};
     const mentalMap: Record<string, { pnl: number; wins: number; total: number }> = {};
+    const mistakeMap: Record<string, { pnl: number; count: number; losses: number }> = {};
+    const planDiscipline = {
+      respectedCount: 0,
+      respectedWins: 0,
+      respectedPnL: 0,
+      violatedCount: 0,
+      violatedWins: 0,
+      violatedPnL: 0,
+    };
+    const gradeMap: Record<string, { count: number; wins: number; pnl: number }> = {};
     const hourMap: Record<number, number> = {};
     const dayMap: Record<number, { pnl: number; wins: number; total: number }> = {};
     const holdingBuckets = [
@@ -76,6 +86,35 @@ export function useAnalyticsComputations(dateRange: DateRange) {
       else { breakeven.push(t); }
       totalPnL += pnl;
       totalR += r;
+
+      // Plan Discipline
+      if (t.plan_respected === true || t.plan_respected === undefined) {
+        planDiscipline.respectedCount++;
+        planDiscipline.respectedPnL += pnl;
+        if (isWin) planDiscipline.respectedWins++;
+      } else if (t.plan_respected === false) {
+        planDiscipline.violatedCount++;
+        planDiscipline.violatedPnL += pnl;
+        if (isWin) planDiscipline.violatedWins++;
+      }
+
+      // Execution Grade
+      if (t.execution_grade) {
+        if (!gradeMap[t.execution_grade]) gradeMap[t.execution_grade] = { count: 0, wins: 0, pnl: 0 };
+        gradeMap[t.execution_grade].count++;
+        gradeMap[t.execution_grade].pnl += pnl;
+        if (isWin) gradeMap[t.execution_grade].wins++;
+      }
+
+      // Mistakes Leak Detector
+      if (t.mistakes && Array.isArray(t.mistakes)) {
+        for (const m of t.mistakes) {
+          if (!mistakeMap[m]) mistakeMap[m] = { pnl: 0, count: 0, losses: 0 };
+          mistakeMap[m].count++;
+          mistakeMap[m].pnl += pnl;
+          if (isLoss) mistakeMap[m].losses++;
+        }
+      }
 
       if (!pairMap[t.pair]) pairMap[t.pair] = { pnl: 0, wins: 0, total: 0 };
       pairMap[t.pair].pnl += pnl;
@@ -130,12 +169,12 @@ export function useAnalyticsComputations(dateRange: DateRange) {
     return {
       wins, losses, breakeven,
       totalPnL, grossProfit, grossLoss: grossLossAbs, totalR,
-      pairMap, tfMap, sessionMap, mentalMap, hourMap, dayMap,
+      pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, hourMap, dayMap,
       holdingBuckets,
     };
   }, [closed]);
 
-  const { wins, losses, breakeven, totalPnL, grossProfit, grossLoss, pairMap, tfMap, sessionMap, mentalMap, hourMap, dayMap, holdingBuckets } = computed;
+  const { wins, losses, breakeven, totalPnL, grossProfit, grossLoss, pairMap, tfMap, sessionMap, mentalMap, mistakeMap, planDiscipline, gradeMap, hourMap, dayMap, holdingBuckets } = computed;
   const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99.9 : 0;
   const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
   const avgWin = wins.length > 0 ? grossProfit / wins.length : 0;
@@ -544,10 +583,11 @@ export function useAnalyticsComputations(dateRange: DateRange) {
     // Charts
     equityKitData, maxDrawdown, currentDrawdown, drawdownData,
     dailyPnL, winRateTrend, donutData,
-    // Breakdowns
+    // Breakdowns & Discipline
     setupBreakdown, pairBreakdown, tfBreakdown,
     timingBreakdown, mentalBreakdown, sessionBreakdown,
     dayOfWeekAnalysis, holdingTimeData,
+    planDiscipline, gradeMap, mistakeMap,
     // Prop Firm
     expectancyR, propFirmData, ddProjection, consistencyData, challengeCountdown,
     // Features avancées

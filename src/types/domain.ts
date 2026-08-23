@@ -10,6 +10,17 @@ export type MentalState =
 
 export type AccountType = 'challenge' | 'funded' | 'personal' | 'demo';
 
+export type ExecutionGrade = 'A+' | 'A' | 'B' | 'C' | 'D';
+
+export type MistakeTag =
+  | 'early_exit'
+  | 'moved_sl'
+  | 'fomo_entry'
+  | 'overleveraged'
+  | 'counter_trend'
+  | 'impatience'
+  | 'revenge_trade';
+
 export interface Trade {
   id: string;
   user_id: string;
@@ -37,6 +48,9 @@ export interface Trade {
   mental_state: 'focused' | 'anxious' | 'greedy' | 'revenge' | 'fomo' | 'tired';
   cookie_jar_ref: boolean;
   rule_40_percent: boolean;
+  plan_respected?: boolean;
+  execution_grade?: ExecutionGrade | null;
+  mistakes?: MistakeTag[];
   screenshot_before_url: string | null;
   screenshot_after_url: string | null;
   notes: string | null;

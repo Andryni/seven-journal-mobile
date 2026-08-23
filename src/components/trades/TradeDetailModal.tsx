@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
-import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
+import { localeFor, mentalStateLabel, mistakeLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useTrades } from '../../features/trades/useTrades';
@@ -201,7 +201,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </View>
             )}
 
-            {/* Psychologie & Notes */}
+            {/* Psychologie, Discipline & Notes */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>{t('tdPsychologyNotes')}</Text>
               <View style={styles.detailRow}>
@@ -210,6 +210,40 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                   {mentalStateLabel(t, displayTrade.mental_state)}
                 </Text>
               </View>
+
+              {displayTrade.plan_respected !== undefined && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>{t('tdPlanRespected')}</Text>
+                  <Text style={[styles.val, { color: displayTrade.plan_respected ? '#10B981' : '#EF4444', fontWeight: '800' }]}>
+                    {displayTrade.plan_respected ? t('tdPlanYes') : t('tdPlanNo')}
+                  </Text>
+                </View>
+              )}
+
+              {displayTrade.execution_grade && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>{t('tdExecutionGrade')}</Text>
+                  <Text style={[styles.val, { color: theme.colors.primaryLight, fontWeight: '800' }]}>
+                    {displayTrade.execution_grade}
+                  </Text>
+                </View>
+              )}
+
+              {displayTrade.mistakes && displayTrade.mistakes.length > 0 && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[styles.label, { marginBottom: 6 }]}>{t('tdMistakesMade')}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {displayTrade.mistakes.map((m, idx) => (
+                      <View key={idx} style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)', borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <Text style={{ color: '#F87171', fontSize: 10, fontFamily: theme.fonts.sansSemiBold }}>
+                          {mistakeLabel(t, m)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
               {displayTrade.cookie_jar_ref && (
                 <Text style={styles.goldText}>{t('tdCookieJar')}</Text>
               )}

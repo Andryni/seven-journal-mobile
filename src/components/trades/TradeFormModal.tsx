@@ -16,12 +16,12 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
-import { accountTypeLabel, localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
+import { accountTypeLabel, localeFor, mentalStateLabel, mistakeLabel, sessionLabel, useT } from '../../i18n';
 import { useTrades } from '../../features/trades/useTrades';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../../features/playbook/usePlaybook';
 import { useUIStore } from '../../store/uiStore';
-import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
+import type { Trade, TradeTimeframe, MentalState, ExecutionGrade, MistakeTag } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
@@ -40,12 +40,26 @@ import {
   Wallet,
   Calendar,
   Sparkles,
+  CheckCircle,
+  AlertTriangle,
 } from 'lucide-react-native';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
 
 const MENTAL_STATE_IDS: MentalState[] = ['focused', 'anxious', 'greedy', 'revenge', 'fomo', 'tired'];
+
+const EXECUTION_GRADES: ExecutionGrade[] = ['A+', 'A', 'B', 'C', 'D'];
+
+const MISTAKE_TAG_IDS: MistakeTag[] = [
+  'early_exit',
+  'moved_sl',
+  'fomo_entry',
+  'overleveraged',
+  'counter_trend',
+  'impatience',
+  'revenge_trade',
+];
 
 interface TradeFormModalProps {
   visible: boolean;
@@ -105,8 +119,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [screenshotBeforeType, setScreenshotBeforeType] = useState<'url' | 'file'>('url');
   const [screenshotAfterType, setScreenshotAfterType] = useState<'url' | 'file'>('url');
 
-  // Section 4: Mental State & Notes
+  // Section 4: Mental State, Discipline & Notes
   const [mentalState, setMentalState] = useState<MentalState>('focused');
+  const [planRespected, setPlanRespected] = useState<boolean>(true);
+  const [executionGrade, setExecutionGrade] = useState<ExecutionGrade>('A');
+  const [selectedMistakes, setSelectedMistakes] = useState<MistakeTag[]>([]);
   const [notes, setNotes] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -193,6 +210,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setScreenshotBefore(editingTrade.screenshot_before_url || '');
       setScreenshotAfter(editingTrade.screenshot_after_url || '');
       setMentalState(editingTrade.mental_state || 'focused');
+      setPlanRespected(editingTrade.plan_respected ?? true);
+      setExecutionGrade(editingTrade.execution_grade || 'A');
+      setSelectedMistakes(editingTrade.mistakes || []);
       setNotes(editingTrade.notes || '');
     } else {
       resetForm();
@@ -228,6 +248,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setScreenshotBefore('');
     setScreenshotAfter('');
     setMentalState('focused');
+    setPlanRespected(true);
+    setExecutionGrade('A');
+    setSelectedMistakes([]);
     setNotes('');
     setErrorMsg('');
   };
@@ -365,6 +388,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       bookmap_aggressive_orders: null,
       bookmap_vwap_position: null,
       mental_state: mentalState,
+      plan_respected: planRespected,
+      execution_grade: executionGrade,
+      mistakes: selectedMistakes,
       cookie_jar_ref: false,
       rule_40_percent: false,
       screenshot_before_url: screenshotBefore || null,
@@ -1174,6 +1200,83 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {/* Respect du Plan (Discipline Toggle) */}
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>{t('tfPlanRespected')}</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.directionBtn,
+                    planRespected === true && { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10B981', borderWidth: 1 }
+                  ]}
+                  onPress={() => setPlanRespected(true)}
+                >
+                  <CheckCircle size={14} color={planRespected === true ? '#10B981' : theme.colors.textMuted} />
+                  <Text style={[styles.directionText, planRespected === true && { color: '#10B981', fontWeight: '800' }]}>
+                    {t('tfPlanYes')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.directionBtn,
+                    planRespected === false && { backgroundColor: 'rgba(239, 68, 68, 0.2)', borderColor: '#EF4444', borderWidth: 1 }
+                  ]}
+                  onPress={() => setPlanRespected(false)}
+                >
+                  <AlertTriangle size={14} color={planRespected === false ? '#EF4444' : theme.colors.textMuted} />
+                  <Text style={[styles.directionText, planRespected === false && { color: '#EF4444', fontWeight: '800' }]}>
+                    {t('tfPlanNo')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Execution Grade (A+, A, B, C, D) */}
+              <Text style={styles.fieldLabel}>{t('tfExecutionGrade')}</Text>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                {EXECUTION_GRADES.map(grade => (
+                  <TouchableOpacity
+                    key={grade}
+                    style={[
+                      styles.pill,
+                      { flex: 1, alignItems: 'center', justifyContent: 'center' },
+                      executionGrade === grade && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primaryLight }
+                    ]}
+                    onPress={() => setExecutionGrade(grade)}
+                  >
+                    <Text style={[styles.pillText, executionGrade === grade && styles.whiteText]}>
+                      {grade}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Mistake Tags (Leak Detector) */}
+              <Text style={styles.fieldLabel}>{t('tfMistakes')}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {MISTAKE_TAG_IDS.map(mId => {
+                  const isSelected = selectedMistakes.includes(mId);
+                  return (
+                    <TouchableOpacity
+                      key={mId}
+                      style={[
+                        styles.pill,
+                        isSelected && { backgroundColor: 'rgba(239, 68, 68, 0.2)', borderColor: '#EF4444' }
+                      ]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedMistakes(selectedMistakes.filter(m => m !== mId));
+                        } else {
+                          setSelectedMistakes([...selectedMistakes, mId]);
+                        }
+                      }}
+                    >
+                      <Text style={[styles.pillText, isSelected && { color: '#F87171', fontWeight: '800' }]}>
+                        {isSelected ? '✕ ' : '+ '}{mistakeLabel(t, mId)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
               <Text style={styles.fieldLabel}>{t('tfNotes')}</Text>
               <TextInput
