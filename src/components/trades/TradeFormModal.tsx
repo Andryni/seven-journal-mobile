@@ -129,6 +129,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   const [errorMsg, setErrorMsg] = useState('');
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
+  const [futuresSize, setFuturesSize] = useState<'mini' | 'micro'>('mini');
 
   const handleScanScreenshotAI = async () => {
     try {
@@ -451,7 +452,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const selectedAccount = accounts.find(a => a.id === accountId);
   const isFutures = selectedAccount?.instrument_type === 'Futures';
   const selectedSessionLabel = sessionLabel(t, session);
-  const [futuresSize, setFuturesSize] = useState<'mini' | 'micro'>('mini');
 
   // Futures tick values for auto-calculation (mini vs micro)
   const FUTURES_INSTRUMENTS: Record<string, { label: string; mini: { tickSize: number; tickValue: number; pointValue: number }; micro: { tickSize: number; tickValue: number; pointValue: number } }> = {

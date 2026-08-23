@@ -150,7 +150,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                         </View>
                         <View style={styles.detailRow}>
                           <Text style={styles.label}>{t('tdTradeStyle')}</Text>
-                          <Text style={[styles.val, { color: isStyleScalp ? theme.colors.cyanLight : isStyleIntra ? theme.colors.goldLight : theme.colors.purpleLight, fontWeight: '800' }]}>
+                          <Text style={[styles.val, { color: isStyleScalp ? theme.colors.cyanLight : isStyleIntra ? theme.colors.goldLight : theme.colors.primaryLight, fontWeight: '800' }]}>
                             {styleKey === 'scalping' ? t('tradeStyleScalping') : styleKey === 'intraday' ? t('tradeStyleIntraday') : t('tradeStyleSwing')}
                           </Text>
                         </View>

@@ -433,7 +433,7 @@ const createStyles = (theme: AppTheme) =>
     modalContent: {
       width: '100%',
       maxWidth: 420,
-      backgroundColor: theme.colors.cardBackground,
+      backgroundColor: theme.colors.card,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.colors.cardBorder,

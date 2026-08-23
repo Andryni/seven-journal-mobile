@@ -304,6 +304,7 @@ export const AnalyticsScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const onRefresh = async () => {
