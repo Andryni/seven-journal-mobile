@@ -33,6 +33,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 import { AnimatedNumberTicker } from '../components/ui/AnimatedNumberTicker';
+import { PressableScale } from '../components/ui/PressableScale';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'BE' | 'OPEN';
 
@@ -288,10 +289,9 @@ export const TradesScreen: React.FC = () => {
 
     return (
       <SwipeableRow onDelete={() => handleDeleteTrade(item.id)}>
-      <TouchableOpacity
+      <PressableScale
         style={[styles.tradeCard, isOpen && styles.tradeCardOpenGlow]}
         onPress={() => handleViewTrade(item)}
-        activeOpacity={0.85}
       >
         {/* Glowing Left Indicator Strip */}
         <View
@@ -393,7 +393,7 @@ export const TradesScreen: React.FC = () => {
             />
           </View>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
       </SwipeableRow>
     );
   };

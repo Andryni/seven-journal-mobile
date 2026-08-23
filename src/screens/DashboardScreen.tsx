@@ -39,6 +39,8 @@ import { AchievementsCard } from '../components/dashboard/AchievementsCard';
 import { formatCurrency } from '../utils/formatCurrency';
 import { KpiCard } from '../components/ui/KpiCard';
 import { StatRow } from '../components/ui/StatRow';
+import { RadialGaugeSpeedometer } from '../components/charts/RadialGaugeSpeedometer';
+import { PressableScale } from '../components/ui/PressableScale';
 
 function getMarketSessions(date: Date) {
   const utcHour = date.getUTCHours();
@@ -231,7 +233,7 @@ export const DashboardScreen: React.FC = () => {
           decimals={2}
           valueColor={isPositive ? theme.colors.greenLight : theme.colors.redLight}
           sub={`${m.totalTrades} ${t('positions')}`}
-          glow={isPositive}
+          glow={isPositive ? 'green' : 'red'}
         />
         <KpiCard
           label={t('winRateGlobal')}
@@ -240,6 +242,7 @@ export const DashboardScreen: React.FC = () => {
           suffix="%"
           decimals={1}
           valueColor={m.winRate >= 50 ? theme.colors.greenLight : theme.colors.redLight}
+          glow="cyan"
           sub={
             <Text>
               <Text style={styles.greenText}>{m.winCount}W</Text> · <Text style={styles.redText}>{m.lossCount}L</Text>
@@ -255,6 +258,7 @@ export const DashboardScreen: React.FC = () => {
           numValue={m.profitFactor === Infinity ? undefined : m.profitFactor}
           decimals={2}
           valueColor={theme.colors.primaryLight}
+          glow="purple"
           sub={`G: ${formatCurrency(m.grossProfit, { showPlus: false, decimals: 0 })} · P: ${formatCurrency(m.grossLoss, { showPlus: false, decimals: 0 })}`}
         />
         <KpiCard
@@ -263,10 +267,23 @@ export const DashboardScreen: React.FC = () => {
           numValue={m.avgLoss !== 0 ? m.avgWin / m.avgLoss : 1}
           suffix="x"
           decimals={2}
-          valueColor={theme.colors.cyan}
+          valueColor={theme.colors.goldLight}
+          glow="gold"
           sub={`${formatCurrency(m.avgWin, { decimals: 0 })} / ${formatCurrency(-m.avgLoss, { decimals: 0 })}`}
         />
       </View>
+
+      {/* ── 4b. WIN RATE RADIAL SPEEDOMETER ── */}
+      {m.totalTrades > 0 && (
+        <Card title={t('winRateGlobal')}>
+          <RadialGaugeSpeedometer
+            value={m.winRate}
+            label={t('winRate')}
+            unit="%"
+            target={60}
+          />
+        </Card>
+      )}
 
       {/* ── 5. COURBE D'ÉQUITÉ LIVE & P&L QUOTIDIEN BARS BICOLORE ── */}
       <Card title={t('equityLive')}>

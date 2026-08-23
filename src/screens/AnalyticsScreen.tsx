@@ -30,6 +30,10 @@ import { Card } from '../components/ui/Card';
 import { DonutChart } from '../components/charts/DonutChart';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
+import { DualEquityUnderwaterChart } from '../components/charts/DualEquityUnderwaterChart';
+import { RRHistogramChart } from '../components/charts/RRHistogramChart';
+import { TraderRadarDnaChart } from '../components/charts/TraderRadarDnaChart';
+import { PressableScale } from '../components/ui/PressableScale';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { ExportPdfModal } from '../components/export/ExportPdfModal';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
@@ -551,12 +555,7 @@ export const AnalyticsScreen: React.FC = () => {
                   <Text style={[s.kpiVal, data.currentDrawdown > 0 ? s.redText : s.greenText]}>-${data.currentDrawdown.toFixed(2)}</Text>
                 </View>
               </View>
-              <GlowingEquityAreaChart data={equityChartData} height={190} />
-            </Card>
-          </Animated.View>
-          <Animated.View entering={FadeIn.delay(100).duration(350)}>
-            <Card title={t('drawdownCurve')}>
-              {data.drawdownData.length > 0 ? <GlowingEquityAreaChart data={data.drawdownData.map(d => ({ date: d.label, value: d.value }))} height={160} /> : <Text style={s.emptyText}>{t('noDrawdownData')}</Text>}
+              <DualEquityUnderwaterChart equityData={equityChartData} height={270} />
             </Card>
           </Animated.View>
         </Animated.View>
@@ -581,7 +580,7 @@ export const AnalyticsScreen: React.FC = () => {
           </Animated.View>
           <Animated.View entering={FadeIn.delay(200).duration(350)}>
             <Card title={t('rrDistribution') || 'DISTRIBUTION R:R'}>
-              <RRDistributionChart closed={data.closed} theme={theme} />
+              <RRHistogramChart rMultiples={data.closed.map(t => t.r_multiple ?? 0)} height={200} />
             </Card>
           </Animated.View>
           <Animated.View entering={FadeIn.delay(300).duration(350)}>
@@ -735,8 +734,25 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB: PSYCHOLOGY ── */}
       {activeTab === 'psychology' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          {/* TRADER RADAR DNA CHART */}
+          {data.closed.length >= 2 && (
+            <Animated.View entering={FadeIn.delay(0).duration(350)}>
+              <TraderRadarDnaChart
+                stats={{
+                  discipline: data.planDiscipline.respectedCount > 0
+                    ? (data.planDiscipline.respectedCount / data.closed.length) * 100
+                    : 70,
+                  patience: data.winRate,
+                  riskControl: Math.max(10, 100 - (Math.abs(data.maxDrawdown) / (data.initialBalance || 100000)) * 500),
+                  psychology: Math.max(20, 100 - (Object.values(data.mistakeMap).reduce((a, b) => a + b.count, 0) / Math.max(data.closed.length, 1)) * 50),
+                  consistency: Math.min(100, Math.max(20, (data.profitFactor === Infinity ? 3 : data.profitFactor) * 33)),
+                }}
+              />
+            </Animated.View>
+          )}
+
           {/* SIMULATEUR WHAT-IF */}
-          <Animated.View entering={FadeIn.delay(0).duration(350)}>
+          <Animated.View entering={FadeIn.delay(20).duration(350)}>
             <Card title={t('whatIfTitle')}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                 <View style={[s.kpiBox, { flex: 1, backgroundColor: data.whatIfSimulation.isBetter ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
