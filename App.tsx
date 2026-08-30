@@ -19,12 +19,11 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
 import { AccountsScreen } from './src/screens/AccountsScreen';
-import { GoalsScreen } from './src/screens/GoalsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { PlaybookScreen } from './src/screens/PlaybookScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
-import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked, Target } from 'lucide-react-native';
+import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked } from 'lucide-react-native';
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
 import type { Session } from '@supabase/supabase-js';
@@ -45,7 +44,16 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep data warm for 2 min — avoids refetch storms when switching tabs
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 30,
+      retry: 2,
+    },
+  },
+});
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
@@ -148,17 +156,22 @@ export default function App() {
                     backgroundColor: theme.colors.backgroundElevated,
                     borderTopColor: theme.colors.cardBorder,
                     borderTopWidth: 1,
-                    height: 64,
+                    height: 66,
                     paddingBottom: 8,
-                    paddingTop: 6,
+                    paddingTop: 8,
                   },
                   tabBarActiveTintColor: theme.colors.primaryLight,
                   tabBarInactiveTintColor: theme.colors.textDark,
+                  // 10px minimum for readability (was 9px — below our own a11y floor)
                   tabBarLabelStyle: {
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: '800',
-                    letterSpacing: 0.5,
-                    marginTop: 2,
+                    letterSpacing: 0.4,
+                    marginTop: 3,
+                  },
+                  tabBarItemStyle: {
+                    borderRadius: 12,
+                    marginHorizontal: 2,
                   },
                 }}
               >

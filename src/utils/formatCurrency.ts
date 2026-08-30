@@ -35,8 +35,11 @@ export function formatCurrency(amount: number, options: FormatCurrencyOptions = 
     symbol = '$',
   } = options;
 
-  const sign = amount > 0 ? (showPlus ? '+' : '') : amount < 0 ? '-' : '';
   const abs = Math.abs(amount);
+  // Guard against "-$0.00": if the value rounds to zero at the requested
+  // precision, render it unsigned.
+  const roundsToZero = Number(abs.toFixed(compact ? Math.max(decimals, 1) : decimals)) === 0 && abs < 1000;
+  const sign = roundsToZero ? '' : amount > 0 ? (showPlus ? '+' : '') : amount < 0 ? '-' : '';
 
   if (compact) {
     if (abs >= 1000000) return `${sign}${symbol}${(abs / 1000000).toFixed(1)}M`;

@@ -1,6 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
-import Svg, { Rect, Line, G } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
+import Svg, { Rect, Line, G, Defs, ClipPath } from 'react-native-svg';
+
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -25,7 +33,13 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
-  if (!data || data.length === 0) return null;
+  // Bars grow outward from the zero line on mount / data change
+  const grow = useSharedValue(0);
+  useEffect(() => {
+    grow.value = 0;
+    grow.value = withTiming(1, { duration: 750, easing: Easing.out(Easing.back(1.2)) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.length]);
 
   const yAxisWidth = 52;
   const paddingRight = 12;
@@ -43,9 +57,16 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const chartWidth = effectiveChartWidth - yAxisWidth - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
 
-  const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 100);
+  const maxVal = Math.max(...(data.length ? data.map(d => Math.abs(d.value)) : [0]), 100);
   const zeroY = paddingTop + chartHeight / 2;
-  const barWidth = Math.min(22, chartWidth / data.length - 6);
+  const barWidth = Math.min(22, chartWidth / Math.max(data.length, 1) - 6);
+
+  const growClipProps = useAnimatedProps(() => ({
+    y: zeroY - (grow.value * chartHeight) / 2,
+    height: grow.value * chartHeight,
+  }));
+
+  if (!data || data.length === 0) return null;
 
   const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
 
@@ -86,6 +107,11 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
         {/* SVG Chart Canvas + X labels below */}
         <View style={{ width: chartWidth + paddingRight, height: totalHeight }}>
           <Svg width={chartWidth + paddingRight} height={height}>
+            <Defs>
+              <ClipPath id="barGrowClip">
+                <AnimatedRect x="0" width={chartWidth} animatedProps={growClipProps} />
+              </ClipPath>
+            </Defs>
             {/* Zero Axis Line */}
             <Line
               x1={0} y1={zeroY}
@@ -104,7 +130,8 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               stroke={theme.colors.cardBorder} strokeWidth="1"
             />
 
-            {/* Bars */}
+            {/* Bars — revealed growing outward from the zero line */}
+            <G clipPath="url(#barGrowClip)">
             {data.map((item, index) => {
               const x = index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
               const isPositive = item.value >= 0;
@@ -127,6 +154,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
                 </G>
               );
             })}
+            </G>
           </Svg>
 
           {/* Native X-Axis Labels — OUTSIDE SVG, fully visible */}

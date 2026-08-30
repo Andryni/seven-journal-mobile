@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { RootTabParamList } from '../types/navigation';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useDailyLock } from '../features/guard/useDailyLock';
@@ -23,32 +26,26 @@ import { LiveTickerBanner } from '../components/common/LiveTickerBanner';
 
 import {
   Sparkles,
-  Globe,
   ShieldAlert,
-  Play,
-  Square,
   Share2,
   Flame,
   Snowflake,
-  AlertTriangle,
+  BookOpen,
 } from 'lucide-react-native';
+import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
+import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
+import { EmptyState } from '../components/ui/EmptyState';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
+import { PressableScale } from '../components/ui/PressableScale';
+import { useUIStore } from '../store/uiStore';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { ChecklistCard } from '../components/dashboard/ChecklistCard';
 import { PositionCalculator } from '../components/trades/PositionCalculator';
 import { AchievementsCard } from '../components/dashboard/AchievementsCard';
 import { formatCurrency } from '../utils/formatCurrency';
+import { isSameLocalDay } from '../utils/formatDate';
 import { KpiCard } from '../components/ui/KpiCard';
 import { StatRow } from '../components/ui/StatRow';
-
-function getMarketSessions(date: Date) {
-  const utcHour = date.getUTCHours();
-  return [
-    { name: 'Tokyo', open: utcHour >= 0 && utcHour < 9 },
-    { name: 'Londres', open: utcHour >= 7 && utcHour < 16 },
-    { name: 'New York', open: utcHour >= 12 && utcHour < 21 },
-    { name: 'Sydney', open: utcHour >= 21 || utcHour < 6 },
-  ];
-}
 
 export const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -58,44 +55,15 @@ export const DashboardScreen: React.FC = () => {
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { isLocked, lock } = useDailyLock();
   const m = usePerformanceMetrics(trades, lang);
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const activeAccountId = useUIStore(s => s.activeAccountId);
 
-  const [now, setNow] = useState(new Date());
   const [shareModalVisible, setShareModalVisible] = useState(false);
 
-  const [sessionActive, setSessionActive] = useState(false);
-  const [sessionStart, setSessionStart] = useState<Date | null>(null);
-  const [sessionElapsed, setSessionElapsed] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-      if (sessionActive && sessionStart) {
-        setSessionElapsed(Math.floor((Date.now() - sessionStart.getTime()) / 1000));
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [sessionActive, sessionStart]);
-
-  const toggleSession = () => {
-    if (sessionActive) {
-      setSessionActive(false);
-      setSessionStart(null);
-      setSessionElapsed(0);
-    } else {
-      setSessionActive(true);
-      setSessionStart(new Date());
-    }
-  };
-
-  const formatElapsed = (s: number) => {
-    const h = Math.floor(s / 3600);
-    const min = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  };
-
-  const sessionOverLimit = sessionElapsed >= 4 * 3600;
-  const marketSessions = useMemo(() => getMarketSessions(now), [now]);
+  const activeAccount = useMemo(
+    () => accounts.find(a => a.id === activeAccountId) ?? accounts[0] ?? null,
+    [accounts, activeAccountId]
+  );
 
   // Account Health
   const healthStatus = useMemo(() => {
@@ -110,8 +78,7 @@ export const DashboardScreen: React.FC = () => {
 
   // Today trades count
   const todayTradesCount = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return trades.filter(t => t.entry_time && t.entry_time.startsWith(todayStr)).length;
+    return trades.filter(t => isSameLocalDay(t.entry_time)).length;
   }, [trades]);
 
   const isPositive = m.netPnL >= 0;
@@ -129,8 +96,8 @@ export const DashboardScreen: React.FC = () => {
       {/* ── 0. LIVE TICKER BANNER ANIMÉ ── */}
       <LiveTickerBanner />
 
-      {/* ── 1. HERO BANNER & SESSIONS OVERVIEW ── */}
-      <View style={styles.heroBanner}>
+      {/* ── 1. HERO BANNER — GREETING + ANIMATED NET P&L + SESSIONS ── */}
+      <Animated.View entering={FadeInDown.duration(450).springify().damping(16)} style={styles.heroBanner}>
         <View style={styles.heroHeader}>
           <View>
             <View style={styles.flexRow}>
@@ -145,14 +112,14 @@ export const DashboardScreen: React.FC = () => {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity
+            <PressableScale
               style={styles.shareCardBtn}
               onPress={() => setShareModalVisible(true)}
-              activeOpacity={0.8}
+              accessibilityLabel={t('sharePnl')}
             >
               <Share2 size={13} color={theme.colors.textPrimary} />
               <Text style={styles.shareCardBtnText}>{t('sharePnl')}</Text>
-            </TouchableOpacity>
+            </PressableScale>
 
             <View style={[styles.healthBadge, { backgroundColor: healthStatus.bg }]}>
               <Text style={[styles.healthText, { color: healthStatus.color }]}>
@@ -162,55 +129,30 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Market Sessions Pills & Clock */}
-        <View style={styles.sessionsRow}>
-          <View style={styles.sessionsWrapper}>
-            <Globe color={theme.colors.textMuted} size={14} style={{ marginRight: 4 }} />
-            {marketSessions.map(s => (
-              <View
-                key={s.name}
-                style={[
-                  styles.sessionPill,
-                  s.open ? styles.sessionOpen : styles.sessionClosed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.sessionText,
-                    s.open ? styles.sessionTextOpen : styles.sessionTextClosed,
-                  ]}
-                >
-                  {s.name}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Session Timer Widget */}
-          <TouchableOpacity
+        {/* HERO NET P&L — big terminal readout with counting animation */}
+        <View style={styles.heroPnlBlock}>
+          <Text style={styles.heroPnlLabel}>{t('netPnlTotal')}</Text>
+          <AnimatedNumber
+            value={m.netPnL}
+            format={v => formatCurrency(v, { thousandsSeparator: true })}
             style={[
-              styles.sessionTimerBtn,
-              sessionActive ? (sessionOverLimit ? styles.timerRed : styles.timerGreen) : styles.timerNeutral,
+              styles.heroPnlValue,
+              { color: isPositive ? theme.colors.greenLight : theme.colors.redLight },
             ]}
-            onPress={toggleSession}
-          >
-            {sessionActive ? <Square color={theme.colors.textPrimary} size={12} /> : <Play color={theme.colors.textPrimary} size={12} />}
-            <Text style={styles.sessionTimerText}>
-              {sessionActive ? formatElapsed(sessionElapsed) : 'Session'}
-            </Text>
-            {sessionOverLimit && (
-              <View style={styles.alertMiniRow}>
-                <AlertTriangle size={10} color={theme.colors.gold} />
-                <Text style={styles.alertMini}>4H+</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            duration={1100}
+          />
         </View>
-      </View>
+
+        {/* Market Sessions + Session Timer (isolated 1s clock) */}
+        <MarketSessionsBar />
+      </Animated.View>
+
+      {/* ── 2. DAILY RISK GAUGE (NEW) ── */}
+      <DailyRiskGauge trades={trades} account={activeAccount} />
 
       {/* ── 3. LOCK GUARD ALERT (SI VERROUILLÉ) ── */}
       {isLocked && (
-        <View style={styles.lockBanner}>
+        <Animated.View entering={FadeInUp.duration(400)} style={styles.lockBanner}>
           <ShieldAlert color={theme.colors.redLight} size={20} />
           <View style={styles.lockContent}>
             <Text style={styles.lockTitle}>SESSION QUOTIDIENNE VERROUILLÉE</Text>
@@ -218,7 +160,20 @@ export const DashboardScreen: React.FC = () => {
               {lock?.lock_reason || t('lockReasonFallback')}
             </Text>
           </View>
-        </View>
+        </Animated.View>
+      )}
+
+      {/* ── EMPTY STATE — first launch, no trades yet ── */}
+      {m.totalTrades === 0 && (
+        <Card animated delay={80}>
+          <EmptyState
+            icon={<BookOpen size={22} color={theme.colors.primaryLight} />}
+            title={t('emptyDashTitle')}
+            description={t('emptyDashDesc')}
+            actionLabel={t('emptyDashCta')}
+            onAction={() => navigation.navigate('Trades')}
+          />
+        </Card>
       )}
 
       {/* ── 4. KPI SUMMARY CARDS GRID ── */}
@@ -226,13 +181,21 @@ export const DashboardScreen: React.FC = () => {
         <KpiCard
           label={t('netPnlTotal')}
           value={formatCurrency(m.netPnL, { thousandsSeparator: true })}
+          numericValue={m.netPnL}
+          format={v => formatCurrency(v, { thousandsSeparator: true })}
           valueColor={isPositive ? theme.colors.greenLight : theme.colors.redLight}
+          trend={isPositive ? 'up' : 'down'}
+          delay={0}
           sub={`${m.totalTrades} ${t('positions')}`}
         />
         <KpiCard
           label={t('winRateGlobal')}
           value={`${m.winRate.toFixed(1)}%`}
+          numericValue={m.winRate}
+          format={v => `${v.toFixed(1)}%`}
           valueColor={m.winRate >= 50 ? theme.colors.greenLight : theme.colors.redLight}
+          trend={m.winRate >= 50 ? 'up' : 'down'}
+          delay={60}
           sub={
             <Text>
               <Text style={styles.greenText}>{m.winCount}W</Text> · <Text style={styles.redText}>{m.lossCount}L</Text>
@@ -245,13 +208,19 @@ export const DashboardScreen: React.FC = () => {
         <KpiCard
           label={t('profitFactor')}
           value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
+          numericValue={m.profitFactor === Infinity ? 99.99 : m.profitFactor}
+          format={v => (v >= 99.99 ? '∞' : v.toFixed(2))}
           valueColor={theme.colors.primaryLight}
+          delay={120}
           sub={`G: ${formatCurrency(m.grossProfit, { showPlus: false, decimals: 0 })} · P: ${formatCurrency(m.grossLoss, { showPlus: false, decimals: 0 })}`}
         />
         <KpiCard
           label={t('profitLossRatio')}
           value={`${m.avgLoss !== 0 ? (m.avgWin / m.avgLoss).toFixed(2) : '1.00'}x`}
+          numericValue={m.avgLoss !== 0 ? m.avgWin / m.avgLoss : 1}
+          format={v => `${v.toFixed(2)}x`}
           valueColor={theme.colors.cyan}
+          delay={180}
           sub={`${formatCurrency(m.avgWin, { decimals: 0 })} / ${formatCurrency(-m.avgLoss, { decimals: 0 })}`}
         />
       </View>
@@ -278,7 +247,8 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 6. STREAK TRACKER BANNER ── */}
       {m.streak.current > 0 && (
-        <View
+        <Animated.View
+          entering={FadeInUp.duration(420).springify().damping(16)}
           style={[
             styles.streakBanner,
             m.streak.type === 'win' ? styles.streakWin : styles.streakLoss,
@@ -302,7 +272,7 @@ export const DashboardScreen: React.FC = () => {
           {m.streak.best > 0 && (
             <Badge label={t('recordDays', m.streak.best)} variant="gold" />
           )}
-        </View>
+        </Animated.View>
       )}
 
       {/* ── 6. CHECKLIST PRÉ-SESSION (PERSONNALISABLE & SYNCHRONISÉE) ── */}
@@ -511,77 +481,24 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
-  sessionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
+  heroPnlBlock: {
+    marginBottom: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.cardBorder,
   },
-  sessionsWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-    flex: 1,
-  },
-  sessionPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-  },
-  sessionOpen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  sessionClosed: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.cardBorder,
-  },
-  sessionText: {
-    fontSize: 9,
-    fontFamily: theme.fonts.monoBold,
-  },
-  sessionTextOpen: {
-    color: theme.colors.greenLight,
-  },
-  sessionTextClosed: {
+  heroPnlLabel: {
     color: theme.colors.textMuted,
-  },
-  sessionTimerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 6,
-    borderRadius: theme.borderRadius.md,
-  },
-  timerGreen: {
-    backgroundColor: theme.colors.primary,
-  },
-  timerRed: {
-    backgroundColor: theme.colors.red,
-  },
-  timerNeutral: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.cardBorder,
-    borderWidth: 1,
-  },
-  sessionTimerText: {
-    color: theme.colors.textPrimary,
-    fontSize: 11,
-    fontFamily: theme.fonts.monoBold,
-    fontVariant: ['tabular-nums'],
-  },
-  alertMiniRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  alertMini: {
-    color: theme.colors.textPrimary,
     fontSize: 9,
     fontFamily: theme.fonts.monoBold,
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
+  heroPnlValue: {
+    fontSize: 34,
+    fontFamily: theme.fonts.monoExtraBold,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
   },
   lockBanner: {
     flexDirection: 'row',

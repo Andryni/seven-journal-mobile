@@ -3,11 +3,13 @@ import { supabase } from '../../api/supabaseClient';
 import { useUIStore } from '../../store/uiStore';
 import { useEffect } from 'react';
 import type { DailySessionLock } from '../../types/domain';
+import { localDayKey } from '../../utils/formatDate';
 
 export function useDailyLock() {
   const queryClient = useQueryClient();
   const setDailySessionLocked = useUIStore((state) => state.setDailySessionLocked);
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Local trading day (device timezone), consistent with checkAndApplyDailyLock
+  const todayStr = localDayKey();
 
   const { data: lock, isLoading } = useQuery<DailySessionLock | null>({
     queryKey: ['daily_lock', todayStr],

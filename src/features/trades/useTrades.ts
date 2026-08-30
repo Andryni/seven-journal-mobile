@@ -5,6 +5,8 @@ import { useToast } from '../../store/toastStore';
 import { useT } from '../../i18n';
 import type { Trade, TradingAccount } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { localDayKey, localDayStartISO } from '../../utils/formatDate';
+import { hapticSuccess, hapticError } from '../../utils/haptics';
 
 export function useTrades() {
   const queryClient = useQueryClient();
@@ -29,19 +31,32 @@ export function useTrades() {
   });
 
   // Helper check for daily stop losses & maximum daily loss limits
-  const checkAndApplyDailyLock = async (userId: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    const { data: todayTrades, error: fetchError } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('entry_time', `${todayStr}T00:00:00Z`);
+  const checkAndApplyDailyLock = async (userId: string, affectedAccountId?: string | null) => {
+    // Local trading day (device timezone), NOT UTC — prop-firm daily
+    // limits reset at the trader's local midnight.
+    const todayStr = localDayKey();
 
-    const { data: accounts } = await supabase
+    // Only fetch what we need: today's trades (optionally scoped to the
+    // affected account) with minimal columns — previously this downloaded
+    // ALL accounts and full trade rows on EVERY mutation.
+    let tradesQuery = supabase
+      .from('trades')
+      .select('id, account_id, pnl, entry_time')
+      .eq('user_id', userId)
+      .gte('entry_time', localDayStartISO());
+    if (affectedAccountId) {
+      tradesQuery = tradesQuery.eq('account_id', affectedAccountId);
+    }
+    const { data: todayTrades, error: fetchError } = await tradesQuery;
+
+    let accountsQuery = supabase
       .from('trading_accounts')
-      .select('*')
+      .select('id, name, max_daily_loss_limit, initial_balance')
       .eq('user_id', userId);
+    if (affectedAccountId) {
+      accountsQuery = accountsQuery.eq('id', affectedAccountId);
+    }
+    const { data: accounts } = await accountsQuery;
 
     if (!fetchError && todayTrades && accounts) {
       let dailyLossExceeded = false;
@@ -67,6 +82,7 @@ export function useTrades() {
       }
 
       if (dailyLossExceeded) {
+        hapticError();
         const reason = `Limite de perte quotidienne ($ / %) atteinte sur ${exceededAccountName} (${formatCurrency(-exceededAmount)} / max ${formatCurrency(limitAmount)}). Session verrouillée.`;
 
         await supabase.from('daily_session_locks').upsert({
@@ -104,15 +120,17 @@ export function useTrades() {
 
       if (error) throw error;
 
-      await checkAndApplyDailyLock(user.id);
+      await checkAndApplyDailyLock(user.id, payload.account_id);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      hapticSuccess();
       showSuccess(t('toastTradeCreated'));
     },
     onError: () => {
+      hapticError();
       showError(t('toastErrorCreate'));
     },
   });
@@ -131,7 +149,7 @@ export function useTrades() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await checkAndApplyDailyLock(user.id);
+        await checkAndApplyDailyLock(user.id, (data as Trade | null)?.account_id ?? null);
       }
 
       return data;
@@ -139,9 +157,11 @@ export function useTrades() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      hapticSuccess();
       showSuccess(t('toastTradeUpdated'));
     },
     onError: () => {
+      hapticError();
       showError(t('toastErrorUpdate'));
     },
   });

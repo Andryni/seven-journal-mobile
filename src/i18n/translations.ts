@@ -65,6 +65,13 @@ export const translations = {
     healthExcellent: 'EXCELLENT',
     lockReasonFallback: "Seuil de perte journalière atteint. Aucun trade autorisé jusqu'à demain.",
     noRecentTrades: 'Aucun trade récent enregistré.',
+    // Daily risk gauge
+    dailyRiskGauge: 'RISQUE QUOTIDIEN UTILISÉ',
+    todayPnlShort: 'P&L du jour :',
+    lossLimitShort: 'Limite :',
+    emptyDashTitle: 'Aucun trade journalisé',
+    emptyDashDesc: 'Ajoute ton premier trade ou importe ton historique MT4/MT5 pour activer le terminal.',
+    emptyDashCta: 'Aller aux trades',
     sessionsCount: (n: number) => `${n} session(s)`,
     tradesOfDay: 'TRADES DU',
 
@@ -655,6 +662,13 @@ export const translations = {
     healthExcellent: 'EXCELLENT',
     lockReasonFallback: 'Daily loss limit reached. No trades allowed until tomorrow.',
     noRecentTrades: 'No recent trades recorded.',
+    // Daily risk gauge
+    dailyRiskGauge: 'DAILY RISK USED',
+    todayPnlShort: 'Today P&L:',
+    lossLimitShort: 'Limit:',
+    emptyDashTitle: 'No trades logged yet',
+    emptyDashDesc: 'Add your first trade or import your MT4/MT5 history to power up the terminal.',
+    emptyDashCta: 'Go to trades',
     sessionsCount: (n: number) => `${n} session(s)`,
     tradesOfDay: 'TRADES OF',
 

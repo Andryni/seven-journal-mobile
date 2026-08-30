@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Animated, LayoutChangeEvent } from 'react-native';
 import { useTrades } from '../../features/trades/useTrades';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -10,6 +10,8 @@ export const LiveTickerBanner: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades } = useTrades();
   const animatedX = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [trackWidth, setTrackWidth] = useState(0);
 
   const tickerItems = trades.slice(0, 10).map(t => {
     const pnlVal = t.pnl ?? 0;
@@ -26,32 +28,54 @@ export const LiveTickerBanner: React.FC = () => {
     };
   });
 
-  const items = [...tickerItems, ...tickerItems, ...tickerItems];
+  const items = [...tickerItems, ...tickerItems];
 
-  if (tickerItems.length === 0) return null;
-
+  // Marquee loop: scroll exactly one measured set width for a seamless wrap
   useEffect(() => {
+    if (tickerItems.length === 0 || trackWidth === 0) return;
+    const singleSetWidth = trackWidth / 2;
     animatedX.setValue(0);
     const animation = Animated.loop(
       Animated.timing(animatedX, {
-        toValue: -350,
-        duration: 12000,
+        toValue: -singleSetWidth,
+        duration: Math.max(8000, singleSetWidth * 30),
         useNativeDriver: true,
       })
     );
     animation.start();
     return () => animation.stop();
-  }, [trades]);
+  }, [trades, trackWidth, tickerItems.length, animatedX]);
+
+  // LIVE dot heartbeat pulse
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim]);
+
+  const onTrackLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - trackWidth) > 1) setTrackWidth(w);
+  };
+
+  // IMPORTANT: conditional return AFTER all hooks (Rules of Hooks)
+  if (tickerItems.length === 0) return null;
 
   return (
     <View style={styles.container}>
       <View style={styles.badgeWrap}>
-        <View style={styles.pulseDot} />
+        <Animated.View style={[styles.pulseDot, { opacity: pulseAnim }]} />
         <Text style={styles.liveText}>LIVE TRADES</Text>
       </View>
 
       <View style={styles.scrollArea}>
         <Animated.View
+          onLayout={onTrackLayout}
           style={[
             styles.tickerTrack,
             {

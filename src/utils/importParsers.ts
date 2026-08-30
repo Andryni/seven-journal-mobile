@@ -6,7 +6,9 @@ export interface ParsedImportTrade {
   direction: 'BUY' | 'SELL';
   entry_price: number;
   exit_price: number | null;
+  /** 0 means "unknown" — the source file did not contain a stop loss. Never fabricated. */
   stop_loss: number;
+  /** 0 means "unknown" — the source file did not contain a take profit. Never fabricated. */
   take_profit: number;
   size: number;
   entry_time: string;
@@ -43,8 +45,10 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
       else if (pnl < 0) result = 'SL';
       else if (closeTime) result = 'BE';
 
+      // R-multiple is only computed when the report actually contains a stop loss.
+      // We never fabricate risk data — unknown stays null and is excluded from analytics.
       let rMultiple: number | null = null;
-      if (slP > 0 && Math.abs(entryP - slP) > 0) {
+      if (slP > 0 && Math.abs(entryP - slP) > 0 && exitP > 0) {
         const slDist = Math.abs(entryP - slP);
         rMultiple = parseFloat(
           ((exitP - entryP) / (direction === 'BUY' ? slDist : -slDist)).toFixed(2),
@@ -56,8 +60,8 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
         direction,
         entry_price: entryP,
         exit_price: exitP || null,
-        stop_loss: slP || (direction === 'BUY' ? entryP * 0.99 : entryP * 1.01),
-        take_profit: tpP || (direction === 'BUY' ? entryP * 1.02 : entryP * 0.98),
+        stop_loss: slP || 0,
+        take_profit: tpP || 0,
         size: parseFloat(size),
         entry_time: new Date(openTime.replace(/\./g, '-')).toISOString(),
         exit_time: closeTime
@@ -101,20 +105,26 @@ export function parseTradingViewExport(content: string): ParsedImportTrade[] {
     const pnl = parseFloat(row['profit'] || row['pnl'] || row['net profit'] || '0');
     const size = parseFloat(row['contracts'] || row['size'] || row['qty'] || '1.0');
     const dateStr = row['date/time'] || row['time'] || row['date'] || new Date().toISOString();
+    const exitDateStr = row['exit time'] || row['close time'] || row['exit date'] || '';
 
+    // TradingView exports do not include SL/TP or risk data:
+    // stop_loss/take_profit stay at 0 (unknown) and r_multiple stays null
+    // so analytics (avg R, expectancy) are never polluted by fabricated values.
     if (entryP > 0) {
+      const parsedEntry = new Date(dateStr);
+      const parsedExit = exitDateStr ? new Date(exitDateStr) : null;
       trades.push({
         pair: symbol.toUpperCase().replace('.P', '').replace('-', ''),
         direction,
         entry_price: entryP,
         exit_price: exitP || null,
-        stop_loss: direction === 'BUY' ? entryP * 0.99 : entryP * 1.01,
-        take_profit: direction === 'BUY' ? entryP * 1.02 : entryP * 0.98,
+        stop_loss: 0,
+        take_profit: 0,
         size,
-        entry_time: new Date(dateStr).toISOString(),
-        exit_time: exitP ? new Date().toISOString() : null,
+        entry_time: (isNaN(parsedEntry.getTime()) ? new Date() : parsedEntry).toISOString(),
+        exit_time: parsedExit && !isNaN(parsedExit.getTime()) ? parsedExit.toISOString() : null,
         pnl: isNaN(pnl) ? null : pnl,
-        r_multiple: pnl > 0 ? 1.5 : -1,
+        r_multiple: null,
         result: pnl > 0 ? 'TP' : pnl < 0 ? 'SL' : 'BE',
         notes: 'Importé via TradingView',
       });

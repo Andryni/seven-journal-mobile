@@ -55,16 +55,21 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
     const avgWin = winTrades.length > 0 ? grossProfit / winTrades.length : 0;
     const avgLoss = lossTrades.length > 0 ? grossLoss / lossTrades.length : 0;
 
-    const rMultiples = closedTrades.map((t) =>
-      t.r_multiple !== null
-        ? t.r_multiple
-        : calculateRMultiple({
-            direction: t.direction,
-            entryPrice: t.entry_price,
-            exitPrice: (t.exit_price || t.entry_price) as number,
-            stopLoss: t.stop_loss,
-          })
-    );
+    // Only trades with a KNOWN stop loss contribute to R statistics.
+    // Imported trades without SL data (stop_loss === 0) are excluded so
+    // average R / expectancy are never polluted by fabricated risk values.
+    const rMultiples = closedTrades
+      .filter((t) => t.r_multiple !== null || t.stop_loss > 0)
+      .map((t) =>
+        t.r_multiple !== null
+          ? t.r_multiple
+          : calculateRMultiple({
+              direction: t.direction,
+              entryPrice: t.entry_price,
+              exitPrice: (t.exit_price || t.entry_price) as number,
+              stopLoss: t.stop_loss,
+            })
+      );
     const avgRMultiple =
       rMultiples.length > 0 ? rMultiples.reduce((s, r) => s + r, 0) / rMultiples.length : 0;
 
@@ -160,7 +165,9 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
       .sort((a, b) => new Date(b.entry_time || 0).getTime() - new Date(a.entry_time || 0).getTime())
       .slice(0, 5);
 
-    const sortedDailyPnL = [...dailyPnL].sort((a, b) => a.date.localeCompare(b.date));
+    // dailyPnL is already chronologically sorted by ISO key above.
+    // Do NOT re-sort by the formatted display date (DD/MM/YY) — that breaks ordering across months.
+    const sortedDailyPnL = dailyPnL;
 
     let currentStreak = 0;
     let bestStreak = 0;
