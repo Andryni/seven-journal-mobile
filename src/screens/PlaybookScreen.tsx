@@ -16,6 +16,7 @@ import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
+import { localDayKey } from '../utils/formatDate';
 import type { AppTheme } from '../theme';
 import type { TFunction } from '../i18n';
 import { useT } from '../i18n';
@@ -99,7 +100,7 @@ export const PlaybookScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'setups' | 'debrief' | 'discipline'>('setups');
 
   // Debrief Form State
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => localDayKey());
   const [editingDebriefId, setEditingDebriefId] = useState<string | null>(null);
   const [marketSentiment, setMarketSentiment] = useState('');
   const [htfAnalysis, setHtfAnalysis] = useState('');
@@ -552,7 +553,7 @@ export const PlaybookScreen: React.FC = () => {
                 <TouchableOpacity
                   onPress={() => {
                     setEditingDebriefId(null);
-                    setSelectedDate(new Date().toISOString().split('T')[0]);
+                    setSelectedDate(localDayKey());
                     setMarketSentiment('');
                     setHtfAnalysis('');
                     setLessonsLearned('');

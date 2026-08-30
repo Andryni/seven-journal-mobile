@@ -12,7 +12,6 @@ export type RootTabParamList = {
   Analytics: undefined;
   Playbook: undefined;
   Accounts: undefined;
-  Goals: undefined;
 };
 
 /** Screen props for each tab — usable in screen components via `useNavigation<...>()` */
@@ -22,4 +21,3 @@ export type CalendarScreenProps = BottomTabScreenProps<RootTabParamList, 'Calend
 export type AnalyticsScreenProps = BottomTabScreenProps<RootTabParamList, 'Analytics'>;
 export type PlaybookScreenProps = BottomTabScreenProps<RootTabParamList, 'Playbook'>;
 export type AccountsScreenProps = BottomTabScreenProps<RootTabParamList, 'Accounts'>;
-export type GoalsScreenProps = BottomTabScreenProps<RootTabParamList, 'Goals'>;

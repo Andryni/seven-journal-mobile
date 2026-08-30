@@ -11,6 +11,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import { PressableScale } from '../components/ui/PressableScale';
+import { EmptyState } from '../components/ui/EmptyState';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
@@ -199,16 +202,20 @@ export const TradesScreen: React.FC = () => {
     return { count: filteredTrades.length, wr, totalPnl };
   }, [filteredTrades]);
 
-  const renderTradeItem = ({ item }: { item: Trade }) => {
+  const renderTradeItem = ({ item, index }: { item: Trade; index: number }) => {
     const isWin = (item.pnl || 0) > 0;
     const isLoss = (item.pnl || 0) < 0;
     const isOpen = item.pnl === null;
 
     return (
-      <TouchableOpacity
+      <Animated.View
+        entering={FadeInUp.delay(Math.min(index, 8) * 45).duration(380).springify().damping(17)}
+      >
+      <PressableScale
         style={styles.tradeCard}
         onPress={() => handleViewTrade(item)}
-        activeOpacity={0.85}
+        accessibilityLabel={`${item.pair} ${item.direction}`}
+        pressedScale={0.97}
       >
         {/* Glowing Left Indicator Strip */}
         <View
@@ -282,7 +289,8 @@ export const TradesScreen: React.FC = () => {
             />
           </View>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
+      </Animated.View>
     );
   };
 
@@ -385,13 +393,13 @@ export const TradesScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} colors={[theme.colors.primary]} />}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <TrendingUp size={36} color={theme.colors.textDark} />
-            <Text style={styles.emptyTitle}>{t('noPositionFound')}</Text>
-            <Text style={styles.emptySub}>
-              {searchQuery ? t('modifySearch') : t('addFirstTrade')}
-            </Text>
-          </View>
+          <EmptyState
+            icon={<TrendingUp size={22} color={theme.colors.primaryLight} />}
+            title={t('noPositionFound')}
+            description={searchQuery ? t('modifySearch') : t('addFirstTrade')}
+            actionLabel={searchQuery ? undefined : t('newTrade')}
+            onAction={searchQuery ? undefined : handleAddTrade}
+          />
         }
       />
 

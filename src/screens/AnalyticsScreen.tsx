@@ -27,9 +27,9 @@ import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT, useI18nStore } from '../i18n';
-import { formatShortDate } from '../utils/formatDate';
+import { formatShortDate, localDayKey } from '../utils/formatDate';
 import { Card } from '../components/ui/Card';
-import { PieChart } from 'react-native-chart-kit';
+import { DonutChart } from '../components/ui/DonutChart';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShareCardModal } from '../components/share/ShareCardModal';
@@ -227,18 +227,6 @@ const StatusChip: React.FC<{
 export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
-  const chartConfig = useMemo(() => ({
-    backgroundColor: theme.colors.chartBg,
-    backgroundGradientFrom: theme.colors.modalBg,
-    backgroundGradientTo: theme.colors.background,
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
-    style: { borderRadius: 16 },
-    propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primaryLight },
-    propsForBackgroundLines: { strokeDasharray: '', stroke: theme.colors.cardBorder },
-  }), [theme]);
-
   const { t } = useT();
   const lang = useI18nStore(s => s.lang);
   const { trades, isLoading: tradesLoading } = useTrades();
@@ -363,10 +351,10 @@ export const AnalyticsScreen: React.FC = () => {
 
   // 3. PIE DATA
   const pieData = useMemo(() => [
-    { name: t('gainsLabel'), population: wins.length || 1, color: '#10b981', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
-    { name: t('lossesLabel'), population: losses.length || 1, color: '#ef4444', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
-    { name: 'BE', population: breakeven.length || 1, color: '#6366f1', legendFontColor: theme.colors.textSecondary, legendFontSize: 11 },
-  ], [wins, losses, breakeven]);
+    { label: t('gainsLabel'), value: wins.length, color: theme.colors.green },
+    { label: t('lossesLabel'), value: losses.length, color: theme.colors.red },
+    { label: 'BE', value: breakeven.length, color: theme.colors.primary },
+  ], [wins, losses, breakeven, t, theme]);
 
   // 4. PAR SETUP
   const setupBreakdown = useMemo(() => {
@@ -557,7 +545,7 @@ export const AnalyticsScreen: React.FC = () => {
 
     const dayMap: Record<string, number> = {};
     closed.forEach(t => {
-      const day = new Date(t.entry_time).toISOString().split('T')[0];
+      const day = localDayKey(new Date(t.entry_time));
       dayMap[day] = (dayMap[day] || 0) + (t.pnl || 0);
     });
     const dayPnls = Object.values(dayMap);
@@ -590,7 +578,7 @@ export const AnalyticsScreen: React.FC = () => {
   const ddProjection = useMemo(() => {
     const dayMap: Record<string, number> = {};
     closed.forEach(t => {
-      const day = new Date(t.entry_time).toISOString().split('T')[0];
+      const day = localDayKey(new Date(t.entry_time));
       dayMap[day] = (dayMap[day] || 0) + (t.pnl || 0);
     });
     const dayPnls = Object.values(dayMap);
@@ -618,7 +606,7 @@ export const AnalyticsScreen: React.FC = () => {
   const consistencyData = useMemo(() => {
     const dayMap: Record<string, number> = {};
     closed.forEach(t => {
-      const day = new Date(t.entry_time).toISOString().split('T')[0];
+      const day = localDayKey(new Date(t.entry_time));
       dayMap[day] = (dayMap[day] || 0) + (t.pnl || 0);
     });
     const dayPnls = Object.entries(dayMap).map(([date, pnl]) => ({ date, pnl })).sort((a, b) => a.date.localeCompare(b.date));
@@ -858,15 +846,11 @@ export const AnalyticsScreen: React.FC = () => {
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('gainLossSplit')}>
-              <PieChart
+              <DonutChart
                 data={pieData}
-                width={screenWidth - 64}
-                height={160}
-                chartConfig={chartConfig}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
+                size={150}
+                centerLabel={String(closed.length)}
+                centerSub="TRADES"
               />
             </Card>
           </Animated.View>

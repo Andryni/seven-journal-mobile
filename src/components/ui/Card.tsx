@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -14,6 +15,10 @@ interface CardProps {
   style?: ViewStyle;
   gradientColors?: [string, string, ...string[]];
   glowBorder?: boolean;
+  /** Entrance animation delay (ms) for staggered lists */
+  delay?: number;
+  /** Disable the entrance animation (e.g. inside virtualized lists) */
+  animated?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -26,12 +31,18 @@ export const Card: React.FC<CardProps> = ({
   style,
   gradientColors,
   glowBorder = false,
+  delay = 0,
+  animated = true,
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const resolvedGradientColors = gradientColors ?? [theme.colors.card, theme.colors.backgroundElevated];
+  const Wrapper: React.ComponentType<any> = animated ? Animated.View : View;
+  const wrapperProps = animated
+    ? { entering: FadeInUp.delay(delay).duration(420).springify().damping(16) }
+    : {};
   return (
-    <View style={[styles.outerContainer, glowBorder && styles.glowOuter, style]}>
+    <Wrapper {...wrapperProps} style={[styles.outerContainer, glowBorder && styles.glowOuter, style]}>
       {/* Top subtle highlight line */}
       <LinearGradient
         colors={[theme.colors.borderBright, theme.colors.primaryGlow, 'transparent']}
@@ -48,6 +59,7 @@ export const Card: React.FC<CardProps> = ({
       >
         {title && (
           <View style={styles.header}>
+            <View style={styles.accentDot} />
             <View style={styles.titleWrap}>
               <Text style={styles.titleText}>{title}</Text>
               {subtitle && <Text style={styles.subtitleText}>{subtitle}</Text>}
@@ -82,7 +94,7 @@ export const Card: React.FC<CardProps> = ({
         )}
         <View style={styles.content}>{children}</View>
       </LinearGradient>
-    </View>
+    </Wrapper>
   );
 };
 
@@ -121,6 +133,17 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.cardBorder,
     paddingBottom: theme.spacing.sm,
+  },
+  accentDot: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    backgroundColor: theme.colors.primary,
+    marginRight: theme.spacing.sm,
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
   titleWrap: {
     flex: 1,

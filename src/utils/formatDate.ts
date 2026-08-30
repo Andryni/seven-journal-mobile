@@ -60,3 +60,29 @@ export function formatShortDateNoYear(input: string | Date, lang: 'fr' | 'en' = 
   }
   return full;
 }
+
+/**
+ * Local trading-day key (YYYY-MM-DD) based on the DEVICE timezone,
+ * not UTC. Prop-firm daily limits reset on the trader's local day —
+ * using toISOString() would shift the day for anyone not on UTC.
+ */
+export function localDayKey(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** ISO timestamp of local midnight (start of the local trading day). */
+export function localDayStartISO(d: Date = new Date()): string {
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  return start.toISOString();
+}
+
+/** True when the given ISO timestamp falls on the local trading day of `ref`. */
+export function isSameLocalDay(iso: string | null | undefined, ref: Date = new Date()): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return false;
+  return localDayKey(d) === localDayKey(ref);
+}
