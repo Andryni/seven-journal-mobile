@@ -1,5 +1,12 @@
-// Parseurs d'import MT4/MT5 et TradingView pour mobile
-// Adapté depuis le projet web
+// MT4/MT5 and TradingView import parsers.
+//
+// Parsing is now RFC 4180 compliant (see utils/csv): the previous
+// `line.split(',')` corrupted every row containing a quoted comma, shifting
+// prices into the size column and importing wrong-but-plausible numbers.
+// Numbers also go through parseLooseNumber, because broker exports localise
+// their decimals and parseFloat('1,234.56') silently yields 1.
+
+import { parseCsvRecords, csvEscape, parseLooseNumber } from './csv';
 
 export interface ParsedImportTrade {
   pair: string;
@@ -82,53 +89,55 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
  * Parse un export CSV TradingView en trades structurés.
  */
 export function parseTradingViewExport(content: string): ParsedImportTrade[] {
+  const records = parseCsvRecords(content);
   const trades: ParsedImportTrade[] = [];
-  const lines = content.split(/\r?\n/);
 
-  if (lines.length < 2) return trades;
-  const headers = lines[0].toLowerCase().split(',');
-
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-    if (cols.length < 4) continue;
-
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      row[h] = cols[idx] || '';
-    });
-
-    const symbol = row['symbol'] || row['ticker'] || row['instrument'] || 'XAUUSD';
-    const type = (row['type'] || row['action'] || row['side'] || 'BUY').toUpperCase();
-    const direction = type.includes('SELL') || type.includes('SHORT') ? 'SELL' : 'BUY';
-    const entryP = parseFloat(row['entry price'] || row['price'] || row['open'] || '0');
-    const exitP = parseFloat(row['exit price'] || row['close price'] || row['close'] || '0');
-    const pnl = parseFloat(row['profit'] || row['pnl'] || row['net profit'] || '0');
-    const size = parseFloat(row['contracts'] || row['size'] || row['qty'] || '1.0');
-    const dateStr = row['date/time'] || row['time'] || row['date'] || new Date().toISOString();
-    const exitDateStr = row['exit time'] || row['close time'] || row['exit date'] || '';
-
-    // TradingView exports do not include SL/TP or risk data:
-    // stop_loss/take_profit stay at 0 (unknown) and r_multiple stays null
-    // so analytics (avg R, expectancy) are never polluted by fabricated values.
-    if (entryP > 0) {
-      const parsedEntry = new Date(dateStr);
-      const parsedExit = exitDateStr ? new Date(exitDateStr) : null;
-      trades.push({
-        pair: symbol.toUpperCase().replace('.P', '').replace('-', ''),
-        direction,
-        entry_price: entryP,
-        exit_price: exitP || null,
-        stop_loss: 0,
-        take_profit: 0,
-        size,
-        entry_time: (isNaN(parsedEntry.getTime()) ? new Date() : parsedEntry).toISOString(),
-        exit_time: parsedExit && !isNaN(parsedExit.getTime()) ? parsedExit.toISOString() : null,
-        pnl: isNaN(pnl) ? null : pnl,
-        r_multiple: null,
-        result: pnl > 0 ? 'TP' : pnl < 0 ? 'SL' : 'BE',
-        notes: 'Importé via TradingView',
-      });
+  const pick = (row: Record<string, string>, ...keys: string[]): string => {
+    for (const k of keys) {
+      const v = row[k];
+      if (v !== undefined && v !== '') return v;
     }
+    return '';
+  };
+
+  for (const row of records) {
+    const symbol = pick(row, 'symbol', 'ticker', 'instrument') || 'XAUUSD';
+    const type = (pick(row, 'type', 'action', 'side') || 'BUY').toUpperCase();
+    const direction = type.includes('SELL') || type.includes('SHORT') ? 'SELL' : 'BUY';
+
+    const entryP = parseLooseNumber(pick(row, 'entry price', 'price', 'open'));
+    const exitP = parseLooseNumber(pick(row, 'exit price', 'close price', 'close'));
+    const pnl = parseLooseNumber(pick(row, 'profit', 'pnl', 'net profit'));
+    const size = parseLooseNumber(pick(row, 'contracts', 'size', 'qty')) ?? 1;
+
+    const dateStr = pick(row, 'date/time', 'time', 'date');
+    const exitDateStr = pick(row, 'exit time', 'close time', 'exit date');
+
+    // A row without a usable entry price is not a trade; skipping it is the
+    // only honest option, and the caller reports the count.
+    if (entryP === null || entryP <= 0) continue;
+
+    const parsedEntry = dateStr ? new Date(dateStr) : new Date();
+    const parsedExit = exitDateStr ? new Date(exitDateStr) : null;
+
+    // TradingView exports carry no SL/TP, so stop_loss/take_profit stay 0
+    // (unknown) and r_multiple stays null rather than being fabricated --
+    // otherwise avg R and expectancy would be computed from invented risk.
+    trades.push({
+      pair: symbol.toUpperCase().replace('.P', '').replace('-', ''),
+      direction,
+      entry_price: entryP,
+      exit_price: exitP && exitP > 0 ? exitP : null,
+      stop_loss: 0,
+      take_profit: 0,
+      size: size > 0 ? size : 1,
+      entry_time: (isNaN(parsedEntry.getTime()) ? new Date() : parsedEntry).toISOString(),
+      exit_time: parsedExit && !isNaN(parsedExit.getTime()) ? parsedExit.toISOString() : null,
+      pnl,
+      r_multiple: null,
+      result: pnl === null ? 'OPEN' : pnl > 0 ? 'TP' : pnl < 0 ? 'SL' : 'BE',
+      notes: 'Imported from TradingView',
+    });
   }
 
   return trades;
@@ -139,10 +148,10 @@ export function parseTradingViewExport(content: string): ParsedImportTrade[] {
  */
 export function generateTradeCSV(trades: Trade[]): string {
   const headers = [
-    'Date',
+    'EntryTime',
     'Instrument',
     'Direction',
-    'Lots',
+    'Size',
     'Timeframe',
     'Entry',
     'SL',
@@ -155,7 +164,9 @@ export function generateTradeCSV(trades: Trade[]): string {
     'Notes',
   ];
   const rows = trades.map((t) => [
-    new Date(t.entry_time).toLocaleDateString('fr-FR'),
+    // ISO date: locale-formatted dates do not survive a round-trip through
+    // an importer, and this file is meant to be re-importable.
+    new Date(t.entry_time).toISOString(),
     t.pair,
     t.direction,
     String(t.size),
@@ -168,9 +179,14 @@ export function generateTradeCSV(trades: Trade[]): string {
     t.pnl != null ? String(t.pnl) : '',
     t.r_multiple != null ? String(t.r_multiple) : '',
     t.mental_state,
-    `"${(t.notes || '').replace(/"/g, '""')}"`,
+    t.notes || '',
   ]);
-  return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  // Every field is escaped: a note containing a comma used to corrupt the
+  // column alignment of the exported file.
+  return [
+    headers.map(csvEscape).join(','),
+    ...rows.map((r) => r.map(csvEscape).join(',')),
+  ].join('\n');
 }
 
 // Re-export Trade type for convenience

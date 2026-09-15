@@ -36,6 +36,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
+import { detectSession, detectTimeframe } from '../utils/sessionDetect';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
@@ -171,8 +172,9 @@ export const TradesScreen: React.FC = () => {
                 // to reject the loop, skipping every remaining trade while
                 // still reporting success for the full count.
                 const results = await Promise.allSettled(
-                  parsedTrades.map(row =>
-                    createTrade({
+                  parsedTrades.map(row => {
+                    const entryTime = row.entry_time || new Date().toISOString();
+                    return createTrade({
                       account_id: targetAccount,
                       pair: row.pair || "XAUUSD",
                       direction: row.direction || "BUY",
@@ -181,11 +183,17 @@ export const TradesScreen: React.FC = () => {
                       stop_loss: Number(row.stop_loss),
                       take_profit: Number(row.take_profit),
                       size: Number(row.size),
-                      entry_time: row.entry_time || new Date().toISOString(),
+                      entry_time: entryTime,
                       exit_time: row.exit_time || null,
                       pnl: row.pnl != null ? Number(row.pnl) : null,
                       r_multiple: row.r_multiple != null ? Number(row.r_multiple) : null,
-                      timeframe: row.timeframe || "M5",
+                      // Inferred from hold time rather than defaulted to M5:
+                      // stamping every imported trade with one timeframe made
+                      // the timeframe breakdown a single meaningless bar.
+                      timeframe:
+                        row.timeframe ||
+                        detectTimeframe(entryTime, row.exit_time || null) ||
+                        "M15",
                       setup_structures: [],
                       setup_fvg: false,
                       setup_ob: false,
@@ -201,9 +209,12 @@ export const TradesScreen: React.FC = () => {
                       screenshot_after_url: null,
                       notes: row.notes || null,
                       result: row.result || "OPEN",
-                      session: null,
-                    } as any)
-                  )
+                      // Derived from the entry timestamp. Left null, analytics
+                      // bucket it as 'Over Session', which wrongly suggests the
+                      // trader works outside the main sessions.
+                      session: detectSession(entryTime),
+                    } as any);
+                  })
                 );
 
                 const imported = results.filter(r => r.status === 'fulfilled').length;
