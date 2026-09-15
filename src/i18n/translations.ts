@@ -254,6 +254,16 @@ export const translations = {
       `${n}/${need} trades cl\u00f4tur\u00e9s. L\u2019analyse d\u00e9marre \u00e0 ${need} \u2014 en dessous, tout motif est du bruit.`,
     insightsAllClear: 'Aucun probl\u00e8me d\u00e9tect\u00e9 sur la p\u00e9riode.',
     insightSampleNote: (n: number) => `sur ${n} trades`,
+    coachTitle: 'SYNTH\u00c8SE IA',
+    coachAsk: 'Demander une synth\u00e8se',
+    coachAgain: 'Regénérer',
+    coachLoading: 'Analyse en cours\u2026',
+    coachPriority: 'PRIORIT\u00c9',
+    coachPrivacy: 'Seuls des agr\u00e9gats anonymes sont envoy\u00e9s : aucun trade, prix, note ni solde ne quitte votre appareil.',
+    coachErrorNotEnough: 'Pas assez d\u2019historique pour une synth\u00e8se.',
+    coachErrorNotConfigured: 'La synth\u00e8se IA n\u2019est pas configur\u00e9e sur ce serveur.',
+    coachErrorNetwork: 'Synth\u00e8se indisponible. R\u00e9essayez plus tard.',
+    coachErrorUnknown: 'La synth\u00e8se a \u00e9chou\u00e9.',
     insightRevenge: (p: any) =>
       `${p.count} entr\u00e9es dans les 30 min apr\u00e8s une perte. Moyenne ${p.avg}$ contre ${p.normal}$ le reste du temps.`,
     insightSizeEscalation: (p: any) =>
@@ -970,6 +980,16 @@ export const translations = {
       `${n}/${need} closed trades. Analysis starts at ${need} \u2014 below that, any pattern is noise.`,
     insightsAllClear: 'No issue detected over the period.',
     insightSampleNote: (n: number) => `over ${n} trades`,
+    coachTitle: 'AI SUMMARY',
+    coachAsk: 'Request a summary',
+    coachAgain: 'Regenerate',
+    coachLoading: 'Analysing\u2026',
+    coachPriority: 'PRIORITY',
+    coachPrivacy: 'Only anonymous aggregates are sent: no trade, price, note or balance leaves your device.',
+    coachErrorNotEnough: 'Not enough history for a summary.',
+    coachErrorNotConfigured: 'The AI summary is not configured on this server.',
+    coachErrorNetwork: 'Summary unavailable. Try again later.',
+    coachErrorUnknown: 'The summary failed.',
     insightRevenge: (p: any) =>
       `${p.count} entries within 30 min of a loss. Averaging $${p.avg} versus $${p.normal} otherwise.`,
     insightSizeEscalation: (p: any) =>

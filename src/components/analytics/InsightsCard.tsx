@@ -1,13 +1,22 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { AlertTriangle, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react-native';
+import {
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+  Bot,
+  Lock,
+} from 'lucide-react-native';
+import { Pressable, ActivityIndicator } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT, localeFor } from '../../i18n';
 import { Panel, Hairline } from '../ui/Panel';
 import { duration, stagger } from '../../theme/motion';
 import { computeInsights, MIN_TRADES_FOR_INSIGHTS } from '../../features/insights/computeInsights';
+import { useCoach } from '../../features/insights/useCoach';
 import type { Insight, InsightSeverity } from '../../features/insights/computeInsights';
 import type { Trade } from '../../types/domain';
 
@@ -35,6 +44,14 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades }) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const result = useMemo(() => computeInsights(trades), [trades]);
+  const coach = useCoach(trades, lang);
+
+  const coachErrorKey = {
+    not_enough_data: 'coachErrorNotEnough',
+    not_configured: 'coachErrorNotConfigured',
+    network: 'coachErrorNetwork',
+    unknown: 'coachErrorUnknown',
+  } as const;
 
   const severityColor: Record<InsightSeverity, string> = {
     critical: theme.colors.red,
@@ -94,6 +111,58 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades }) => {
           );
         })
       )}
+
+      {/* Opt-in narrative layer. The findings above are already complete
+          without it: this only turns them into prose, on demand, and the
+          request is never fired automatically. */}
+      {result.hasEnoughData && result.insights.length > 0 ? (
+        <>
+          <Hairline />
+          <View style={styles.coach}>
+            {coach.result ? (
+              <>
+                <Text style={styles.coachBody}>{coach.result.briefing}</Text>
+                {coach.result.priority ? (
+                  <View style={styles.priorityBox}>
+                    <Text style={styles.priorityLabel}>{t('coachPriority')}</Text>
+                    <Text style={styles.coachBody}>{coach.result.priority}</Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+
+            {coach.error ? (
+              <Text style={styles.coachError}>{t(coachErrorKey[coach.error])}</Text>
+            ) : null}
+
+            <Pressable
+              onPress={coach.ask}
+              disabled={coach.loading}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.coachBtn, pressed && { opacity: 0.6 }]}
+            >
+              {coach.loading ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Bot color={theme.colors.primary} size={14} />
+              )}
+              <Text style={styles.coachBtnText}>
+                {coach.loading
+                  ? t('coachLoading')
+                  : coach.result
+                    ? t('coachAgain')
+                    : t('coachAsk')}
+              </Text>
+            </Pressable>
+
+            {/* Stated at the point of action, not buried in a settings page. */}
+            <View style={styles.privacyRow}>
+              <Lock color={theme.colors.textMuted} size={10} />
+              <Text style={styles.privacyText}>{t('coachPrivacy')}</Text>
+            </View>
+          </View>
+        </>
+      ) : null}
     </Panel>
   );
 };
@@ -144,6 +213,54 @@ const createStyles = (theme: AppTheme) =>
       fontSize: theme.type.label,
       fontFamily: theme.fonts.sans,
       lineHeight: 18,
+    },
+    coach: { paddingTop: theme.spacing.sm, gap: theme.spacing.sm },
+    coachBody: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+      lineHeight: 19,
+    },
+    priorityBox: {
+      borderLeftWidth: 2,
+      borderLeftColor: theme.colors.primary,
+      paddingLeft: theme.spacing.sm,
+      gap: 3,
+    },
+    priorityLabel: {
+      color: theme.colors.primary,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 1,
+    },
+    coachError: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sans,
+    },
+    coachBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      paddingVertical: 9,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
+    },
+    coachBtnText: {
+      color: theme.colors.textPrimary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.6,
+    },
+    privacyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+    privacyText: {
+      flex: 1,
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sans,
+      lineHeight: 14,
     },
     note: {
       color: theme.colors.textMuted,

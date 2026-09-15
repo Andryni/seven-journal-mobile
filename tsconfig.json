@@ -3,5 +3,7 @@
   "compilerOptions": {
     "strict": true
   },
-  "exclude": ["node_modules", "src/**/__tests__"]
+  // supabase/functions runs on Deno, not React Native: it has its own globals
+  // and is type-checked by the Supabase CLI, not by the app build.
+  "exclude": ["node_modules", "src/**/__tests__", "supabase"]
 }
