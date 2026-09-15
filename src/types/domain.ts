@@ -44,6 +44,12 @@ export interface Trade {
    */
   mae_price?: number | null;
   mfe_price?: number | null;
+  /**
+   * Free-form tags. Optional because an unmigrated database omits the column;
+   * kept separate from setup_structures so tagging never pollutes the playbook
+   * setup statistics.
+   */
+  tags?: string[] | null;
   r_multiple: number | null;
   timeframe: 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
   setup_structures: string[];

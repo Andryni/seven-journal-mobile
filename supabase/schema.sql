@@ -170,6 +170,10 @@ create table if not exists public.trades (
   -- a cost, a price of 0 is nonsense, so these are nullable with no backfill.
   mae_price                 numeric,
   mfe_price                 numeric,
+  -- Free-form user tags. Deliberately separate from setup_structures, which
+  -- drives playbook attribution: overloading that column would make every
+  -- casual tag look like a strategy and corrupt the setup statistics.
+  tags                      text[] not null default '{}',
   created_at                timestamptz not null default now()
 );
 
@@ -178,24 +182,31 @@ alter table public.trades
   add column if not exists commission numeric,
   add column if not exists swap       numeric,
   add column if not exists mae_price  numeric,
-  add column if not exists mfe_price  numeric;
+  add column if not exists mfe_price  numeric,
+  add column if not exists tags       text[];
 
 -- Existing rows predate cost tracking. 0 means "no cost recorded", which is
 -- exactly the old behaviour, so no historical P&L changes.
 update public.trades set commission = 0 where commission is null;
 update public.trades set swap       = 0 where swap is null;
+update public.trades set tags = '{}' where tags is null;
 
 alter table public.trades
   alter column commission set default 0,
   alter column commission set not null,
   alter column swap       set default 0,
-  alter column swap       set not null;
+  alter column swap       set not null,
+  alter column tags       set default '{}',
+  alter column tags       set not null;
 
 -- The app always filters by account and sorts by entry_time desc.
 create index if not exists trades_user_account_time_idx
   on public.trades (user_id, account_id, entry_time desc);
 create index if not exists trades_user_time_idx
   on public.trades (user_id, entry_time desc);
+-- Tag filtering uses array containment, which needs GIN to stay fast.
+create index if not exists trades_tags_idx
+  on public.trades using gin (tags);
 
 -- ---------------------------------------------------------------------------
 -- daily_session_locks

@@ -55,6 +55,7 @@ import {
 } from 'lucide-react-native';
 import { estimatePnl } from '../../utils/positionSizing';
 import { isOutcomeInconsistent } from '../../utils/tradeOutcome';
+import { parseTagInput, normalizeTags } from '../../utils/tradeTags';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
@@ -115,12 +116,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [swap, setSwap] = useState('');
   const [maePrice, setMaePrice] = useState('');
   const [mfePrice, setMfePrice] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
 
   /**
    * Live R read-out for the excursions being typed. Prices alone are hard to
    * judge; "went 0.8R against you" is immediately meaningful, and it surfaces
    * a mistyped price before it is saved.
    */
+  /** Shows exactly what will be stored, after normalisation. */
+  const parsedTags = useMemo(() => parseTagInput(tagsInput), [tagsInput]);
+
   const excursionPreview = useMemo(() => {
     const entry = Number(entryPrice);
     const sl = Number(stopLoss);
@@ -202,6 +207,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setSwap(editingTrade.swap != null ? String(editingTrade.swap) : '');
       setMaePrice(editingTrade.mae_price != null ? String(editingTrade.mae_price) : '');
       setMfePrice(editingTrade.mfe_price != null ? String(editingTrade.mfe_price) : '');
+      setTagsInput(normalizeTags(editingTrade.tags ?? []).join(', '));
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
       setSelectedSetupTitle(
         editingTrade.setup_structures && editingTrade.setup_structures.length > 0
@@ -244,6 +250,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setSwap('');
     setMaePrice('');
     setMfePrice('');
+    setTagsInput('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
     setScreenshotBefore('');
@@ -432,6 +439,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     // price of 0, which would read as a trade that collapsed to zero.
     const finalMae = maePrice ? Number(maePrice) : null;
     const finalMfe = mfePrice ? Number(mfePrice) : null;
+    const finalTags = parseTagInput(tagsInput);
     const finalR = manualRMultiple ? Number(manualRMultiple) : null;
 
     const setupStructures: string[] = [];
@@ -460,6 +468,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       swap: finalSwap,
       mae_price: finalMae,
       mfe_price: finalMfe,
+      tags: finalTags,
       r_multiple: finalR,
       timeframe,
       setup_structures: setupStructures,
@@ -1110,6 +1119,27 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               ) : (
                 <Text style={styles.fieldHint}>{t('tfExcursionHint')}</Text>
               )}
+
+              <Text style={styles.fieldLabel}>{t('tfTags')}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t('tfTagsPlaceholder')}
+                placeholderTextColor={theme.colors.textMuted}
+                value={tagsInput}
+                onChangeText={setTagsInput}
+                autoCapitalize="none"
+              />
+              {parsedTags.length > 0 ? (
+                <View style={styles.tagPreviewRow}>
+                  {parsedTags.map(tag => (
+                    <View key={tag} style={styles.tagChip}>
+                      <Text style={styles.tagChipText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.fieldHint}>{t('tfTagsHint')}</Text>
+              )}
             </View>
 
             {/* ── SECTION 2 : STRATÉGIE PLAYBOOK ── */}
@@ -1476,6 +1506,25 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sans,
     lineHeight: 14,
+  },
+  tagPreviewRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  tagChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surfaceLight,
+  },
+  tagChipText: {
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
   },
   fieldHint: {
     color: theme.colors.textMuted,

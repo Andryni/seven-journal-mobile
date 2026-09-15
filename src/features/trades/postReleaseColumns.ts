@@ -13,6 +13,7 @@ export const POST_RELEASE_COLUMNS = [
   'swap',
   'mae_price',
   'mfe_price',
+  'tags',
   // trading_accounts
   'max_trades_per_day',
   'max_consecutive_losses',

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { Panel, Hairline } from '../components/ui/Panel';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -20,6 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
+import { collectTags, filterTrades } from '../utils/tradeTags';
 import type { Trade } from '../types/domain';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../utils/positionSizing';
 import { useMoney } from '../features/accounts/useMoney';
@@ -85,6 +87,13 @@ export const TradesScreen: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const toggleTag = useCallback((tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(x => x !== tag) : [...prev, tag]
+    );
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -256,24 +265,31 @@ export const TradesScreen: React.FC = () => {
       Alert.alert(t('errorTitle'), t('exportError'));
     }
   };
-  // Filtered & Searched Trades
-  const filteredTrades = useMemo(() => {
-    return trades.filter((t: Trade) => {
-      // Search filter
-      const matchesSearch =
-        searchQuery.trim() === '' ||
-        t.pair.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
+  /**
+   * Every tag in use, so the filter bar offers what actually exists rather
+   * than a fixed vocabulary the trader never chose.
+   */
+  const availableTags = useMemo(() => collectTags(trades), [trades]);
 
-      if (!matchesSearch) return false;
-
-      // Status filter
-      if (activeFilter === 'WIN') return (t.pnl || 0) > 0;
-      if (activeFilter === 'LOSS') return (t.pnl || 0) < 0;
-      if (activeFilter === 'OPEN') return t.pnl === null;
-      return true;
-    });
-  }, [trades, searchQuery, activeFilter]);
+  // Filtering is delegated to the tested engine so the screen and any other
+  // consumer of a filter can never drift apart.
+  const filteredTrades = useMemo(
+    () =>
+      filterTrades(trades, {
+        query: searchQuery,
+        tags: selectedTags,
+        tagMode: 'all',
+        outcome:
+          activeFilter === 'WIN'
+            ? 'win'
+            : activeFilter === 'LOSS'
+            ? 'loss'
+            : activeFilter === 'OPEN'
+            ? 'open'
+            : 'all',
+      }),
+    [trades, searchQuery, activeFilter, selectedTags]
+  );
 
   // Quick stats computed on filtered list
   const stats = useMemo(() => {
@@ -484,6 +500,44 @@ export const TradesScreen: React.FC = () => {
           </Text>
         </View>
       ) : null}
+
+      {availableTags.length > 0 && (
+        <View style={styles.tagBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tagBarContent}
+          >
+            {availableTags.map(({ tag, count }) => {
+              const active = selectedTags.includes(tag);
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  onPress={() => toggleTag(tag)}
+                  style={[styles.tagFilter, active && styles.tagFilterActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${t('tfTags')} ${tag}`}
+                >
+                  <Text style={[styles.tagFilterText, active && styles.tagFilterTextActive]}>
+                    {tag} {count}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {selectedTags.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSelectedTags([])}
+              style={styles.tagClear}
+              accessibilityRole="button"
+              accessibilityLabel={t('filterClear')}
+            >
+              <Text style={styles.tagClearText}>{t('filterClear')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.filterRow}>
         {(['ALL', 'WIN', 'LOSS', 'OPEN'] as FilterType[]).map(f => {
@@ -700,6 +754,41 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   // Filters are underlined segments, not floating pills — closer to a
   // terminal's tab rail and far less visual noise.
+  tagBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    gap: 8,
+  },
+  tagBarContent: { gap: 6, paddingRight: 4 },
+  tagFilter: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
+  },
+  tagFilterActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.surfaceLight,
+  },
+  tagFilterText: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+  },
+  tagFilterTextActive: {
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.monoBold,
+  },
+  tagClear: { paddingVertical: 4, paddingHorizontal: 6 },
+  tagClearText: {
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+  },
   filterPill: {
     paddingVertical: 6,
     paddingHorizontal: 12,

@@ -18,6 +18,7 @@ import { outcomeVariant } from '../../utils/tradeOutcome';
 import { tradeCost, hasCost, grossPnl } from '../../utils/tradingCosts';
 import { ExcursionBar } from './ExcursionBar';
 import { captureRatio, isNearMiss, isGiveBack } from '../../utils/excursions';
+import { tagsOf } from '../../utils/tradeTags';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
@@ -66,6 +67,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
   if (!trade) return null;
 
+  const tradeTags = tagsOf(trade);
   const cost = tradeCost(trade);
   // Only show the breakdown when costs were actually recorded: a trade imported
   // before the cost columns existed must not be displayed as commission-free.
@@ -156,7 +158,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </View>
             )}
 
-<ExcursionBar trade={trade} />
+{tradeTags.length > 0 && (
+              <View style={styles.tagRow}>
+                {tradeTags.map(tag => (
+                  <View key={tag} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <ExcursionBar trade={trade} />
             {excursionNote ? <Text style={styles.costWarn}>{excursionNote}</Text> : null}
 
                         {/* Détails Exécution */}
@@ -382,6 +394,25 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   scroll: {
     marginBottom: theme.spacing.md,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  tagChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surfaceLight,
+  },
+  tagChipText: {
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
   },
   costBox: {
     marginTop: 10,
