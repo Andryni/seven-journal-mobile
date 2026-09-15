@@ -26,11 +26,21 @@
  */
 
 const OPENAI_MODEL = 'gpt-4o-mini';
+
 /**
  * Flash rather than Pro: this task is short-form rewriting of findings that
- * are already computed, and Flash carries a far higher free daily allowance.
+ * are already computed, and Pro models were removed from Google's free tier
+ * in April 2026 while Flash kept its allowance.
+ *
+ * Overridable without a redeploy of the client:
+ *   supabase secrets set GEMINI_MODEL=gemini-3.8-flash
+ *
+ * Google retires model ids on a schedule -- gemini-2.0-flash, which this
+ * used to hardcode, is already discontinued, and the 2.5 family has a
+ * published shutdown date. Pinning a default here while allowing an override
+ * means a retirement is a one-line secret change rather than a code change.
  */
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
 const ALLOWED_SEVERITIES = ['critical', 'warning', 'good'];
 
 const SYSTEM_PROMPT = `You are a trading performance coach reviewing a trader's journal statistics.
@@ -193,6 +203,13 @@ Deno.serve(async (req: Request) => {
       // 429 is the one the user can act on: the free tier has a daily cap,
       // and "try again later" is true and useful, unlike a generic failure.
       if (res.status === 429) return json({ error: 'rate_limited' }, 429);
+      // 401/403 means the stored key is wrong, revoked, or not an API key at
+      // all (a short-lived OAuth token pasted in by mistake is the common
+      // case). That is a deployment fault, not a transient one, so it maps to
+      // the same message as a missing key rather than "try again".
+      if (res.status === 401 || res.status === 403) {
+        return json({ error: 'not_configured' }, 503);
+      }
       return json({ error: 'upstream_error' }, 502);
     }
 

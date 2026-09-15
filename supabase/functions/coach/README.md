@@ -22,16 +22,35 @@ supabase secrets set GEMINI_API_KEY=AIza...
 ```
 
 Get the key at <https://aistudio.google.com/apikey> — sign in with a Google
-account, "Create API key", done. The function calls `gemini-2.0-flash`:
-Flash rather than Pro because this task is short-form rewriting of findings
-that are already computed, and Flash carries a far higher free daily
-allowance.
+account, "Create API key", done.
 
-Google publishes the current free limits at
-<https://ai.google.dev/gemini-api/docs/rate-limits>, and has changed them
-before — check there rather than trusting a number written here. It does not
-matter much either way: this endpoint fires only when the user presses the
-button, a few times a week.
+**The key must start with `AIza`.** A Google AI Studio API key is a ~39
+character string beginning with those four letters. Anything shaped like
+`AQ.Ab8...` is a different Google credential — an OAuth / short-lived access
+token — and the Gemini REST endpoint will reject it with `401`. Those also
+expire within the hour, so they cannot be used as a stored secret.
+
+### Choosing the model
+
+```bash
+# Optional. Defaults to gemini-2.5-flash.
+supabase secrets set GEMINI_MODEL=gemini-3.8-flash
+```
+
+Flash rather than Pro: this task is short-form rewriting of findings that are
+already computed, and Google removed Pro models from the free tier in April
+2026 while Flash kept its allowance.
+
+The model id is read from a secret because **Google retires them on a
+schedule**. `gemini-2.0-flash`, which this function hardcoded until now, is
+already discontinued, and the 2.5 family has a published shutdown date. When
+that lands, set the secret — no code change, no redeploy of the app.
+
+Current ids and free limits are at
+<https://ai.google.dev/gemini-api/docs/models> and
+<https://ai.google.dev/gemini-api/docs/rate-limits>. Check there rather than
+trusting a number written here; this file will go stale. It matters little
+either way: the endpoint fires only when the user presses the button.
 
 Two things worth knowing before choosing the free tier: Google may use free
 tier traffic to train its models, and the free tier is not offered in the
