@@ -11,6 +11,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Panel, Hairline } from '../components/ui/Panel';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { duration, stagger } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useQueryClient } from '@tanstack/react-query';
@@ -217,7 +219,7 @@ export const TradesScreen: React.FC = () => {
       : theme.colors.red;
 
     return (
-      <View>
+      <Animated.View entering={FadeIn.delay(stagger(index)).duration(duration.fast)}>
         <PressableScale
           style={styles.row}
           onPress={() => handleViewTrade(item)}
@@ -295,7 +297,7 @@ export const TradesScreen: React.FC = () => {
           </View>
         </PressableScale>
         <Hairline inset={14} />
-      </View>
+      </Animated.View>
     );
   };
 

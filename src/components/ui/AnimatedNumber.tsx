@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, TextStyle, StyleProp, Animated, Easing } from 'react-native';
+import { Text, TextStyle, StyleProp, Animated } from 'react-native';
+import { duration as motionDuration, easing } from '../../theme/motion';
 
 interface AnimatedNumberProps {
   /** Target numeric value to animate to */
@@ -7,8 +8,12 @@ interface AnimatedNumberProps {
   /** Formats the animated value into the displayed string */
   format?: (v: number) => string;
   style?: StyleProp<TextStyle>;
-  /** Animation duration in ms (default 800) */
+  /** Animation duration in ms. Defaults to the motion system's `slow`. */
   duration?: number;
+  /** Extra props forwarded to the underlying Text (numberOfLines, etc). */
+  numberOfLines?: number;
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }
 
 /**
@@ -20,7 +25,10 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
   value,
   format = (v) => v.toFixed(2),
   style,
-  duration = 800,
+  duration = motionDuration.slow,
+  numberOfLines,
+  adjustsFontSizeToFit,
+  minimumFontScale,
 }) => {
   const animated = useRef(new Animated.Value(0)).current;
   const fromRef = useRef(0);
@@ -37,7 +45,8 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     Animated.timing(animated, {
       toValue: 1,
       duration,
-      easing: Easing.out(Easing.cubic),
+      // Shared curve from the motion system: data settles, never overshoots.
+      easing: easing.out.factory(),
       useNativeDriver: false,
     }).start(() => {
       fromRef.current = value;
@@ -48,5 +57,14 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  return <Text style={style}>{display}</Text>;
+  return (
+    <Text
+      style={style}
+      numberOfLines={numberOfLines}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
+    >
+      {display}
+    </Text>
+  );
 };

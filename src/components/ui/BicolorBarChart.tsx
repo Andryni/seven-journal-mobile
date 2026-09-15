@@ -4,8 +4,8 @@ import Animated, {
   useSharedValue,
   useAnimatedProps,
   withTiming,
-  Easing,
 } from 'react-native-reanimated';
+import { duration as motionDuration, easing } from '../../theme/motion';
 import Svg, { Rect, Line, G, Defs, ClipPath } from 'react-native-svg';
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -37,7 +37,9 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const grow = useSharedValue(0);
   useEffect(() => {
     grow.value = 0;
-    grow.value = withTiming(1, { duration: 750, easing: Easing.out(Easing.back(1.2)) });
+    // Was Easing.back(1.2): a bar overshooting its own value renders a P&L
+    // that is briefly wrong, and DESIGN.md forbids bounce easing anyway.
+    grow.value = withTiming(1, { duration: motionDuration.slow, easing: easing.out });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.length]);
 

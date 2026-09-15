@@ -106,14 +106,15 @@ create table if not exists public.daily_session_locks (
 -- devices and vanished on reinstall.
 -- ---------------------------------------------------------------------------
 create table if not exists public.playbook_setups (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users(id) on delete cascade,
-  name        text not null,
-  description text,
-  rules       text[] not null default '{}',
-  timeframe   text,
-  is_active   boolean not null default true,
-  created_at  timestamptz not null default now()
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references auth.users(id) on delete cascade,
+  title            text not null,
+  description      text,
+  timeframes       text[] not null default '{}',
+  validation_rules text[] not null default '{}',
+  tags             text[] not null default '{}',
+  image_url        text,
+  created_at       timestamptz not null default now()
 );
 
 create index if not exists playbook_setups_user_idx
@@ -123,14 +124,21 @@ create index if not exists playbook_setups_user_idx
 -- daily_debriefs
 -- ---------------------------------------------------------------------------
 create table if not exists public.daily_debriefs (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references auth.users(id) on delete cascade,
-  date         date not null,
-  what_worked  text,
-  what_failed  text,
-  lesson       text,
-  rating       int check (rating between 1 and 5),
-  created_at   timestamptz not null default now(),
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null references auth.users(id) on delete cascade,
+  date               date not null,
+  market_sentiment   text,
+  lessons_learned    text,
+  mistakes_committed text[] not null default '{}',
+  mental_score       int check (mental_score between 0 and 10),
+  htf_analysis       text,
+  htf_image_url      text,
+  rules_followed     text[] not null default '{}',
+  objective_tomorrow text,
+  emotion_before     text,
+  day_rating         int check (day_rating between 1 and 5),
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now(),
   unique (user_id, date)
 );
 
@@ -145,6 +153,9 @@ create table if not exists public.checklist_items (
   is_checked boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+comment on table public.checklist_items is
+  'Pre-session checklist. Verify column names against useChecklist.ts before applying.';
 
 create index if not exists checklist_items_user_idx
   on public.checklist_items (user_id, position);

@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  Easing,
-  FadeInUp,
+  withRepeat,
+  withSequence,
+  FadeIn,
 } from 'react-native-reanimated';
+import { duration as motionDuration, easing as motionEasing } from '../../theme/motion';
+import { useNotifications } from '../../features/notifications/useNotifications';
 import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -51,11 +54,55 @@ export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account 
 
   const progress = useSharedValue(0);
   useEffect(() => {
-    progress.value = withTiming(ratio, { duration: 800, easing: Easing.out(Easing.cubic) });
+    progress.value = withTiming(ratio, {
+      duration: motionDuration.slow,
+      easing: motionEasing.out,
+    });
   }, [ratio, progress]);
+
+  /**
+   * The only looping animation in the app, and it is load-bearing: once 80% of
+   * the daily allowance is gone the bar breathes so it catches the eye in
+   * peripheral vision. Below that threshold it is perfectly static.
+   */
+  /**
+   * Fire a single local notification the first time the trader crosses 70% of
+   * the daily allowance — the point where the decision to stop is still theirs
+   * rather than the lock's. Deduplicated per day via a ref.
+   */
+  const { notifyRiskThreshold } = useNotifications();
+  const notifiedForDay = useRef<string | null>(null);
+  useEffect(() => {
+    const today = new Date().toDateString();
+    if (ratio >= 0.7 && ratio < 1 && notifiedForDay.current !== today) {
+      notifiedForDay.current = today;
+      void notifyRiskThreshold(ratio * 100, formatCurrency(limit - Math.abs(todayPnL)));
+    }
+    if (ratio < 0.7 && notifiedForDay.current === today) {
+      notifiedForDay.current = null;
+    }
+  }, [ratio, limit, todayPnL, notifyRiskThreshold]);
+
+  const alarm = useSharedValue(1);
+  const isDanger = ratio >= 0.8;
+  useEffect(() => {
+    if (isDanger) {
+      alarm.value = withRepeat(
+        withSequence(
+          withTiming(0.55, { duration: 620, easing: motionEasing.inOut }),
+          withTiming(1, { duration: 620, easing: motionEasing.inOut })
+        ),
+        -1,
+        true
+      );
+    } else {
+      alarm.value = withTiming(1, { duration: motionDuration.fast });
+    }
+  }, [isDanger, alarm]);
 
   const fillStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,
+    opacity: alarm.value,
   }));
 
   if (limit <= 0) return null;
@@ -66,7 +113,7 @@ export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account 
   const Icon = level === 'danger' ? ShieldAlert : level === 'warn' ? Shield : ShieldCheck;
 
   return (
-    <Animated.View entering={FadeInUp.duration(420).springify().damping(16)} style={styles.container}>
+    <Animated.View entering={FadeIn.duration(motionDuration.base)} style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.labelRow}>
           <Icon size={13} color={barColor} />

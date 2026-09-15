@@ -1,10 +1,18 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Panel } from '../ui/Panel';
 import { useDisciplineScore } from '../../features/dashboard/useDisciplineScore';
+import { AnimatedNumber } from '../ui/AnimatedNumber';
+import { duration, easing, stagger } from '../../theme/motion';
 import type { Trade } from '../../types/domain';
 
 /**
@@ -36,7 +44,11 @@ export const DisciplineCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
   return (
     <Panel title={t('disciplineScore')} subtitle={t('disciplineDesc')}>
       <View style={styles.head}>
-        <Text style={[styles.score, { color: gradeColor }]}>{d.score}</Text>
+        <AnimatedNumber
+          value={d.score}
+          format={v => String(Math.round(v))}
+          style={[styles.score, { color: gradeColor }]}
+        />
         <Text style={styles.outOf}>/100</Text>
         <View style={[styles.gradeChip, { backgroundColor: gradeColor + '1A' }]}>
           <Text style={[styles.gradeText, { color: gradeColor }]}>{d.grade}</Text>
@@ -44,7 +56,7 @@ export const DisciplineCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
       </View>
 
       <View style={styles.bars}>
-        {d.components.map(c => {
+        {d.components.map((c, i) => {
           const color =
             c.score >= 80 ? theme.colors.green : c.score >= 50 ? theme.colors.gold : theme.colors.red;
           return (
@@ -53,7 +65,7 @@ export const DisciplineCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
                 {labels[c.id]}
               </Text>
               <View style={styles.track}>
-                <View style={[styles.fill, { width: `${c.score}%`, backgroundColor: color }]} />
+                <ScoreBar score={c.score} color={color} index={i} />
               </View>
               <Text style={[styles.barValue, { color }]}>{c.score}</Text>
             </View>
@@ -61,6 +73,35 @@ export const DisciplineCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
         })}
       </View>
     </Panel>
+  );
+};
+
+/**
+ * Each bar fills from zero on mount, staggered left-to-right, so the card
+ * reads as a measurement being taken rather than a static grid.
+ */
+const ScoreBar: React.FC<{ score: number; color: string; index: number }> = ({
+  score,
+  color,
+  index,
+}) => {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      stagger(index, 70),
+      withTiming(score / 100, { duration: duration.slow, easing: easing.out })
+    );
+  }, [score, index, progress]);
+
+  const style = useAnimatedStyle(() => ({
+    width: `${progress.value * 100}%`,
+  }));
+
+  return (
+    <Animated.View
+      style={[{ height: '100%', borderRadius: 2, backgroundColor: color }, style]}
+    />
   );
 };
 

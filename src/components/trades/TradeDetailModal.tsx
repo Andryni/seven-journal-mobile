@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -9,6 +9,7 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import { ScreenshotViewer } from './ScreenshotViewer';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
@@ -35,6 +36,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  // Which screenshot is open in the full-screen zoomable viewer.
+  const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
   if (!trade) return null;
 
   const isWin = (trade.pnl || 0) > 0;
@@ -138,7 +141,18 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                   <View style={{ marginBottom: 10 }}>
                     <Text style={styles.miniLabel}>{t('tdChartBefore')}</Text>
                     {trade.screenshot_before_url.startsWith('data:') || trade.screenshot_before_url.startsWith('file:') || trade.screenshot_before_url.startsWith('http') ? (
-                      <Image source={{ uri: trade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          setViewer({
+                            uri: trade.screenshot_before_url!,
+                            label: t('tdChartBefore'),
+                          })
+                        }
+                        accessibilityLabel={t('tdChartBefore')}
+                      >
+                        <Image source={{ uri: trade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
+                      </TouchableOpacity>
                     ) : null}
                     {trade.screenshot_before_url.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)} style={styles.linkRow}>
@@ -153,7 +167,18 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                   <View>
                     <Text style={styles.miniLabel}>{t('tdChartAfter')}</Text>
                     {trade.screenshot_after_url.startsWith('data:') || trade.screenshot_after_url.startsWith('file:') || trade.screenshot_after_url.startsWith('http') ? (
-                      <Image source={{ uri: trade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          setViewer({
+                            uri: trade.screenshot_after_url!,
+                            label: t('tdChartAfter'),
+                          })
+                        }
+                        accessibilityLabel={t('tdChartAfter')}
+                      >
+                        <Image source={{ uri: trade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
+                      </TouchableOpacity>
                     ) : null}
                     {trade.screenshot_after_url.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)} style={styles.linkRow}>
@@ -213,6 +238,12 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           </View>
         </View>
       </View>
+      <ScreenshotViewer
+        visible={viewer !== null}
+        uri={viewer?.uri ?? null}
+        label={viewer?.label}
+        onClose={() => setViewer(null)}
+      />
     </Modal>
   );
 };

@@ -25,6 +25,10 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
 import { ShareCardModal } from '../components/share/ShareCardModal';
+import { Sparkline } from '../components/ui/Sparkline';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
+import { duration, stagger } from '../theme/motion';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { formatCurrency } from '../utils/formatCurrency';
 import { isSameLocalDay } from '../utils/formatDate';
 
@@ -65,6 +69,12 @@ export const DashboardScreen: React.FC = () => {
     [trades]
   );
 
+  /** Cumulative equity points, for the hero sparkline. */
+  const equitySeries = useMemo(
+    () => m.equityCurve.map(e => e.pnl),
+    [m.equityCurve]
+  );
+
   const expectancy = useMemo(() => {
     if (m.closedTrades === 0) return 0;
     return m.netPnL / m.closedTrades;
@@ -85,7 +95,7 @@ export const DashboardScreen: React.FC = () => {
       showsVerticalScrollIndicator={false}
     >
       {/* ── 1. HERO — the one number that matters, and nothing next to it ── */}
-      <View style={styles.hero}>
+      <Animated.View entering={FadeInDown.duration(duration.base)} style={styles.hero}>
         <View style={styles.heroTop}>
           <Text style={styles.heroLabel}>{t('netPnlTotal')}</Text>
           <PressableScale
@@ -98,17 +108,24 @@ export const DashboardScreen: React.FC = () => {
           </PressableScale>
         </View>
 
-        <Text
-          style={[
-            styles.heroValue,
-            { color: m.netPnL >= 0 ? theme.colors.green : theme.colors.red },
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.6}
-        >
-          {formatCurrency(m.netPnL, { thousandsSeparator: true })}
-        </Text>
+        {/* Counts up on mount and on every data change — the number arrives
+            rather than appearing, which reads as live. */}
+        <View style={styles.heroValueRow}>
+          <AnimatedNumber
+            value={m.netPnL}
+            format={v => formatCurrency(v, { thousandsSeparator: true })}
+            style={[
+              styles.heroValue,
+              { color: m.netPnL >= 0 ? theme.colors.green : theme.colors.red },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          />
+          {equitySeries.length > 1 ? (
+            <Sparkline data={equitySeries} width={80} height={32} />
+          ) : null}
+        </View>
 
         {/* Inline secondary readout — today / open / trades */}
         <View style={styles.heroMeta}>
@@ -140,11 +157,11 @@ export const DashboardScreen: React.FC = () => {
             </>
           ) : null}
         </View>
-      </View>
+      </Animated.View>
 
       {/* ── 2. LOCK GUARD — highest-priority interrupt ── */}
       {isLocked ? (
-        <View style={styles.lockBanner}>
+        <Animated.View entering={FadeIn.duration(duration.fast)} style={styles.lockBanner}>
           <ShieldAlert color={theme.colors.red} size={18} strokeWidth={1.75} />
           <View style={styles.lockContent}>
             <Text style={styles.lockTitle}>{t('sessionLockedShort')}</Text>
@@ -152,7 +169,7 @@ export const DashboardScreen: React.FC = () => {
               {lockReason || t('lockReasonFallback')}
             </Text>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       {/* ── 3. METRIC STRIP — four numbers, no boxes, hairline-separated ── */}
@@ -257,7 +274,10 @@ export const DashboardScreen: React.FC = () => {
           <Text style={styles.emptyText}>{t('noRecentTrades')}</Text>
         ) : (
           m.recentTrades.map((tr: Trade, i: number) => (
-            <View key={tr.id}>
+            <Animated.View
+              key={tr.id}
+              entering={FadeIn.delay(stagger(i)).duration(duration.fast)}
+            >
               <View style={styles.blotterRow}>
                 <View
                   style={[
@@ -302,7 +322,7 @@ export const DashboardScreen: React.FC = () => {
                 </View>
               </View>
               {i < m.recentTrades.length - 1 ? <Hairline inset={16} /> : null}
-            </View>
+            </Animated.View>
           ))
         )}
       </Panel>
@@ -354,7 +374,14 @@ const createStyles = (theme: AppTheme) =>
     shareBtn: {
       padding: 4,
     },
+    heroValueRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing.md,
+    },
     heroValue: {
+      flex: 1,
       fontSize: theme.type.hero,
       lineHeight: theme.type.hero * 1.08,
       fontFamily: theme.fonts.monoExtraBold,

@@ -195,6 +195,60 @@ P&L column. ~11 trades visible per screen instead of 5.
 62px, background-coloured, hairline top border, amber active tint,
 9px uppercase mono labels.
 
+## Motion  (`src/theme/motion.ts`)
+
+Animation was previously ad hoc: springs with damping 16 in one file, 420ms
+fades in another, `Easing.back(1.2)` overshoot on the bar charts, 1100ms chart
+reveals. DESIGN.md forbade bounce easing and the charts used it anyway.
+
+One grammar now, exported as tokens:
+
+| Token | Value | Use |
+|---|---|---|
+| `duration.instant` | 120ms | Press feedback, toggles |
+| `duration.fast` | 200ms | Row entrance, banners |
+| `duration.base` | 260ms | Panels, sheets |
+| `duration.slow` | 420ms | Chart draw-in, count-up |
+| `duration.deliberate` | 620ms | Full equity reveal |
+| `easing.out` | `bezier(.22,1,.36,1)` | Default — decelerate into place |
+| `easing.inOut` | `bezier(.65,0,.35,1)` | Continuous / reversing |
+| `spring` | damping 22, stiffness 180 | Critically damped, never overshoots |
+| `stagger(i)` | 28ms step, capped at 8 | List entrances |
+
+### Named rules
+
+**The Data Settles Rule.** Financial values never bounce or overshoot. A bar
+that overshoots its own value is rendering a P&L that is briefly *wrong*.
+`Easing.back`, `elastic` and `bounce` are banned and there are zero uses left.
+
+**The One Loop Rule.** Only one animation in the app repeats: the daily risk
+gauge breathing above 80% consumption. It is load-bearing — it catches
+peripheral vision before the lock triggers. Everything else plays once.
+
+**The Stagger Cap.** List entrances stagger by 28ms but cap at 8 items, so a
+200-row blotter appears in 220ms, not 6 seconds.
+
+## Charts
+
+Every chart is hand-built SVG + Reanimated, animates on mount and on data
+change, and is tied to a specific question:
+
+| Chart | Question | Motion |
+|---|---|---|
+| `GlowingEquityAreaChart` | Where is my account going? | Left-to-right clip reveal |
+| `BicolorBarChart` | Which days/months paid? | Bars grow from the zero line |
+| `Sparkline` | Which way is this metric trending? | Stroke-dash line trace |
+| `RDistributionChart` | What is the *shape* of my edge? | Bars rise from baseline |
+| `HourlyPerformanceChart` | Which hours do I bleed in? | Diverging columns from zero axis |
+| `DonutChart` | Win/loss split | Arc sweep |
+
+**The Chart Answers One Question Rule.** A chart that needs a paragraph to
+explain it is a table. `RDistributionChart` exists because equity tells you the
+outcome while the R histogram tells you whether losses cluster at -1R (stops
+respected) and whether any winner is large enough to pay for them —
+the most diagnostic view for a discretionary trader, and the app had no
+equivalent.
+
 ## Do's and Don'ts
 
 ### Do
@@ -210,3 +264,5 @@ P&L column. ~11 trades visible per screen instead of 5.
 - **Don't** use emoji as icons (the achievements wall that did was removed)
 - **Don't** nest panels
 - **Don't** reintroduce a light theme — the app is dark-only by decision
+- **Don't** hardcode durations or easings — import from `theme/motion`
+- **Don't** add a looping animation without a functional reason

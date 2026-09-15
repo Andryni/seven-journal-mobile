@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
+import { duration as motionDuration, easing as motionEasing } from '../../theme/motion';
 import { formatCurrency } from '../../utils/formatCurrency';
 import Svg, {
   Path,
@@ -63,8 +64,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   useEffect(() => {
     reveal.value = 0;
     reveal.value = withTiming(1, {
-      duration: 1100,
-      easing: Easing.out(Easing.cubic),
+      duration: motionDuration.deliberate,
+      easing: motionEasing.out,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.length]);

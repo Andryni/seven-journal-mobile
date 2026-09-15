@@ -34,6 +34,9 @@ import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart'
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
+import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
+import { RDistributionChart } from '../components/ui/RDistributionChart';
+import { HourlyPerformanceChart } from '../components/ui/HourlyPerformanceChart';
 import {
   Activity,
   TrendingUp,
@@ -709,6 +712,10 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
       {activeTab === 'perf' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          {/* Weekly feedback loop sits above the raw KPIs: deltas first,
+              absolutes second. */}
+          <WeeklyReviewCard trades={trades} />
+
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('kpiGlobal')}>
               <View style={s.grid2}>
@@ -850,6 +857,16 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 3 : DISTRIBUTION ── */}
       {activeTab === 'edge' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Animated.View entering={FadeIn.duration(350)}>
+            <Card title={t('rDistribution')}>
+              <RDistributionChart
+                values={closed
+                  .filter(tr => tr.r_multiple !== null)
+                  .map(tr => tr.r_multiple as number)}
+              />
+            </Card>
+          </Animated.View>
+
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('gainLossSplit')}>
               <DonutChart
@@ -994,12 +1011,10 @@ export const AnalyticsScreen: React.FC = () => {
       {activeTab === 'behavior' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
-            <Card title={t('hourlyPnlAmplitude')}>
-              {timingBreakdown.length > 0 ? (
-                <BicolorBarChart data={timingBreakdown} height={170} />
-              ) : (
-                <Text style={s.emptyText}>{t('noHourlyData')}</Text>
-              )}
+            {/* 24h diverging columns replace the aggregated bar chart:
+                bleed usually concentrates in one or two specific hours. */}
+            <Card title={t('hourlyPerformance')}>
+              <HourlyPerformanceChart trades={closed} />
             </Card>
           </Animated.View>
             {/* Session Heatmap */}

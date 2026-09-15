@@ -25,6 +25,8 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { PlaybookScreen } from './src/screens/PlaybookScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
+import { LockScreen } from './src/screens/LockScreen';
+import { useAppLock } from './src/features/security/useAppLock';
 import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked } from 'lucide-react-native';
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
@@ -55,6 +57,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [splashFinished, setSplashFinished] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const appLock = useAppLock();
 
   // Load High-Tech FinTech Google Fonts
   const [fontsLoaded] = useFonts({
@@ -107,6 +110,19 @@ export default function App() {
         <View style={[styles.centerScreen, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Biometric gate — sits above everything except the splash, so trade data
+  // is never rendered behind the lock.
+  if (appLock.enabled && !appLock.isUnlocked) {
+    return (
+      <SafeAreaProvider>
+        <LockScreen
+          onAuthenticate={appLock.authenticate}
+          isAuthenticating={appLock.isAuthenticating}
+        />
       </SafeAreaProvider>
     );
   }

@@ -11,15 +11,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
+import { SettingsSheet } from '../settings/SettingsSheet';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
-import { Wallet, ChevronDown, Check, LogOut, Sun, Moon, Languages } from 'lucide-react-native';
+import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
 import { formatCurrency } from '../../utils/formatCurrency';
 
 export const TopAccountBar: React.FC = () => {
-  const { theme, mode, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const { t, lang, toggleLang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -27,6 +28,7 @@ export const TopAccountBar: React.FC = () => {
   const { accounts } = useAccounts();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
 
@@ -77,21 +79,19 @@ export const TopAccountBar: React.FC = () => {
         <ChevronDown size={14} color={theme.colors.textSecondary} />
       </TouchableOpacity>
 
-      {/* Theme + Language + Logout quick access */}
+      {/* Settings + Language + Logout quick access.
+          The theme toggle was removed: the app is dark-only, so it was a
+          button that did nothing. Settings took its slot. */}
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={toggleTheme}
+          onPress={() => setSettingsVisible(true)}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel={t('switchTheme')}
+          accessibilityLabel={t('settings')}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          {mode === 'dark' ? (
-            <Sun size={14} color={theme.colors.goldLight} />
-          ) : (
-            <Moon size={14} color={theme.colors.primaryLight} />
-          )}
+          <Settings size={14} color={theme.colors.textSecondary} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
@@ -115,6 +115,8 @@ export const TopAccountBar: React.FC = () => {
           <LogOut size={14} color={theme.colors.textMuted} />
         </TouchableOpacity>
       </View>
+
+      <SettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
 
       {/* Account Selection Modal */}
       <Modal visible={modalVisible} transparent animationType="fade">

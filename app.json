@@ -8,13 +8,16 @@
     "userInterfaceStyle": "dark",
     "scheme": "seventracking",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Autoriser Seven Journal à utiliser Face ID pour déverrouiller vos données de trading."
+      }
     },
     "android": {
       "package": "com.seventracking.terminal",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#07080a",
+        "backgroundColor": "#0A0A0B",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
@@ -28,13 +31,25 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#07080a",
+          "backgroundColor": "#0A0A0B",
           "ios": {
-            "backgroundColor": "#07080a"
+            "backgroundColor": "#0A0A0B"
           },
           "android": {
-            "backgroundColor": "#07080a"
+            "backgroundColor": "#0A0A0B"
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF9F1C"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Autoriser Seven Journal à utiliser Face ID pour déverrouiller vos données de trading."
         }
       ]
     ],
