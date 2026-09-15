@@ -11,6 +11,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import Svg, { Path, Line, Rect, G } from 'react-native-svg';
+import { SevenMark } from '../brand/SevenMark';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -123,6 +124,9 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
           />
         </Svg>
 
+        {/* The mark, vectorised: same geometry as the launcher icon but
+            themed and resolution-independent, rather than a scaled PNG. */}
+        <SevenMark size={46} />
         <Text style={styles.wordmark}>SEVEN JOURNAL</Text>
         <Text style={styles.tagline}>{caption ?? 'FINTECH TERMINAL'}</Text>
 
@@ -142,7 +146,7 @@ const createStyles = (theme: AppTheme) =>
     },
     stack: { alignItems: 'center' },
     wordmark: {
-      marginTop: theme.spacing.lg,
+      marginTop: theme.spacing.md,
       color: theme.colors.textPrimary,
       fontSize: 17,
       fontFamily: theme.fonts.monoBold,

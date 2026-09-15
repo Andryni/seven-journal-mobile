@@ -33,7 +33,27 @@ import {
   Edit3,
   X,
   Check,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Panel } from '../components/ui/Panel';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Sparkline } from '../components/ui/Sparkline';
+import {
+  computeAllSetupEdges,
+  computeUnattributed,
+  computeConfluence,
+  MIN_SAMPLE,
+} from '../features/playbook/setupAttribution';
+
+/** Ranking modes. Expectancy leads because it is the only one that is money. */
+const SORT_MODES = [
+  { id: 'expectancy' as const, labelKey: 'sortByExpectancy' },
+  { id: 'winRate' as const, labelKey: 'sortByWinRate' },
+  { id: 'volume' as const, labelKey: 'sortByVolume' },
+];
+type SortMode = (typeof SORT_MODES)[number]['id'];
 
 const COMMON_MISTAKES = ['revenge', 'fomo', 'early_cut', 'over_size', 'no_sl', 'chasing'] as const;
 
@@ -128,6 +148,7 @@ export const PlaybookScreen: React.FC = () => {
 
   // Setup Modal State
   const [setupSearch, setSetupSearch] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('expectancy');
   const [setupFilterTimeframe, setSetupFilterTimeframe] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [setupModalVisible, setSetupModalVisible] = useState(false);
@@ -233,41 +254,42 @@ export const PlaybookScreen: React.FC = () => {
     );
   };
 
-  // Real Trade Stats per Setup (100% fidélité à la version web)
-  const setupStats = useMemo(() => {
-    return setups.map(s => {
-      const titleLower = s.title.toLowerCase().trim();
-      const matchingTrades = trades.filter((t: Trade) => {
-        // 1. Direct match in setup_structures array
-        if (t.setup_structures && t.setup_structures.some(st => st.toLowerCase().trim() === titleLower)) return true;
-        // 2. Direct match in notes
-        const notesLower = (t.notes || '').toLowerCase();
-        if (notesLower.includes(titleLower)) return true;
-        // 3. Technical confirmations check
-        if (titleLower.includes('bos') && t.setup_structures && t.setup_structures.includes('BOS')) return true;
-        if ((titleLower.includes('ob') || titleLower.includes('order block')) && t.setup_ob) return true;
-        if ((titleLower.includes('fvg') || titleLower.includes('gap')) && t.setup_fvg) return true;
-        if ((titleLower.includes('sweep') || titleLower.includes('liquidity')) && t.setup_liquidity_sweep) return true;
-        if (setups.length === 1) return true;
-        return false;
-      });
-      const closed = matchingTrades.filter(t => t.pnl !== null);
-      const w = closed.filter(t => (t.pnl || 0) > 0).length;
-      const wr = closed.length > 0 ? (w / closed.length) * 100 : 0;
-      const pnl = closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
-      return { setup: s, count: closed.length, winRate: wr, pnl };
-    });
-  }, [setups, trades]);
+  /**
+   * Setup edges come from the attribution module, which is unit-tested. The
+   * previous inline matcher credited setups for trades they had nothing to do
+   * with (substring matches, and a lone setup capturing everything), so the
+   * win rates shown here were not measuring the setups at all.
+   */
+  const setupEdges = useMemo(
+    () => computeAllSetupEdges(setups, trades),
+    [setups, trades]
+  );
+  const adherence = useMemo(
+    () => computeUnattributed(setups, trades),
+    [setups, trades]
+  );
+  const confluence = useMemo(() => computeConfluence(trades), [trades]);
 
   // Débriefings triés par date décroissante (plus récent en premier)
   // Filtered setups
-  const filteredSetups = useMemo(() => {
-    return setupStats.filter(({ setup: s }) => {
-      if (setupSearch && !s.title.toLowerCase().includes(setupSearch.toLowerCase()) && !(s.description || '').toLowerCase().includes(setupSearch.toLowerCase())) return false;
-      if (setupFilterTimeframe && !s.timeframes.some(tf => tf.toLowerCase() === setupFilterTimeframe.toLowerCase())) return false;
+  const rankedSetups = useMemo(() => {
+    const filtered = setupEdges.filter(({ setup: st }) => {
+      const q = setupSearch.toLowerCase();
+      if (q && !st.title.toLowerCase().includes(q) && !(st.description || '').toLowerCase().includes(q)) return false;
+      if (setupFilterTimeframe && !st.timeframes.some(tf => tf.toLowerCase() === setupFilterTimeframe.toLowerCase())) return false;
       return true;
     });
-  }, [setupStats, setupSearch, setupFilterTimeframe]);
+    // Untraded setups always sink to the bottom: they have no edge to rank,
+    // and a 0 would otherwise sit above every losing setup.
+    return [...filtered].sort((a, b) => {
+      if (a.count === 0 && b.count === 0) return a.setup.title.localeCompare(b.setup.title);
+      if (a.count === 0) return 1;
+      if (b.count === 0) return -1;
+      if (sortMode === 'winRate') return b.winRate - a.winRate;
+      if (sortMode === 'volume') return b.count - a.count;
+      return b.expectancy - a.expectancy;
+    });
+  }, [setupEdges, setupSearch, setupFilterTimeframe, sortMode]);
 
   // Discipline analytics
   const mistakesAnalytics = useMemo(() => {
@@ -351,74 +373,279 @@ export const PlaybookScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* ── TAB 1 : MES STRATÉGIES PLAYBOOK ── */}
+      {/* ── TAB 1 : MES STRATÉGIES PLAYBOOK ──
+          Rebuilt around one question: which setup actually pays? The list is
+          therefore ranked by expectancy by default, not by creation order, and
+          every card leads with money-per-trade rather than win rate (a 70% win
+          rate on -0.3R is a losing strategy). */}
       {activeTab === 'setups' && (
         <View style={styles.tabContent}>
+          {/* Adherence banner — the number a playbook should open with. */}
+          {adherence.total > 0 && (
+            <Animated.View entering={FadeInDown.duration(320)}>
+              <Panel>
+                <View style={styles.adherenceHead}>
+                  <ShieldCheck size={16} color={theme.colors.primaryLight} />
+                  <Text style={styles.adherenceTitle}>{t('planAdherence')}</Text>
+                  <Text style={styles.adherencePct}>{adherence.adherencePct.toFixed(0)}%</Text>
+                </View>
+                <View style={styles.adherenceBarTrack}>
+                  <View
+                    style={[
+                      styles.adherenceBarFill,
+                      { width: `${Math.min(adherence.adherencePct, 100)}%` },
+                    ]}
+                  />
+                </View>
+                <View style={styles.adherenceRow}>
+                  <View style={styles.adherenceCell}>
+                    <Text style={styles.adherenceLabel}>{t('onPlanTrades')}</Text>
+                    <Text style={styles.adherenceVal}>{adherence.onPlan}</Text>
+                    <Text
+                      style={[
+                        styles.adherenceSub,
+                        adherence.onPlanPnl >= 0 ? styles.greenText : styles.redText,
+                      ]}
+                    >
+                      {money(adherence.onPlanPnl, { decimals: 0 })}
+                    </Text>
+                  </View>
+                  <View style={styles.adherenceDivider} />
+                  <View style={styles.adherenceCell}>
+                    <Text style={styles.adherenceLabel}>{t('offPlanTrades')}</Text>
+                    <Text style={styles.adherenceVal}>{adherence.offPlan}</Text>
+                    <Text
+                      style={[
+                        styles.adherenceSub,
+                        adherence.offPlanPnl >= 0 ? styles.greenText : styles.redText,
+                      ]}
+                    >
+                      {money(adherence.offPlanPnl, { decimals: 0 })}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.adherenceHint}>{t('adherenceHint')}</Text>
+              </Panel>
+            </Animated.View>
+          )}
+
           <TouchableOpacity style={styles.addSetupBtn} onPress={openAddSetup}>
             <Plus size={16} color={theme.colors.textPrimary} />
             <Text style={styles.addSetupText}>{t('addNewStrategy')}</Text>
           </TouchableOpacity>
 
-          {filteredSetups.length === 0 ? (
-            <Text style={styles.emptyText}>{t('noStrategy')}</Text>
+          {setups.length > 1 && (
+            <View style={styles.sortRow}>
+              <Text style={styles.sortLabel}>{t('sortLabel')}</Text>
+              {SORT_MODES.map(mode => (
+                <TouchableOpacity
+                  key={mode.id}
+                  style={[styles.sortBtn, sortMode === mode.id && styles.sortBtnActive]}
+                  onPress={() => setSortMode(mode.id)}
+                >
+                  <Text
+                    style={[
+                      styles.sortBtnText,
+                      sortMode === mode.id && styles.sortBtnTextActive,
+                    ]}
+                  >
+                    {t(mode.labelKey as any)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {rankedSetups.length === 0 ? (
+            <EmptyState
+              icon={<Target size={22} color={theme.colors.primaryLight} />}
+              title={t('noStrategy')}
+            />
           ) : (
-            filteredSetups.map(({ setup: s, count, winRate, pnl }) => (
-              <View key={s.id} style={styles.setupCard}>
-                <View style={styles.setupHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.setupTitle}>{s.title}</Text>
-                    {s.description ? (
-                      <Text style={styles.setupDesc}>{s.description}</Text>
-                    ) : null}
-                    {s.validation_rules.length > 0 && (
-                      <View style={{ marginTop: 4 }}>
-                        {s.validation_rules.map((rule, idx) => (
-                          <Text key={idx} style={styles.ruleItem}>• {rule}</Text>
+            rankedSetups.map((edge, idx) => {
+              const { setup: st } = edge;
+              const positive = edge.expectancy >= 0;
+              const accent = edge.count === 0
+                ? theme.colors.textMuted
+                : positive
+                  ? theme.colors.green
+                  : theme.colors.red;
+              return (
+                <Animated.View
+                  key={st.id}
+                  entering={FadeInDown.delay(idx * 60).duration(320)}
+                >
+                  <View style={[styles.setupCard, { borderLeftColor: accent, borderLeftWidth: 3 }]}>
+                    <View style={styles.setupHeader}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.setupTitleRow}>
+                          <Text style={styles.setupTitle} numberOfLines={1}>{st.title}</Text>
+                          {/* Rank badges only make sense once a setup has a
+                              trustworthy sample behind it. */}
+                          {edge.count >= MIN_SAMPLE && idx === 0 && (
+                            <Badge label={t('bestSetup')} variant="green" />
+                          )}
+                        </View>
+                        {st.description ? (
+                          <Text style={styles.setupDesc} numberOfLines={2}>{st.description}</Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.setupActions}>
+                        <TouchableOpacity
+                          onPress={() => openEditSetup(st)}
+                          style={styles.iconBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('a11yEditSetup', st.title)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Edit3 size={16} color={theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => deleteSetup(st.id)}
+                          style={styles.iconBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('a11yDeleteSetup', st.title)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Trash2 size={16} color={theme.colors.redLight} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {edge.count === 0 ? (
+                      <View style={styles.setupEmpty}>
+                        <Text style={styles.setupEmptyTitle}>{t('noTradesForSetup')}</Text>
+                        <Text style={styles.setupEmptyHint}>{t('noTradesForSetupHint')}</Text>
+                      </View>
+                    ) : (
+                      <>
+                        {/* Headline: expectancy + the shape of its equity. */}
+                        <View style={styles.edgeRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.edgeLabel}>{t('expectancyPerTrade')}</Text>
+                            <Text style={[styles.edgeValue, { color: accent }]}>
+                              {money(edge.expectancy, { decimals: 2 })}
+                            </Text>
+                            <Text style={styles.edgeSub}>
+                              {edge.count} trades · {money(edge.pnl, { decimals: 0 })}
+                              {edge.openCount > 0 ? ` · ${t('setupOpenTrades', edge.openCount)}` : ''}
+                            </Text>
+                          </View>
+                          {edge.equity.length >= 2 && (
+                            <Sparkline data={edge.equity} width={92} height={36} />
+                          )}
+                        </View>
+
+                        <View style={styles.edgeStats}>
+                          <View style={styles.edgeStat}>
+                            <Text style={styles.edgeStatLabel}>WR</Text>
+                            <Text
+                              style={[
+                                styles.edgeStatVal,
+                                edge.winRate >= 50 ? styles.greenText : styles.redText,
+                              ]}
+                            >
+                              {edge.winRate.toFixed(0)}%
+                            </Text>
+                          </View>
+                          <View style={styles.edgeStat}>
+                            <Text style={styles.edgeStatLabel}>PF</Text>
+                            <Text style={styles.edgeStatVal}>
+                              {/* 0 means "no losses yet", which is not a profit
+                                  factor of zero. A dash is the honest glyph. */}
+                              {edge.profitFactor > 0 ? edge.profitFactor.toFixed(2) : '—'}
+                            </Text>
+                          </View>
+                          <View style={styles.edgeStat}>
+                            <Text style={styles.edgeStatLabel}>R</Text>
+                            <Text style={styles.edgeStatVal}>
+                              {edge.avgR >= 0 ? '+' : ''}{edge.avgR.toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={styles.edgeStat}>
+                            <Text style={styles.edgeStatLabel}>W/L/BE</Text>
+                            <Text style={styles.edgeStatVal}>
+                              {edge.wins}/{edge.losses}/{edge.breakeven}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {edge.lowConfidence && (
+                          <View style={styles.warnRow}>
+                            <AlertTriangle size={12} color={theme.colors.gold} />
+                            <Text style={styles.warnText}>
+                              {t('lowSampleWarn')} — {t('lowSampleHint', MIN_SAMPLE)}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+
+                    {st.validation_rules.length > 0 && (
+                      <View style={styles.rulesBlock}>
+                        {st.validation_rules.map((rule, i) => (
+                          <Text key={i} style={styles.ruleItem}>• {rule}</Text>
                         ))}
                       </View>
                     )}
-                  </View>
-                  <View style={styles.setupActions}>
-                    <TouchableOpacity
-                      onPress={() => openEditSetup(s)}
-                      style={styles.iconBtn}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('a11yEditSetup', s.title)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Edit3 size={16} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deleteSetup(s.id)}
-                      style={styles.iconBtn}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('a11yDeleteSetup', s.title)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Trash2 size={16} color={theme.colors.redLight} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
 
-                <View style={styles.setupMetaRow}>
-                  <View style={styles.tagWrap}>
-                    {s.timeframes.map(tf => (
-                      <Badge key={tf} label={tf} variant="blue" />
-                    ))}
-                    {s.tags.map(tg => (
-                      <Badge key={tg} label={tg} variant="neutral" />
-                    ))}
+                    <View style={styles.tagWrap}>
+                      {st.timeframes.map(tf => (
+                        <Badge key={tf} label={tf} variant="blue" />
+                      ))}
+                      {st.tags.map(tg => (
+                        <Badge key={tg} label={tg} variant="neutral" />
+                      ))}
+                    </View>
                   </View>
+                </Animated.View>
+              );
+            })
+          )}
 
-                  <View style={styles.statsBadge}>
-                    <Text style={[styles.statWr, winRate >= 50 ? styles.greenText : styles.redText]}>
-                      {winRate.toFixed(0)}% WR
+          {/* Confluence performance — what the FVG/OB/sweep flags are worth.
+              These used to be (mis)used to attribute trades to setups; here
+              they answer their own question instead. */}
+          {confluence.some(c => c.count > 0) && (
+            <Animated.View entering={FadeInDown.delay(200).duration(320)}>
+              <Card title={t('confluenceTitle')}>
+                {confluence.map(c => (
+                  <View key={c.id} style={styles.confRow}>
+                    <Text style={styles.confLabel}>
+                      {c.id === 'fvg'
+                        ? t('confluenceFvg')
+                        : c.id === 'ob'
+                          ? t('confluenceOb')
+                          : t('confluenceSweep')}
                     </Text>
-                    <Text style={styles.statCount}>{count} trades ({money(pnl, { decimals: 0 })})</Text>
+                    {c.count === 0 ? (
+                      <Text style={styles.confMuted}>{t('playbookNoData')}</Text>
+                    ) : (
+                      <View style={styles.confVals}>
+                        <Text style={styles.confCount}>{c.count}</Text>
+                        <Text
+                          style={[
+                            styles.confWr,
+                            c.winRate >= 50 ? styles.greenText : styles.redText,
+                          ]}
+                        >
+                          {c.winRate.toFixed(0)}%
+                        </Text>
+                        <Text
+                          style={[
+                            styles.confPnl,
+                            c.pnl >= 0 ? styles.greenText : styles.redText,
+                          ]}
+                        >
+                          {money(c.pnl, { decimals: 0 })}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                </View>
-              </View>
-            ))
+                ))}
+                <Text style={styles.adherenceHint}>{t('confluenceHint')}</Text>
+              </Card>
+            </Animated.View>
           )}
         </View>
       )}
@@ -764,6 +991,239 @@ export const PlaybookScreen: React.FC = () => {
 };
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
+  adherenceHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  adherenceTitle: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 1,
+  },
+  adherencePct: {
+    color: theme.colors.textPrimary,
+    fontSize: 20,
+    fontFamily: theme.fonts.sansExtraBold,
+    fontVariant: ['tabular-nums'],
+  },
+  adherenceBarTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: theme.colors.cardBorder,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  adherenceBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  adherenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  adherenceCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  adherenceDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: theme.colors.cardBorder,
+  },
+  adherenceLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoMedium,
+    letterSpacing: 0.8,
+  },
+  adherenceVal: {
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+    fontFamily: theme.fonts.sansBold,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  adherenceSub: {
+    fontSize: 11,
+    fontFamily: theme.fonts.monoMedium,
+    fontVariant: ['tabular-nums'],
+  },
+  adherenceHint: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.sans,
+    marginTop: 10,
+    lineHeight: 14,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: theme.spacing.sm,
+  },
+  sortLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.8,
+  },
+  sortBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.card,
+  },
+  sortBtnActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+  },
+  sortBtnText: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+  },
+  sortBtnTextActive: {
+    color: theme.colors.textPrimary,
+  },
+  setupTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  setupEmpty: {
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.cardBorder,
+  },
+  setupEmptyTitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.sansBold,
+  },
+  setupEmptyHint: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.sans,
+    marginTop: 2,
+  },
+  edgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  edgeLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.8,
+  },
+  edgeValue: {
+    fontSize: 22,
+    fontFamily: theme.fonts.sansExtraBold,
+    fontVariant: ['tabular-nums'],
+    marginTop: 1,
+  },
+  edgeSub: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
+    fontVariant: ['tabular-nums'],
+    marginTop: 1,
+  },
+  edgeStats: {
+    flexDirection: 'row',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.cardBorder,
+  },
+  edgeStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  edgeStatLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 8,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.6,
+  },
+  edgeStatVal: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  warnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+  },
+  warnText: {
+    flex: 1,
+    color: theme.colors.gold,
+    fontSize: 9,
+    fontFamily: theme.fonts.sans,
+  },
+  rulesBlock: {
+    marginTop: 10,
+  },
+  confRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.cardBorder,
+  },
+  confLabel: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.sansMedium,
+  },
+  confMuted: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoMedium,
+  },
+  confVals: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  confCount: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoMedium,
+    fontVariant: ['tabular-nums'],
+  },
+  confWr: {
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+    minWidth: 34,
+    textAlign: 'right',
+  },
+  confPnl: {
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+    minWidth: 54,
+    textAlign: 'right',
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
