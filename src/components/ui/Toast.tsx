@@ -21,19 +21,19 @@ const TOAST_ICONS: Record<ToastType, React.FC<{ color: string; size: number }>> 
 
 const TOAST_COLORS: Record<ToastType, { bg: string; border: string; icon: string }> = {
   error: {
-    bg: 'rgba(239, 68, 68, 0.15)',
-    border: 'rgba(239, 68, 68, 0.4)',
-    icon: '#f87171',
+    bg: 'rgba(255, 77, 77, 0.15)',
+    border: 'rgba(255, 77, 77, 0.4)',
+    icon: '#FF7A7A',
   },
   success: {
-    bg: 'rgba(16, 185, 129, 0.15)',
-    border: 'rgba(16, 185, 129, 0.4)',
-    icon: '#34d399',
+    bg: 'rgba(43, 213, 118, 0.15)',
+    border: 'rgba(43, 213, 118, 0.4)',
+    icon: '#5FE49A',
   },
   info: {
-    bg: 'rgba(99, 102, 241, 0.15)',
-    border: 'rgba(99, 102, 241, 0.4)',
-    icon: '#818cf8',
+    bg: 'rgba(255, 159, 28, 0.15)',
+    border: 'rgba(255, 159, 28, 0.4)',
+    icon: '#FFB74D',
   },
 };
 

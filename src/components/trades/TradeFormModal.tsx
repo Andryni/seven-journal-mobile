@@ -593,7 +593,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   const reward = Math.abs(tp - entry);
                   const rr = risk > 0 ? (reward / risk) : 0;
                   const rrColor = rr >= 2 ? theme.colors.green : rr >= 1 ? theme.colors.goldLight : theme.colors.redLight;
-                  const rrBg = rr >= 2 ? 'rgba(16, 185, 129, 0.15)' : rr >= 1 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+                  const rrBg = rr >= 2 ? 'rgba(43, 213, 118, 0.15)' : rr >= 1 ? 'rgba(212, 162, 76, 0.15)' : 'rgba(255, 77, 77, 0.15)';
                   return (
                     <View style={[styles.rrCalcBox, { backgroundColor: rrBg, borderColor: rrColor + '60' }]}>
                       <Target size={12} color={rrColor} />
@@ -914,7 +914,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(7, 8, 10, 0.95)',
+    backgroundColor: 'rgba(10, 10, 11, 0.95)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -984,8 +984,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(255, 77, 77, 0.15)',
+    borderColor: 'rgba(255, 77, 77, 0.3)',
     borderWidth: 1,
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
@@ -1111,11 +1111,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   buyActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(43, 213, 118, 0.2)',
     borderColor: theme.colors.green,
   },
   sellActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(255, 77, 77, 0.2)',
     borderColor: theme.colors.red,
   },
   directionText: {
@@ -1222,7 +1222,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: theme.spacing.md,
   },
   setupCardActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   setupCardText: {
@@ -1234,7 +1234,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.greenLight,
     fontSize: 10,
     fontFamily: theme.fonts.monoBold,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(43, 213, 118, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,

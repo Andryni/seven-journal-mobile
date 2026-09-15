@@ -80,7 +80,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     overflow: 'hidden',
   },
   tabActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.16)',
+    backgroundColor: 'rgba(255, 159, 28, 0.16)',
     borderColor: theme.colors.primary,
     shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },

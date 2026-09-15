@@ -73,6 +73,10 @@ export interface DailySessionLock {
   locked_at: string | null;
   unlock_at: string | null;
   lock_reason: string | null;
+  /** Machine-readable reason set by the Postgres rule engine. */
+  lock_code?: string | null;
+  /** Interpolation values for the localized lock message. */
+  lock_params?: { account?: string; loss?: number; limit?: number } | null;
 }
 
 

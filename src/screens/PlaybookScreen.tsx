@@ -795,7 +795,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     paddingVertical: 8,
   },
   tabBtnActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   tabBtnText: {
@@ -994,7 +994,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
     borderColor: theme.colors.primary,
     borderWidth: 1,
     borderRadius: theme.borderRadius.sm,
@@ -1060,10 +1060,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderBottomColor: theme.colors.cardBorder,
   },
   mistakeRowActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    backgroundColor: 'rgba(255, 77, 77, 0.08)',
   },
   ruleRowActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    backgroundColor: 'rgba(43, 213, 118, 0.08)',
   },
   checkDot: {
     width: 8,
@@ -1114,10 +1114,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   searchInput: { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: theme.borderRadius.md, height: 38, paddingHorizontal: 12, color: theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.sansMedium, marginBottom: 6 },
   filterRow: { flexDirection: 'row', gap: 6 },
   filterPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.cardBorder },
-  filterPillActive: { backgroundColor: 'rgba(99, 102, 241, 0.2)', borderColor: theme.colors.primary },
+  filterPillActive: { backgroundColor: 'rgba(255, 159, 28, 0.2)', borderColor: theme.colors.primary },
   filterPillText: { color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold },
   filterPillTextActive: { color: theme.colors.textPrimary },
-  saveSuccess: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' },
+  saveSuccess: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, backgroundColor: 'rgba(43, 213, 118, 0.1)', borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: 'rgba(43, 213, 118, 0.3)' },
   saveSuccessText: { color: theme.colors.green, fontSize: 11, fontFamily: theme.fonts.monoBold },
   analyticsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
   analyticsLabel: { color: theme.colors.textSecondary, fontSize: 10, fontFamily: theme.fonts.sansMedium, marginBottom: 4 },

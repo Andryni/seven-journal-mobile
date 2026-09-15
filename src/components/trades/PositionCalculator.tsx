@@ -297,7 +297,7 @@ const createStyles = (theme: AppTheme) =>
       borderColor: theme.colors.cardBorder,
     },
     riskTypeBtnActive: {
-      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+      backgroundColor: 'rgba(212, 162, 76, 0.2)',
       borderColor: theme.colors.goldLight,
     },
     riskTypeText: {
@@ -309,8 +309,8 @@ const createStyles = (theme: AppTheme) =>
       color: theme.colors.goldLight,
     },
     resultBox: {
-      backgroundColor: 'rgba(245, 158, 11, 0.1)',
-      borderColor: 'rgba(245, 158, 11, 0.3)',
+      backgroundColor: 'rgba(212, 162, 76, 0.1)',
+      borderColor: 'rgba(212, 162, 76, 0.3)',
       borderWidth: 1,
       borderRadius: theme.borderRadius.md,
       padding: theme.spacing.lg,
@@ -339,7 +339,7 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: 'space-around',
       width: '100%',
       borderTopWidth: 1,
-      borderTopColor: 'rgba(245, 158, 11, 0.2)',
+      borderTopColor: 'rgba(212, 162, 76, 0.2)',
       paddingTop: 12,
     },
     resultItem: {

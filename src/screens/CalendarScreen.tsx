@@ -449,15 +449,15 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: 2,
   },
   dayCellWin: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.35)',
+    backgroundColor: 'rgba(43, 213, 118, 0.12)',
+    borderColor: 'rgba(43, 213, 118, 0.35)',
   },
   dayCellLoss: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(255, 77, 77, 0.12)',
+    borderColor: 'rgba(255, 77, 77, 0.35)',
   },
   dayCellToday: {
-    borderColor: 'rgba(99, 102, 241, 0.5)',
+    borderColor: 'rgba(255, 159, 28, 0.5)',
     borderWidth: 1.5,
   },
   dayCellSelected: {

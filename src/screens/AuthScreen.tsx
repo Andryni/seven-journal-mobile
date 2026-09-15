@@ -182,19 +182,14 @@ export const AuthScreen: React.FC = () => {
         scheme: 'seventracking',
         path: 'reset-password',
       });
-      console.log('[Auth] Forgot password - email:', email);
-      console.log('[Auth] Forgot password - redirectUrl:', redirectUrl);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
       if (error) {
-        console.log('[Auth] Forgot password - Supabase error:', error.message);
         throw error;
       }
-      console.log('[Auth] Forgot password - Success! Check your email.');
       setSuccessMsg(t('resetPasswordSent'));
     } catch (err: unknown) {
-      console.log('[Auth] Forgot password - Catch error:', err instanceof Error ? err.message : err);
       setErrorMsg(err instanceof Error ? err.message : t('authError'));
     } finally {
       setLoading(false);
@@ -489,7 +484,7 @@ const createStyles = (theme: AppTheme) =>
       width: 350,
       height: 350,
       borderRadius: 175,
-      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+      backgroundColor: 'rgba(255, 159, 28, 0.1)',
       top: '15%',
       alignSelf: 'center',
     },
@@ -498,7 +493,7 @@ const createStyles = (theme: AppTheme) =>
       width: 200,
       height: 200,
       borderRadius: 100,
-      backgroundColor: 'rgba(6, 182, 212, 0.06)',
+      backgroundColor: 'rgba(78, 201, 232, 0.06)',
       bottom: '20%',
       alignSelf: 'center',
     },
@@ -531,7 +526,7 @@ const createStyles = (theme: AppTheme) =>
       width: 140,
       height: 140,
       borderRadius: 70,
-      backgroundColor: 'rgba(99, 102, 241, 0.25)',
+      backgroundColor: 'rgba(255, 159, 28, 0.25)',
       top: -14,
     },
     logoCard: {
@@ -540,7 +535,7 @@ const createStyles = (theme: AppTheme) =>
       borderRadius: 22,
       overflow: 'hidden',
       borderWidth: 2,
-      borderColor: 'rgba(129, 140, 248, 0.6)',
+      borderColor: 'rgba(255, 183, 77, 0.6)',
       shadowColor: theme.colors.primary,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.7,
@@ -587,8 +582,8 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: 'rgba(239, 68, 68, 0.12)',
-      borderColor: 'rgba(239, 68, 68, 0.35)',
+      backgroundColor: 'rgba(255, 77, 77, 0.12)',
+      borderColor: 'rgba(255, 77, 77, 0.35)',
       borderWidth: 1,
       padding: theme.spacing.md,
       borderRadius: theme.borderRadius.md,
@@ -604,8 +599,8 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: 'rgba(16, 185, 129, 0.12)',
-      borderColor: 'rgba(16, 185, 129, 0.35)',
+      backgroundColor: 'rgba(43, 213, 118, 0.12)',
+      borderColor: 'rgba(43, 213, 118, 0.35)',
       borderWidth: 1,
       padding: theme.spacing.md,
       borderRadius: theme.borderRadius.md,
@@ -649,11 +644,11 @@ const createStyles = (theme: AppTheme) =>
       height: 48,
     },
     inputError: {
-      borderColor: 'rgba(239, 68, 68, 0.5)',
-      backgroundColor: 'rgba(239, 68, 68, 0.05)',
+      borderColor: 'rgba(255, 77, 77, 0.5)',
+      backgroundColor: 'rgba(255, 77, 77, 0.05)',
     },
     inputValid: {
-      borderColor: 'rgba(16, 185, 129, 0.3)',
+      borderColor: 'rgba(43, 213, 118, 0.3)',
     },
     icon: {
       marginRight: theme.spacing.sm,

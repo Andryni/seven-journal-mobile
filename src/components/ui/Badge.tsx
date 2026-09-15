@@ -66,16 +66,15 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: theme.borderRadius.xs,
     gap: 4,
   },
   badgeSm: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: theme.borderRadius.xs,
   },
   dot: {
     width: 5,
@@ -85,46 +84,30 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   dotGreen: { backgroundColor: theme.colors.green },
   dotRed: { backgroundColor: theme.colors.red },
   dotGold: { backgroundColor: theme.colors.gold },
-  dotBlue: { backgroundColor: theme.colors.primaryLight },
+  dotBlue: { backgroundColor: theme.colors.primary },
 
-  badgeGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-  },
-  badgeRed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.35)',
-  },
-  badgeGold: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  badgeBlue: {
-    backgroundColor: 'rgba(99, 102, 241, 0.12)',
-    borderColor: 'rgba(99, 102, 241, 0.35)',
-  },
-  badgeCyan: {
-    backgroundColor: 'rgba(6, 182, 212, 0.12)',
-    borderColor: 'rgba(6, 182, 212, 0.35)',
-  },
-  badgeNeutral: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.borderBright,
-  },
+  // Badges are tinted fills with no border: one less line competing with the
+  // panel hairlines. Colours come from the theme, never hardcoded.
+  badgeGreen: { backgroundColor: theme.colors.greenMuted },
+  badgeRed: { backgroundColor: theme.colors.redMuted },
+  badgeGold: { backgroundColor: theme.colors.goldGlow },
+  badgeBlue: { backgroundColor: theme.colors.primaryMuted },
+  badgeCyan: { backgroundColor: theme.colors.cyanGlow },
+  badgeNeutral: { backgroundColor: theme.colors.surface },
 
   text: {
-    fontSize: 10,
+    fontSize: theme.type.label,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
     fontVariant: ['tabular-nums'],
   },
   textSm: {
-    fontSize: 9,
+    fontSize: theme.type.micro,
   },
-  textGreen: { color: theme.colors.greenLight },
-  textRed: { color: theme.colors.redLight },
+  textGreen: { color: theme.colors.green },
+  textRed: { color: theme.colors.red },
   textGold: { color: theme.colors.goldLight },
-  textBlue: { color: theme.colors.primaryLight },
-  textCyan: { color: theme.colors.cyanLight },
+  textBlue: { color: theme.colors.primary },
+  textCyan: { color: theme.colors.cyan },
   textNeutral: { color: theme.colors.textSecondary },
 });

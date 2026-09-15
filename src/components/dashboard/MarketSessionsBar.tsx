@@ -132,7 +132,7 @@ const createStyles = (theme: AppTheme) =>
     },
     sessionOpen: {
       backgroundColor: theme.colors.greenGlow,
-      borderColor: 'rgba(16, 185, 129, 0.4)',
+      borderColor: 'rgba(43, 213, 118, 0.4)',
     },
     sessionClosed: {
       backgroundColor: 'transparent',
@@ -166,11 +166,11 @@ const createStyles = (theme: AppTheme) =>
     },
     timerGreen: {
       backgroundColor: theme.colors.greenGlow,
-      borderColor: 'rgba(16, 185, 129, 0.4)',
+      borderColor: 'rgba(43, 213, 118, 0.4)',
     },
     timerRed: {
       backgroundColor: theme.colors.redGlow,
-      borderColor: 'rgba(239, 68, 68, 0.4)',
+      borderColor: 'rgba(255, 77, 77, 0.4)',
     },
     sessionTimerText: {
       color: theme.colors.textPrimary,

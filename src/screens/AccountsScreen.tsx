@@ -746,7 +746,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    backgroundColor: 'rgba(212, 162, 76, 0.1)',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -760,7 +760,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(43, 213, 118, 0.1)',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -886,7 +886,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 12,
   },
   propSection: {
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderColor: 'rgba(212, 162, 76, 0.3)',
     backgroundColor: theme.colors.surface,
   },
   sectionHeader: {
@@ -955,7 +955,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   typeBtnActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   typeBtnText: {
@@ -981,7 +981,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   currBtnActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   currBtnText: {
@@ -1006,7 +1006,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   ddTypeBtnActive: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    backgroundColor: 'rgba(212, 162, 76, 0.2)',
     borderColor: theme.colors.gold,
   },
   ddTypeText: {

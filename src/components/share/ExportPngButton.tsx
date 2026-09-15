@@ -57,8 +57,8 @@ export const ExportPngButton: React.FC<{
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     button: {
-      backgroundColor: 'rgba(99, 102, 241, 0.15)',
-      borderColor: 'rgba(99, 102, 241, 0.3)',
+      backgroundColor: 'rgba(255, 159, 28, 0.15)',
+      borderColor: 'rgba(255, 159, 28, 0.3)',
       borderWidth: 1,
       borderRadius: theme.borderRadius.sm,
       paddingHorizontal: 12,

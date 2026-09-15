@@ -125,7 +125,7 @@ export const TopAccountBar: React.FC = () => {
         >
           <View style={styles.modalContent}>
             <LinearGradient
-              colors={['rgba(99, 102, 241, 0.6)', 'rgba(6, 182, 212, 0.4)', 'transparent']}
+              colors={['rgba(255, 159, 28, 0.6)', 'rgba(78, 201, 232, 0.4)', 'transparent']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.modalGlow}
@@ -209,7 +209,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.5)',
+    borderColor: 'rgba(255, 159, 28, 0.5)',
     shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6,
@@ -274,7 +274,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -364,7 +364,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 8,
   },
   accountItemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    backgroundColor: 'rgba(255, 159, 28, 0.15)',
     borderColor: theme.colors.primary,
   },
   accountItemName: {

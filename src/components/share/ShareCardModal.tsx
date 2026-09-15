@@ -307,7 +307,7 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      backgroundColor: 'rgba(43, 213, 118, 0.1)',
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 6,

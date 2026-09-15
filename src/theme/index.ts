@@ -2,38 +2,69 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type ThemeMode = 'dark' | 'light';
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SEVEN JOURNAL — DESIGN TOKENS
+ * North star: "Trading Desk", not "SaaS dashboard".
+ *
+ * Rules enforced by this file:
+ *  1. No Tailwind default palette. Accent is amber phosphor (#FF9F1C), the
+ *     colour language of real financial terminals — not indigo-500.
+ *  2. Neutrals are warm-tinted, never blue-violet, never pure #000.
+ *  3. No glows. Depth comes from hairlines + a single elevation step.
+ *  4. Dark only. A half-broken light mode doubled the cost of every screen.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+export type ThemeMode = 'dark';
 
 export interface Theme {
   colors: {
+    // Surfaces (warm neutral ramp, darkest → lightest)
     background: string;
     backgroundElevated: string;
     inputBg: string;
     modalBg: string;
     chartBg: string;
     card: string;
+    surface: string;
+    surfaceLight: string;
+
+    // Lines
     cardBorder: string;
     cardBorderGlow: string;
     borderStrong: string;
-    surface: string;
-    surfaceLight: string;
+    borderBright: string;
+    hairline: string;
+
+    // Brand — amber phosphor
     primary: string;
     primaryLight: string;
     primaryDeep: string;
     primaryGlow: string;
+    primaryMuted: string;
+
+    // Prop firm / target
     gold: string;
     goldLight: string;
     goldGlow: string;
+
+    // P&L
     green: string;
     greenLight: string;
     greenGlow: string;
+    greenMuted: string;
     red: string;
     redLight: string;
     redGlow: string;
+    redMuted: string;
+
+    // Informational
     cyan: string;
     cyanLight: string;
     cyanGlow: string;
-    borderBright: string;
+
+    // Text ramp
     textPrimary: string;
     textSecondary: string;
     textMuted: string;
@@ -66,15 +97,35 @@ export interface Theme {
     xl: number;
     full: number;
   };
+  /**
+   * Typographic scale. The old system had everything between 9–16px, so
+   * nothing read as a hierarchy. This scale is intentionally gapped:
+   * a hero number, a heading, and small uppercase labels — nothing in between.
+   */
+  type: {
+    hero: number;
+    display: number;
+    metric: number;
+    metricSm: number;
+    title: number;
+    body: number;
+    label: number;
+    micro: number;
+  };
+  /** Single elevation step. There is no "elevation 2". */
+  elevation: {
+    flat: object;
+    raised: object;
+  };
 }
 
 const fonts = {
-  // JetBrains Mono for financial tickers, numbers and math
+  // JetBrains Mono — every number, ticker and technical token.
   mono: 'JetBrainsMono_400Regular',
   monoMedium: 'JetBrainsMono_500Medium',
   monoBold: 'JetBrainsMono_700Bold',
   monoExtraBold: 'JetBrainsMono_800ExtraBold',
-  // Plus Jakarta Sans for high-end FinTech headers and UI
+  // Plus Jakarta Sans — UI chrome only.
   sans: 'PlusJakartaSans_400Regular',
   sansMedium: 'PlusJakartaSans_500Medium',
   sansSemiBold: 'PlusJakartaSans_600SemiBold',
@@ -91,83 +142,86 @@ const spacing = {
   xxl: 28,
 };
 
+/** Tighter than before: panels, not floating pills. */
 const borderRadius = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 18,
-  xl: 24,
+  xs: 3,
+  sm: 6,
+  md: 8,
+  lg: 10,
+  xl: 14,
   full: 9999,
 };
 
-const darkColors: Theme['colors'] = {
-  background: '#07080a', // Deep Bloomberg dark
-  backgroundElevated: '#0d0f15',
-  inputBg: '#0a0c12',
-  modalBg: '#181920',
-  chartBg: '#12141c',
-  card: '#12141c',
-  cardBorder: 'rgba(255, 255, 255, 0.08)',
-  cardBorderGlow: 'rgba(99, 102, 241, 0.3)',
-  borderStrong: '#262833',
-  surface: '#161922',
-  surfaceLight: '#1f2330',
-  primary: '#6366f1', // High-tech Indigo
-  primaryLight: '#818cf8',
-  primaryDeep: '#4f46e5',
-  primaryGlow: 'rgba(99, 102, 241, 0.25)',
-  gold: '#f59e0b',
-  goldLight: '#fbbf24',
-  goldGlow: 'rgba(245, 158, 11, 0.2)',
-  green: '#10b981', // Neon Emerald
-  greenLight: '#34d399',
-  greenGlow: 'rgba(16, 185, 129, 0.2)',
-  red: '#ef4444', // Crimson Red
-  redLight: '#f87171',
-  redGlow: 'rgba(239, 68, 68, 0.2)',
-  cyan: '#06b6d4',
-  cyanLight: '#67e8f9',
-  cyanGlow: 'rgba(6, 182, 212, 0.2)',
-  borderBright: 'rgba(255, 255, 255, 0.15)',
-  textPrimary: '#ffffff',
-  textSecondary: '#94a3b8',
-  textMuted: '#64748b',
-  textDark: '#475569',
+const type = {
+  hero: 40,
+  display: 26,
+  metric: 19,
+  metricSm: 15,
+  title: 13,
+  body: 12,
+  label: 10,
+  micro: 9,
 };
 
-const lightColors: Theme['colors'] = {
-  background: '#f1f2f7', // Soft paper grey
-  backgroundElevated: '#ffffff',
-  inputBg: '#ffffff',
-  modalBg: '#ffffff',
-  chartBg: '#ffffff',
-  card: '#ffffff',
-  cardBorder: 'rgba(15, 23, 42, 0.1)',
-  cardBorderGlow: 'rgba(99, 102, 241, 0.35)',
-  borderStrong: '#cbd5e1',
-  surface: '#eef0f5',
-  surfaceLight: '#e2e6ee',
-  primary: '#4f46e5', // Indigo (darker for light bg)
-  primaryLight: '#6366f1',
-  primaryDeep: '#4338ca',
-  primaryGlow: 'rgba(79, 70, 229, 0.15)',
-  gold: '#b45309',
-  goldLight: '#d97706',
-  goldGlow: 'rgba(180, 83, 9, 0.15)',
-  green: '#059669', // Emerald (darker for light bg)
-  greenLight: '#047857',
-  greenGlow: 'rgba(5, 150, 105, 0.15)',
-  red: '#dc2626', // Crimson (darker for light bg)
-  redLight: '#b91c1c',
-  redGlow: 'rgba(220, 38, 38, 0.15)',
-  cyan: '#0891b2',
-  cyanLight: '#0e7490',
-  cyanGlow: 'rgba(8, 145, 178, 0.15)',
-  borderBright: 'rgba(15, 23, 42, 0.2)',
-  textPrimary: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#64748b',
-  textDark: '#94a3b8',
+const elevation = {
+  flat: {},
+  raised: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+};
+
+const darkColors: Theme['colors'] = {
+  // Warm near-black. Not #000 (crushes OLED detail), not blue-violet.
+  background: '#0A0A0B',
+  backgroundElevated: '#101012',
+  inputBg: '#0E0E10',
+  modalBg: '#141416',
+  chartBg: '#0E0E10',
+  card: '#121214',
+  surface: '#161618',
+  surfaceLight: '#1C1C1F',
+
+  cardBorder: 'rgba(255, 255, 255, 0.07)',
+  cardBorderGlow: 'rgba(255, 159, 28, 0.32)',
+  borderStrong: '#26262A',
+  borderBright: 'rgba(255, 255, 255, 0.14)',
+  hairline: 'rgba(255, 255, 255, 0.06)',
+
+  // Amber phosphor — the signature. Reads as "terminal", not "startup".
+  primary: '#FF9F1C',
+  primaryLight: '#FFB74D',
+  primaryDeep: '#E08600',
+  primaryGlow: 'rgba(255, 159, 28, 0.14)',
+  primaryMuted: 'rgba(255, 159, 28, 0.10)',
+
+  // Prop firm keeps a distinct warmer/brassier tone vs the accent.
+  gold: '#D4A24C',
+  goldLight: '#E8BF74',
+  goldGlow: 'rgba(212, 162, 76, 0.14)',
+
+  // P&L — desaturated so they never scream, only inform.
+  green: '#2BD576',
+  greenLight: '#5FE49A',
+  greenGlow: 'rgba(43, 213, 118, 0.14)',
+  greenMuted: 'rgba(43, 213, 118, 0.10)',
+  red: '#FF4D4D',
+  redLight: '#FF7A7A',
+  redGlow: 'rgba(255, 77, 77, 0.14)',
+  redMuted: 'rgba(255, 77, 77, 0.10)',
+
+  cyan: '#4EC9E8',
+  cyanLight: '#8BDDF0',
+  cyanGlow: 'rgba(78, 201, 232, 0.14)',
+
+  // Warm-tinted text ramp (slightly off-white, easier on OLED at night).
+  textPrimary: '#F5F3F0',
+  textSecondary: '#A3A09B',
+  textMuted: '#6E6B67',
+  textDark: '#4A4845',
 };
 
 export const darkTheme: Theme = {
@@ -175,16 +229,18 @@ export const darkTheme: Theme = {
   fonts,
   spacing,
   borderRadius,
+  type,
+  elevation,
 };
 
-export const lightTheme: Theme = {
-  colors: lightColors,
-  fonts,
-  spacing,
-  borderRadius,
-};
-
-// ── Store de préférences (mode sombre/clair) ──
+/**
+ * Light mode was removed in the "Trading Desk" redesign: it was only ~60%
+ * implemented (145 hardcoded rgba() in components bypassed it anyway) and a
+ * light trading terminal is not a real use case. Kept as an alias so any
+ * lingering import does not crash.
+ * @deprecated use `darkTheme`
+ */
+export const lightTheme: Theme = darkTheme;
 
 interface ThemeState {
   mode: ThemeMode;
@@ -195,9 +251,9 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     set => ({
-      mode: 'dark',
-      toggleTheme: () => set(s => ({ mode: s.mode === 'dark' ? 'light' : 'dark' })),
-      setMode: mode => set({ mode }),
+      mode: 'dark' as const,
+      toggleTheme: () => set({ mode: 'dark' }),
+      setMode: () => set({ mode: 'dark' }),
     }),
     {
       name: 'seven-theme-mode',
@@ -206,11 +262,16 @@ export const useThemeStore = create<ThemeState>()(
   )
 );
 
-/** Hook principal : retourne le thème actif + le mode + le toggle. */
+/** Main hook: active theme + mode. The app is dark-only by design. */
 export function useTheme() {
-  const mode = useThemeStore(s => s.mode);
   const toggleTheme = useThemeStore(s => s.toggleTheme);
-  return { theme: mode === 'light' ? lightTheme : darkTheme, mode, toggleTheme };
+  return { theme: darkTheme, mode: 'dark' as ThemeMode, toggleTheme };
+}
+
+/** Semantic helper: pick the P&L colour for a value. */
+export function pnlColor(theme: Theme, value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return theme.colors.textSecondary;
+  return value > 0 ? theme.colors.green : theme.colors.red;
 }
 
 export type { Theme as AppTheme };

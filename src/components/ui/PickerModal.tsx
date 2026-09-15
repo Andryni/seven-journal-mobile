@@ -141,7 +141,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 6,
   },
   itemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   itemLeft: {

@@ -4,10 +4,13 @@ import { useUIStore } from '../../store/uiStore';
 import { useEffect } from 'react';
 import type { DailySessionLock } from '../../types/domain';
 import { localDayKey } from '../../utils/formatDate';
+import { useT } from '../../i18n';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 export function useDailyLock() {
   const queryClient = useQueryClient();
   const setDailySessionLocked = useUIStore((state) => state.setDailySessionLocked);
+  const { t } = useT();
   // Local trading day (device timezone), consistent with checkAndApplyDailyLock
   const todayStr = localDayKey();
 
@@ -65,8 +68,27 @@ export function useDailyLock() {
     },
   });
 
+  /**
+   * The rule engine stores a structured code; the sentence is built here so
+   * it follows the user's language. Falls back to any legacy stored string.
+   */
+  const lockReason = (() => {
+    if (!lock) return null;
+    if (lock.lock_code === 'DAILY_LOSS_LIMIT' && lock.lock_params) {
+      const { account, loss, limit } = lock.lock_params;
+      return t(
+        'lockReasonDailyLoss',
+        account ?? '',
+        formatCurrency(-(loss ?? 0)),
+        formatCurrency(limit ?? 0)
+      );
+    }
+    return lock.lock_reason ?? null;
+  })();
+
   return {
     lock,
+    lockReason,
     isLoading,
     isLocked: lock?.is_locked || false,
     lockSession: lockSessionMutation.mutateAsync,

@@ -46,7 +46,7 @@ const ErrorFallback: React.FC<{ error: Error | null; onReset: () => void; screen
   return (
     <View style={fallbackStyles.container}>
       <View style={fallbackStyles.iconWrap}>
-        <AlertTriangle size={32} color="#ef4444" />
+        <AlertTriangle size={32} color="#FF4D4D" />
       </View>
       <Text style={fallbackStyles.title}>Oops ! Erreur</Text>
       {screenName && <Text style={fallbackStyles.screen}>{screenName}</Text>}
@@ -63,7 +63,7 @@ const ErrorFallback: React.FC<{ error: Error | null; onReset: () => void; screen
 const fallbackStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#07080a',
+    backgroundColor: '#0A0A0B',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -72,7 +72,7 @@ const fallbackStyles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: 'rgba(255, 77, 77, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -84,20 +84,20 @@ const fallbackStyles = StyleSheet.create({
     marginBottom: 4,
   },
   screen: {
-    color: '#6366f1',
+    color: '#FF9F1C',
     fontSize: 11,
     fontWeight: '600',
     marginBottom: 8,
   },
   message: {
-    color: '#94a3b8',
+    color: '#A3A09B',
     fontSize: 12,
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 18,
   },
   retryBtn: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#FF9F1C',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 10,

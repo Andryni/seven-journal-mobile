@@ -3,9 +3,8 @@ import { supabase } from '../../api/supabaseClient';
 import { useUIStore } from '../../store/uiStore';
 import { useToast } from '../../store/toastStore';
 import { useT } from '../../i18n';
-import type { Trade, TradingAccount } from '../../types/domain';
-import { formatCurrency } from '../../utils/formatCurrency';
-import { localDayKey, localDayStartISO } from '../../utils/formatDate';
+import type { Trade } from '../../types/domain';
+import { localDayKey } from '../../utils/formatDate';
 import { hapticSuccess, hapticError } from '../../utils/haptics';
 
 export function useTrades() {
@@ -30,75 +29,15 @@ export function useTrades() {
     },
   });
 
-  // Helper check for daily stop losses & maximum daily loss limits
-  const checkAndApplyDailyLock = async (userId: string, affectedAccountId?: string | null) => {
-    // Local trading day (device timezone), NOT UTC — prop-firm daily
-    // limits reset at the trader's local midnight.
-    const todayStr = localDayKey();
-
-    // Only fetch what we need: today's trades (optionally scoped to the
-    // affected account) with minimal columns — previously this downloaded
-    // ALL accounts and full trade rows on EVERY mutation.
-    let tradesQuery = supabase
-      .from('trades')
-      .select('id, account_id, pnl, entry_time')
-      .eq('user_id', userId)
-      .gte('entry_time', localDayStartISO());
-    if (affectedAccountId) {
-      tradesQuery = tradesQuery.eq('account_id', affectedAccountId);
-    }
-    const { data: todayTrades, error: fetchError } = await tradesQuery;
-
-    let accountsQuery = supabase
-      .from('trading_accounts')
-      .select('id, name, max_daily_loss_limit, initial_balance')
-      .eq('user_id', userId);
-    if (affectedAccountId) {
-      accountsQuery = accountsQuery.eq('id', affectedAccountId);
-    }
-    const { data: accounts } = await accountsQuery;
-
-    if (!fetchError && todayTrades && accounts) {
-      let dailyLossExceeded = false;
-      let exceededAccountName = '';
-      let exceededAmount = 0;
-      let limitAmount = 0;
-
-      for (const acc of (accounts as TradingAccount[])) {
-        const effectiveLimitUsd = (acc.max_daily_loss_limit !== null && acc.max_daily_loss_limit !== undefined && acc.max_daily_loss_limit > 0)
-          ? acc.max_daily_loss_limit
-          : (acc.initial_balance ? acc.initial_balance * 0.01 : 1000);
-
-        const accTodayTrades = (todayTrades as Trade[]).filter((t: Trade) => t.account_id === acc.id);
-        const todayPnl = accTodayTrades.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0);
-        
-        if (todayPnl < 0 && Math.abs(todayPnl) >= effectiveLimitUsd) {
-          dailyLossExceeded = true;
-          exceededAccountName = acc.name;
-          exceededAmount = Math.abs(todayPnl);
-          limitAmount = effectiveLimitUsd;
-          break;
-        }
-      }
-
-      if (dailyLossExceeded) {
-        hapticError();
-        const reason = `Limite de perte quotidienne ($ / %) atteinte sur ${exceededAccountName} (${formatCurrency(-exceededAmount)} / max ${formatCurrency(limitAmount)}). Session verrouillée.`;
-
-        await supabase.from('daily_session_locks').upsert({
-          user_id: userId,
-          date: todayStr,
-          sl_count: (todayTrades as Trade[]).filter((t: Trade) => (t.pnl || 0) < 0).length,
-          is_locked: true,
-          locked_at: new Date().toISOString(),
-          lock_reason: reason,
-        }, {
-          onConflict: 'user_id,date'
-        });
-        
-        queryClient.invalidateQueries({ queryKey: ['daily_lock', todayStr] });
-      }
-    }
+  /**
+   * Daily-loss enforcement now lives in Postgres (see
+   * supabase/migrations/20260915_prop_firm_rule_engine.sql). The trigger runs
+   * inside the same transaction as the write, so the lock cannot be bypassed
+   * and we no longer refetch every account + trade on each mutation.
+   * We only need to refresh the cached lock afterwards.
+   */
+  const refreshDailyLock = () => {
+    queryClient.invalidateQueries({ queryKey: ['daily_lock', localDayKey()] });
   };
 
   // Create trade mutation
@@ -119,13 +58,12 @@ export function useTrades() {
         .single();
 
       if (error) throw error;
-
-      await checkAndApplyDailyLock(user.id, payload.account_id);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      refreshDailyLock();
       hapticSuccess();
       showSuccess(t('toastTradeCreated'));
     },
@@ -146,17 +84,12 @@ export function useTrades() {
         .single();
 
       if (error) throw error;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await checkAndApplyDailyLock(user.id, (data as Trade | null)?.account_id ?? null);
-      }
-
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      refreshDailyLock();
       hapticSuccess();
       showSuccess(t('toastTradeUpdated'));
     },
@@ -175,15 +108,11 @@ export function useTrades() {
         .eq('id', id);
 
       if (error) throw error;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await checkAndApplyDailyLock(user.id);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trades'] });
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      refreshDailyLock();
       showSuccess(t('toastTradeDeleted'));
     },
     onError: () => {

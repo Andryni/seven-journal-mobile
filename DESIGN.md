@@ -1,26 +1,26 @@
 ---
 name: Seven Journal
-description: Bloomberg-inspired quantitative trading terminal mobile app
+description: Trading-desk inspired quantitative trading journal for mobile
 colors:
-  primary: "#6366f1"
-  primary-light: "#818cf8"
-  primary-deep: "#4f46e5"
-  gold: "#f59e0b"
-  gold-light: "#fbbf24"
-  green: "#10b981"
-  green-light: "#34d399"
-  red: "#ef4444"
-  red-light: "#f87171"
-  cyan: "#06b6d4"
-  cyan-light: "#67e8f9"
-  background: "#07080a"
-  background-elevated: "#0d0f15"
-  card: "#12141c"
-  surface: "#161922"
-  surface-light: "#1f2330"
-  text-primary: "#ffffff"
-  text-secondary: "#94a3b8"
-  text-muted: "#64748b"
+  primary: "#FF9F1C"
+  primary-light: "#FFB74D"
+  primary-deep: "#E08600"
+  gold: "#D4A24C"
+  gold-light: "#E8BF74"
+  green: "#2BD576"
+  green-light: "#5FE49A"
+  red: "#FF4D4D"
+  red-light: "#FF7A7A"
+  cyan: "#4EC9E8"
+  cyan-light: "#8BDDF0"
+  background: "#0A0A0B"
+  background-elevated: "#101012"
+  card: "#121214"
+  surface: "#161618"
+  surface-light: "#1C1C1F"
+  text-primary: "#F5F3F0"
+  text-secondary: "#A3A09B"
+  text-muted: "#6E6B67"
 typography:
   mono:
     fontFamily: "JetBrainsMono_400Regular"
@@ -47,11 +47,11 @@ typography:
     fontSize: "16px"
     fontWeight: 800
 rounded:
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  lg: "18px"
-  xl: "24px"
+  xs: "3px"
+  sm: "6px"
+  md: "8px"
+  lg: "10px"
+  xl: "14px"
   full: "9999px"
 spacing:
   xs: "4px"
@@ -88,152 +88,125 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Bloomberg Terminal"**
+**Creative North Star: "The Trading Desk"**
 
-Seven Journal is a data-dense, dark-mode-first trading terminal designed for quantitative traders. Every screen feels like a Bloomberg terminal cockpit — high contrast, monospaced financial data, and information density that rewards experienced eyes while remaining scannable for quick glances between sessions.
+Seven Journal is a data-dense, dark-only journal for traders who size by risk.
+Every screen is a readout: flat panels delimited by hairlines, numbers set in
+tabular monospace, and exactly one accent colour that means "interactive".
 
-The aesthetic is **Swiss precision meets OLED dark**. Deep near-black backgrounds (#07080a) create maximum contrast for colored data (green for gains, red for losses, indigo for actions, gold for prop firm targets). Typography splits cleanly: JetBrains Mono for all financial numbers and technical labels, Plus Jakarta Sans for UI chrome and headers. The result is a terminal that feels simultaneously premium and functional.
+The aesthetic is **amber phosphor on warm black**. The accent (#FF9F1C) is
+inherited from the amber CRTs of real financial terminals — it is instantly
+legible as "finance" and, unlike the indigo-500 it replaced, it is not the
+default palette of every generated dashboard. Neutrals are warm-tinted so the
+screen never reads blue-violet.
 
-**Key Characteristics:**
-- OLED-optimized dark backgrounds with subtle card elevation
-- Color = semantic meaning (never decorative)
-- Monospaced tabular numbers for all financial data
-- High information density with maintained readability
-- Animated micro-interactions (glow halos, progress rings, live ticker)
+**Key characteristics:**
+- Warm near-black surfaces (#0A0A0B), never pure black, never blue-black
+- Colour = semantic meaning, enforced: there are no decorative colours left
+- **No glows.** Depth is hairlines plus a single elevation step
+- Monospaced tabular numbers for every financial value
+- A gapped type scale so hierarchy is legible at a glance
 
 ## Colors
 
-The palette follows a strict semantic system: each color family owns one meaning, and that meaning never shifts.
+### Primary / Action — amber phosphor
+- **Amber** (#FF9F1C): interactive elements, active tabs, focus, primary buttons
+- **Amber Light** (#FFB74D) / **Amber Deep** (#E08600): secondary accent states
 
-### Primary (Brand / Action)
-- **Indigo** (#6366f1): Interactive elements — buttons, active tabs, links, focus rings, "live" indicators
-- **Indigo Light** (#818cf8): Active icon states, labels, lighter accents
-- **Indigo Deep** (#4f46e5): Gradient endpoints for primary buttons
+### Gain / Loss
+- **Green** (#2BD576) — all positive P&L
+- **Red** (#FF4D4D) — all negative P&L
 
-### Gain / Loss (P&L)
-- **Emerald** (#10b981): All positive P&L, wins, gains, "safe" states
-- **Emerald Light** (#34d399): Text on dark backgrounds for positive values
-- **Crimson** (#ef4444): All negative P&L, losses, deletions, "danger" states
-- **Crimson Light** (#f87171): Text on dark backgrounds for negative values
+Both are desaturated relative to the old emerald/crimson: they inform without
+shouting, and they are applied to *text and bars only, never to fills*.
 
 ### Prop Firm / Target
-- **Gold** (#f59e0b): Prop firm targets, challenge progress, streaks, consistency rules
-- **Gold Light** (#fbbf24): Text labels for prop firm data
+- **Brass** (#D4A24C) — prop-firm targets, challenge progress, consistency
+
+Deliberately distinct from the amber accent so "action" and "target" never blur.
 
 ### Information
-- **Cyan** (#06b6d4): Neutral informational metrics (ratios, R-multiples, cumulative data)
-- **Cyan Light** (#67e8f9): Text for informational values
+- **Cyan** (#4EC9E8) — neutral metrics (ratios, R-multiples)
 
-### Neutral
-- **Background** (#07080a): Root app background (deepest OLED black)
-- **Background Elevated** (#0d0f15): Raised surfaces (cards, modals)
-- **Card** (#12141c): Standard card containers
-- **Surface** (#161922): Sub-surfaces, pickers, sections
-- **Surface Light** (#1f2330): Hover states, elevated sub-surfaces
-- **Text Primary** (#ffffff): Main text
-- **Text Secondary** (#94a3b8): KPI labels, secondary information
-- **Text Muted** (#64748b): Dates, timestamps, tertiary information
+### Neutral ramp
+`#0A0A0B` background · `#101012` elevated · `#121214` card · `#161618` surface ·
+`#1C1C1F` surface-light · text `#F5F3F0` / `#A3A09B` / `#6E6B67` / `#4A4845`
 
-### Named Rules
+### Named rules
 
-**The One Color Rule.** Each color family owns exactly one semantic meaning. Green is ONLY for gains. Red is ONLY for losses. Gold is ONLY for prop firm. Indigo is ONLY for actions. Breaking this rule destroys the terminal's scannability.
+**The One Color Rule.** Each family owns one meaning. Green is only gain, red
+only loss, brass only prop firm, amber only action.
 
-**The No-Gray Rule.** Never use pure gray (#808080) or pure white (#ffffff) for backgrounds. Always tint toward the brand palette. The background is #07080a (blue-black), not #000000.
+**The No-Hex-In-Components Rule.** Components read `theme.colors.*`. This is now
+actually true — the 145 hardcoded `rgba()` and 32 hex literals were removed.
+
+**The No-Glow Rule.** No `shadowColor` set to a brand colour. Emphasis is a
+2px solid rail or a tinted fill, never a halo.
 
 ## Typography
 
-**Display Font:** JetBrains Mono (400 / 500 / 700 / 800)
-**Body Font:** Plus Jakarta Sans (400 / 500 / 600 / 700 / 800)
+**Data:** JetBrains Mono · **UI chrome:** Plus Jakarta Sans
 
-**Character:** The mono/sans split creates a clear hierarchy — monospace is for data (prices, PnL, timestamps, KPIs), sans-serif is for everything else (headers, descriptions, labels). This mirrors Bloomberg Terminal conventions.
+### Scale (`theme.type`)
 
-### Hierarchy
+The old scale crammed everything into 9–16px, so nothing read as hierarchy.
+The current scale is intentionally gapped:
 
-- **Screen Title** (sansExtraBold, 16px, letterSpacing 1.2): Top of each screen — "ANALYTICS & PROP FIRM"
-- **Card Title** (sansExtraBold, 12px, letterSpacing 1.2, uppercase): Section headers — "KPI GLOBAUX"
-- **KPI Value** (monoExtraBold, 20px, tabular-nums): Hero numbers — "$1,234.56", "62.5%"
-- **KPI Label** (monoBold, 9px, letterSpacing 0.8): Above KPI values — "NET P&L TOTAL"
-- **Body Text** (sans, 11px): Descriptions, notes, empty states
-- **Timestamp** (monoMedium, 9-10px): Dates, times, trade entries
-- **Badge Label** (monoBold, 9-10px, letterSpacing 0.5): Status tags — "BUY", "TP", "OPEN"
-- **Tab Label** (monoBold, 9px): Bottom navigation — "TABLEAU", "TRADES"
+| Token | Size | Use |
+|---|---|---|
+| `hero` | 40 | The one number on a screen (net P&L, discipline score) |
+| `display` | 26 | Screen titles |
+| `metric` | 19 | Panel-level KPI values |
+| `metricSm` | 15 | Row-level values, blotter P&L |
+| `title` | 13 | Modal / section titles |
+| `body` | 12 | Values, inputs, descriptions |
+| `label` | 10 | Uppercase captions |
+| `micro` | 9 | Sub-captions, timestamps, badges |
 
-### Named Rules
+**The Tabular Nums Rule.** Every financial number sets
+`fontVariant: ['tabular-nums']`.
 
-**The Tabular Nums Rule.** Every financial number must use `fontVariant: ['tabular-nums']`. This ensures vertical alignment of decimal points and digits across rows — critical for scanning P&L columns.
-
-**The Minimum 9px Rule.** No essential label falls below 9px. Body text stays at 10px minimum. This preserves readability on small mobile screens.
-
-## Layout
-
-The app uses a single-column mobile layout with consistent horizontal padding (16px) across all screens. Cards and sections stack vertically with 16px gaps. The bottom tab navigator provides the primary navigation with 6 tabs maximum.
-
-**Density:** High but readable. Cards use 16px internal padding. KPI grids use flex row with 12px gaps. The information density is intentionally high — this is a terminal, not a consumer app.
-
-**Responsive:** Fixed mobile layout. No breakpoints or responsive adaptation — the app is designed for phone screens (375px+).
-
-## Elevation & Depth
-
-The system uses a hybrid approach: subtle shadows for depth and glow effects for emphasis.
-
-### Shadow Vocabulary
-
-- **Card Shadow** (`shadowColor: '#000', shadowOffset: {0,6}, shadowOpacity: 0.4, shadowRadius: 12`): Standard card elevation
-- **Modal Shadow** (`shadowColor: '#000', shadowOffset: {0,15}, shadowOpacity: 0.8, shadowRadius: 25`): Modal overlays
-- **Glow Halo** (`shadowColor: primary, shadowOpacity: 0.8, shadowRadius: 6`): Logo and active elements
-
-### Named Rules
-
-**The Glow-For-Active Rule.** Shadows with brand color (indigo glow) appear ONLY on active/selected states. Static elements use neutral black shadows only.
-
-## Shapes
-
-Cards and containers use generous border radii (18px for cards, 24px for modals, 9999px for pills/badges). The radius language is consistent: small elements (badges, chips) use 4-8px, medium elements (buttons, inputs) use 12px, large containers use 18-24px.
-
-Borders are subtle — 1px solid with low-opacity white (`rgba(255,255,255,0.08)`) for cards, or brand-colored for active states (`rgba(99,102,241,0.4)`).
+**The 9px Floor.** No essential label below 9px.
 
 ## Components
 
-### Card
-- **Character:** Elevated container with gradient background, top highlight line, and optional badge
-- **Corner:** 18px radius
-- **Background:** Linear gradient from card (#12141c) to backgroundElevated (#0d0f15)
-- **Border:** 1px solid rgba(255,255,255,0.08)
-- **Shadow:** Standard card shadow
-- **Internal Padding:** 16px
+### Panel  (`components/ui/Panel.tsx`)
+The base container. Flat `card` fill, 1px hairline border, 10px radius, no
+gradient, no glow, no accent dot. `flush` removes padding for blotters.
+Supersedes `Card`, which is kept as a compatibility shim.
 
-### Badge
-- **Character:** Compact status tag with semantic coloring
-- **Variants:** green (gain), red (loss), blue (action), gold (prop firm), cyan (info), neutral (default)
-- **Shape:** 4px radius (sm variant: 2px), 1px border with matching alpha
-- **Typography:** monoBold 9-10px, uppercase, letterSpacing 0.5
+### Metric  (`components/ui/Metric.tsx`)
+A number with its caption. Sizes `hero | display | default | small`, tones
+`default | pnl | accent | muted | info | gold`. Numbers live on the panel
+surface — they are not each wrapped in their own box.
 
-### KpiCard
-- **Character:** Single metric display with label, value, and subtitle
-- **Layout:** Vertical stack — label (top, muted), value (center, large mono), sub (bottom, small)
-- **Background:** card color with 1px border
+### DataRow  (`components/ui/DataRow.tsx`)
+One label/value line: muted uppercase label left, tabular value right,
+hairline below. The workhorse of dense readouts.
 
-### Bottom Tab Navigator
-- **Height:** 64px
-- **Background:** backgroundElevated
-- **Active:** primaryLight color + label
-- **Inactive:** textDark color
-- **Label:** monoBold 9px, letterSpacing 0.5
+### Hairline
+1px full-bleed separator with optional inset. The primary structural device.
+
+### Blotter row  (Trades screen)
+One trade per line: 2px direction rail, instrument + timestamp, R column,
+P&L column. ~11 trades visible per screen instead of 5.
+
+### Bottom tabs
+62px, background-coloured, hairline top border, amber active tint,
+9px uppercase mono labels.
 
 ## Do's and Don'ts
 
-### Do:
-- **Do** use `fontVariant: ['tabular-nums']` on every financial number
-- **Do** use semantic color families consistently (green=gain, red=loss, gold=prop firm)
-- **Do** keep labels at 9px minimum, body text at 10px minimum
-- **Do** use mono for data, sans for UI chrome
-- **Do** use `createStyles(theme)` pattern — never hardcode colors in components
-- **Do** add `accessibilityLabel` to every icon button
+### Do
+- Use `theme.colors.*`, `theme.type.*`, `theme.spacing.*`
+- Use `<Panel>` for new containers and `<Metric>` for new numbers
+- Keep one hero number per screen
+- Use lucide icons at `strokeWidth` 1.75–2
 
-### Don't:
-- **Don't** use hex colors in components — always `theme.colors.*`
-- **Don't** use green/red for anything other than P&L
-- **Don't** use bounce/elastic easing (feels dated)
-- **Don't** nest cards inside cards
-- **Don't** use emoji as icons — use lucide-react-native
-- **Don't** put text below 9px for essential labels
+### Don't
+- **Don't** add glows, halos or brand-coloured shadows
+- **Don't** use gradients as surface fills
+- **Don't** hardcode hex or rgba in components
+- **Don't** use emoji as icons (the achievements wall that did was removed)
+- **Don't** nest panels
+- **Don't** reintroduce a light theme — the app is dark-only by decision

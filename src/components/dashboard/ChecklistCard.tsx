@@ -157,7 +157,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   deleteCheckBtn: {
     padding: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: 'rgba(255, 77, 77, 0.1)',
   },
   addRuleRow: {
     flexDirection: 'row',

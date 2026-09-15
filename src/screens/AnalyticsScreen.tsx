@@ -51,15 +51,21 @@ import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-
 const screenWidth = Dimensions.get('window').width;
 
 
-type TabType = 'overview' | 'equity' | 'distribution' | 'breakdown' | 'timing' | 'psychology' | 'propfirm';
+/**
+ * Analytics was split across 7 tabs, several of which held two cards each.
+ * That is a lot of tapping to compare related numbers. They are now grouped
+ * into 4 views that answer 4 distinct questions:
+ *   PERF     — how am I doing?          (overview + equity)
+ *   EDGE     — where does my edge come from? (distribution + breakdown)
+ *   BEHAVIOR — when and in what state do I trade well? (timing + psychology)
+ *   PROP     — am I passing?            (prop firm)
+ */
+type TabType = 'perf' | 'edge' | 'behavior' | 'propfirm';
 
 const TABS: { id: TabType; labelKey: string; icon: React.FC<{ color?: string; size?: number }> }[] = [
-  { id: 'overview', labelKey: 'tabOverview', icon: Activity },
-  { id: 'equity', labelKey: 'tabEquity', icon: TrendingUp },
-  { id: 'distribution', labelKey: 'tabDistribution', icon: BarChart3 },
-  { id: 'breakdown', labelKey: 'tabBreakdown', icon: Target },
-  { id: 'timing', labelKey: 'tabTiming', icon: Clock },
-  { id: 'psychology', labelKey: 'tabPsychology', icon: Brain },
+  { id: 'perf', labelKey: 'tabPerf', icon: TrendingUp },
+  { id: 'edge', labelKey: 'tabEdge', icon: Target },
+  { id: 'behavior', labelKey: 'tabBehavior', icon: Brain },
   { id: 'propfirm', labelKey: 'tabPropFirm', icon: Award },
 ];
 
@@ -234,7 +240,7 @@ export const AnalyticsScreen: React.FC = () => {
   const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>('perf');
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [shareModalVisible, setShareModalVisible] = useState(false);
 
@@ -315,7 +321,7 @@ export const AnalyticsScreen: React.FC = () => {
         datasets: [
           {
             data: values,
-            color: (opacity = 1) => totalPnL >= 0 ? `rgba(16, 185, 129, ${opacity})` : `rgba(239, 68, 68, ${opacity})`,
+            color: (opacity = 1) => totalPnL >= 0 ? `rgba(43, 213, 118, ${opacity})` : `rgba(255, 77, 77, ${opacity})`,
             strokeWidth: 3,
           },
         ],
@@ -701,7 +707,7 @@ export const AnalyticsScreen: React.FC = () => {
       </View>
 
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
-      {activeTab === 'overview' && (
+      {activeTab === 'perf' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('kpiGlobal')}>
@@ -800,7 +806,7 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 2 : EQUITY & DRAWDOWN ── */}
-      {activeTab === 'equity' && (
+      {activeTab === 'perf' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('equityDrawdown')}>
@@ -842,7 +848,7 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 3 : DISTRIBUTION ── */}
-      {activeTab === 'distribution' && (
+      {activeTab === 'edge' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('gainLossSplit')}>
@@ -911,7 +917,7 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
-      {activeTab === 'breakdown' && (
+      {activeTab === 'edge' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('winRateBySetup')}>
@@ -985,7 +991,7 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 5 : TIMING ── */}
-      {activeTab === 'timing' && (
+      {activeTab === 'behavior' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('hourlyPnlAmplitude')}>
@@ -1058,7 +1064,7 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 6 : PSYCHOLOGIE ── */}
-      {activeTab === 'psychology' && (
+      {activeTab === 'behavior' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('mentalImpact')}>
@@ -1092,7 +1098,7 @@ export const AnalyticsScreen: React.FC = () => {
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: 12 }}>
             <StatusChip
               icon={propFirmData.profitPct >= 1 ?
-                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(16, 185, 129, 0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(43, 213, 118, 0.2)', alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ color: theme.colors.greenLight, fontSize: 10 }}>✓</Text>
                 </View> :
                 <Flame color={theme.colors.gold} size={18} />
@@ -1241,7 +1247,7 @@ export const AnalyticsScreen: React.FC = () => {
                     borderWidth: 3,
                     borderColor: challengeCountdown.isExpired ? theme.colors.red : challengeCountdown.daysLeft <= 7 ? theme.colors.goldLight : theme.colors.green,
                     alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: challengeCountdown.isExpired ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                    backgroundColor: challengeCountdown.isExpired ? 'rgba(255, 77, 77, 0.15)' : 'rgba(43, 213, 118, 0.1)',
                   }}>
                     <Text style={{
                       fontSize: 28, fontWeight: '900',
@@ -1286,7 +1292,7 @@ export const AnalyticsScreen: React.FC = () => {
                   <Text style={s.kpiLabel}>{t('maxDrawdownLabel')} restant</Text>
                   <Text style={[s.kpiVal, s.redText]}>-${ddProjection.remainingDd.toFixed(2)}</Text>
                 </View>
-                <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(16, 185, 129, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)' }]}>
+                <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(43, 213, 118, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(212, 162, 76, 0.1)' : 'rgba(255, 77, 77, 0.1)' }]}>
                   <Text style={s.kpiLabel}>STATUS</Text>
                   <Text style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText, { fontSize: 11 }]}>
                     {ddProjection.ddLevel === 'safe' ? t('projectionSafe') : ddProjection.ddLevel === 'warning' ? t('projectionWarning') : t('projectionDanger')}
@@ -1311,8 +1317,8 @@ export const AnalyticsScreen: React.FC = () => {
               </View>
               <View style={{
                 marginTop: 8, marginBottom: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
-                backgroundColor: consistencyData.isCompliant ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                borderWidth: 1, borderColor: consistencyData.isCompliant ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                backgroundColor: consistencyData.isCompliant ? 'rgba(43, 213, 118, 0.12)' : 'rgba(255, 77, 77, 0.12)',
+                borderWidth: 1, borderColor: consistencyData.isCompliant ? 'rgba(43, 213, 118, 0.3)' : 'rgba(255, 77, 77, 0.3)',
                 alignItems: 'center',
               }}>
                 <Text style={{ color: consistencyData.isCompliant ? theme.colors.greenLight : theme.colors.redLight, fontSize: 12, fontWeight: '800' }}>
@@ -1408,7 +1414,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginRight: theme.spacing.sm,
   },
   tabItemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   tabText: {
@@ -1487,7 +1493,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderWidth: 1,
   },
   dateRangeBtnActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: 'rgba(255, 159, 28, 0.2)',
     borderColor: theme.colors.primary,
   },
   dateRangeText: {

@@ -7,7 +7,9 @@ import * as SplashScreen from 'expo-splash-screen';
 SplashScreen.preventAutoHideAsync();
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, asyncStoragePersister, PERSIST_MAX_AGE } from './src/api/queryClient';
+import { OfflineBanner } from './src/components/common/OfflineBanner';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from './src/api/supabaseClient';
 import { useTheme } from './src/theme';
@@ -44,16 +46,6 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Keep data warm for 2 min — avoids refetch storms when switching tabs
-      staleTime: 1000 * 60 * 2,
-      gcTime: 1000 * 60 * 30,
-      retry: 2,
-    },
-  },
-});
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
@@ -136,13 +128,17 @@ export default function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE }}
+    >
       <SafeAreaProvider>
         <SafeAreaView
           style={[styles.appContainer, { backgroundColor: theme.colors.background }]}
           edges={['top', 'left', 'right']}
         >
           <ToastContainer />
+          <OfflineBanner />
           {session && <TopAccountBar />}
           <NavigationContainer>
             <ErrorBoundary screenName="Navigation">
@@ -153,24 +149,23 @@ export default function App() {
                 screenOptions={{
                   headerShown: false,
                   tabBarStyle: {
-                    backgroundColor: theme.colors.backgroundElevated,
-                    borderTopColor: theme.colors.cardBorder,
-                    borderTopWidth: 1,
-                    height: 66,
-                    paddingBottom: 8,
+                    backgroundColor: theme.colors.background,
+                    borderTopColor: theme.colors.hairline,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    height: 62,
+                    paddingBottom: 6,
                     paddingTop: 8,
                   },
-                  tabBarActiveTintColor: theme.colors.primaryLight,
+                  tabBarActiveTintColor: theme.colors.primary,
                   tabBarInactiveTintColor: theme.colors.textDark,
-                  // 10px minimum for readability (was 9px — below our own a11y floor)
                   tabBarLabelStyle: {
-                    fontSize: 10,
-                    fontWeight: '800',
-                    letterSpacing: 0.4,
-                    marginTop: 3,
+                    fontSize: 9,
+                    fontFamily: theme.fonts.monoBold,
+                    letterSpacing: 0.8,
+                    textTransform: 'uppercase',
+                    marginTop: 4,
                   },
                   tabBarItemStyle: {
-                    borderRadius: 12,
                     marginHorizontal: 2,
                   },
                 }}
@@ -180,7 +175,7 @@ export default function App() {
                   component={DashboardScreen}
                   options={{
                     tabBarLabel: t('tabDashboard'),
-                    tabBarIcon: ({ color }) => <LayoutGrid color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <LayoutGrid color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
                 <Tab.Screen
@@ -188,7 +183,7 @@ export default function App() {
                   component={TradesScreen}
                   options={{
                     tabBarLabel: t('tabTrades'),
-                    tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <BookOpen color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
                 <Tab.Screen
@@ -196,7 +191,7 @@ export default function App() {
                   component={CalendarScreen}
                   options={{
                     tabBarLabel: t('tabCalendar'),
-                    tabBarIcon: ({ color }) => <Calendar color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <Calendar color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
                 <Tab.Screen
@@ -204,7 +199,7 @@ export default function App() {
                   component={AnalyticsScreen}
                   options={{
                     tabBarLabel: t('tabAnalytics'),
-                    tabBarIcon: ({ color }) => <BarChart2 color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <BarChart2 color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
                 <Tab.Screen
@@ -212,7 +207,7 @@ export default function App() {
                   component={PlaybookScreen}
                   options={{
                     tabBarLabel: t('tabPlaybook'),
-                    tabBarIcon: ({ color }) => <BookMarked color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <BookMarked color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
                 <Tab.Screen
@@ -220,7 +215,7 @@ export default function App() {
                   component={AccountsScreen}
                   options={{
                     tabBarLabel: t('tabAccounts'),
-                    tabBarIcon: ({ color }) => <Wallet color={color} size={20} />,
+                    tabBarIcon: ({ color }) => <Wallet color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
               </Tab.Navigator>
@@ -229,7 +224,7 @@ export default function App() {
           </NavigationContainer>
         </SafeAreaView>
       </SafeAreaProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

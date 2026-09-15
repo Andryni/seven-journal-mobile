@@ -263,7 +263,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               cx={activePoint.x}
               cy={activePoint.y}
               r={9}
-              fill={activePoint.value >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}
+              fill={activePoint.value >= 0 ? 'rgba(43, 213, 118, 0.3)' : 'rgba(255, 77, 77, 0.3)'}
             />
             <Circle
               cx={activePoint.x}

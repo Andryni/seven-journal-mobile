@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { TrendingUp, TrendingDown } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -26,11 +25,9 @@ interface KpiCardProps {
 }
 
 /**
- * Bloomberg-style KPI tile:
- * - colored accent bar on the left edge
- * - counting number animation
- * - staggered fade-in-up entrance
- * - optional trend chip (▲ / ▼)
+ * KPI tile — Trading Desk revision.
+ * Flat surface, 2px solid accent rail (was a gradient), no springy entrance.
+ * Prefer <Metric /> inside a <Panel /> for new code.
  */
 export const KpiCard: React.FC<KpiCardProps> = ({
   label,
@@ -51,16 +48,11 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 
   return (
     <Animated.View
-      entering={FadeInUp.delay(delay).duration(420).springify().damping(16)}
+      entering={FadeIn.delay(delay).duration(220)}
       style={[styles.box, variant === 'surface' && styles.boxSurface]}
     >
-      {/* Accent edge bar */}
-      <LinearGradient
-        colors={[accent, 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.accentBar}
-      />
+      {/* Accent rail — flat, full height, no gradient fade */}
+      <View style={[styles.accentBar, { backgroundColor: accent }]} />
 
       <View style={styles.labelRow}>
         <Text style={styles.label} numberOfLines={1}>
@@ -74,9 +66,9 @@ export const KpiCard: React.FC<KpiCardProps> = ({
             ]}
           >
             {trend === 'up' ? (
-              <TrendingUp size={9} color={theme.colors.greenLight} />
+              <TrendingUp size={9} color={theme.colors.green} />
             ) : (
-              <TrendingDown size={9} color={theme.colors.redLight} />
+              <TrendingDown size={9} color={theme.colors.red} />
             )}
           </View>
         )}
@@ -106,7 +98,7 @@ const createStyles = (theme: AppTheme) =>
       borderWidth: 1,
       borderRadius: theme.borderRadius.lg,
       padding: theme.spacing.md,
-      paddingLeft: theme.spacing.md + 6,
+      paddingLeft: theme.spacing.md + 4,
       overflow: 'hidden',
     },
     boxSurface: {
@@ -118,7 +110,7 @@ const createStyles = (theme: AppTheme) =>
       left: 0,
       top: 0,
       bottom: 0,
-      width: 3,
+      width: 2,
     },
     labelRow: {
       flexDirection: 'row',
@@ -127,31 +119,32 @@ const createStyles = (theme: AppTheme) =>
       marginBottom: 4,
     },
     label: {
-      color: theme.colors.textSecondary,
-      fontSize: 9,
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
-      letterSpacing: 0.8,
+      letterSpacing: 1.1,
+      textTransform: 'uppercase',
       flexShrink: 1,
     },
     trendChip: {
       width: 16,
       height: 16,
-      borderRadius: 5,
+      borderRadius: theme.borderRadius.xs,
       alignItems: 'center',
       justifyContent: 'center',
       marginLeft: 4,
     },
-    trendUp: { backgroundColor: theme.colors.greenGlow },
-    trendDown: { backgroundColor: theme.colors.redGlow },
+    trendUp: { backgroundColor: theme.colors.greenMuted },
+    trendDown: { backgroundColor: theme.colors.redMuted },
     value: {
-      fontSize: 18,
+      fontSize: theme.type.metric,
       fontFamily: theme.fonts.monoExtraBold,
       fontVariant: ['tabular-nums'],
     },
     sub: {
       color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: theme.fonts.sansMedium,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
       marginTop: 4,
     },
   });
