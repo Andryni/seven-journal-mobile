@@ -37,6 +37,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 import { detectSession, detectTimeframe } from '../utils/sessionDetect';
+import { formatDuration } from '../utils/formatDate';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
@@ -329,6 +330,11 @@ export const TradesScreen: React.FC = () => {
               })}
               {item.timeframe ? `  ${item.timeframe}` : ''}
               {item.size ? `  ${formatSize(item.size, unitFor(item))}` : ''}
+              {/* Holding time belongs on the row: scanning the blotter is how
+                  you notice a "scalp" that was actually held for two days. */}
+              {formatDuration(item.entry_time, item.exit_time, lang)
+                ? `  ${formatDuration(item.entry_time, item.exit_time, lang)}`
+                : ''}
             </Text>
           </View>
 

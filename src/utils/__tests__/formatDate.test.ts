@@ -1,4 +1,6 @@
-import { localDayKey, localDayStartISO, isSameLocalDay, formatShortDate, deviceTimezone } from '../formatDate';
+import { localDayKey, localDayStartISO, isSameLocalDay, formatShortDate, deviceTimezone,
+  formatDuration,
+} from '../formatDate';
 
 describe('localDayKey', () => {
   it('returns YYYY-MM-DD based on LOCAL time, not UTC', () => {
@@ -83,5 +85,52 @@ describe('deviceTimezone', () => {
     } finally {
       Intl.DateTimeFormat = original;
     }
+  });
+});
+
+describe('formatDuration', () => {
+  const at = (iso: string) => `2026-03-02T${iso}:00.000Z`;
+
+  it('returns null when either end is missing', () => {
+    // An open trade has no exit yet: the row must render blank, not "0 min".
+    expect(formatDuration(at('09:00'), null)).toBeNull();
+    expect(formatDuration(null, at('09:00'))).toBeNull();
+    expect(formatDuration(undefined, undefined)).toBeNull();
+  });
+
+  it('formats minutes under an hour', () => {
+    expect(formatDuration(at('09:00'), at('09:05'))).toBe('5 min');
+    expect(formatDuration(at('09:00'), at('09:59'))).toBe('59 min');
+  });
+
+  it('formats hours and minutes under a day', () => {
+    expect(formatDuration(at('09:00'), at('11:00'))).toBe('2 h');
+    expect(formatDuration(at('09:00'), at('11:30'))).toBe('2 h 30 min');
+  });
+
+  it('formats days beyond 24 hours', () => {
+    expect(formatDuration('2026-03-01T09:00:00.000Z', '2026-03-04T09:00:00.000Z')).toBe('3 j');
+    expect(formatDuration('2026-03-01T09:00:00.000Z', '2026-03-04T15:00:00.000Z')).toBe('3 j 6 h');
+  });
+
+  it('uses the English day unit when asked', () => {
+    expect(formatDuration('2026-03-01T09:00:00.000Z', '2026-03-04T09:00:00.000Z', 'en')).toBe('3 d');
+  });
+
+  it('handles the 74-hour case as days, not a huge hour count', () => {
+    // 74 h is 3 days and 2 hours; "74 h" is technically true but unreadable.
+    expect(formatDuration('2026-03-01T09:00:00.000Z', '2026-03-04T11:00:00.000Z')).toBe('3 j 2 h');
+  });
+
+  it('collapses a sub-minute scalp instead of showing 0', () => {
+    expect(formatDuration(at('09:00'), '2026-03-02T09:00:20.000Z')).toBe('< 1 min');
+  });
+
+  it('returns null for a corrupt row where exit precedes entry', () => {
+    expect(formatDuration(at('11:00'), at('09:00'))).toBeNull();
+  });
+
+  it('returns null for unparseable input', () => {
+    expect(formatDuration('not-a-date', at('09:00'))).toBeNull();
   });
 });

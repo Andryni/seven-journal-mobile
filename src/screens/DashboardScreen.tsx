@@ -13,6 +13,7 @@ import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
 import { Panel, Hairline } from '../components/ui/Panel';
+import { LivePanel } from '../components/ui/LivePanel';
 import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
@@ -103,6 +104,18 @@ export const DashboardScreen: React.FC = () => {
   );
 
   const trends = useMemo(() => computeMetricTrends(scopedTrades), [scopedTrades]);
+
+  /**
+   * The KPI frame states the verdict before the numbers are read: green when
+   * the book is net positive AND the expectancy per trade is, red when it is
+   * losing, neutral until there is enough closed activity to judge.
+   */
+  const kpiTone: 'neutral' | 'positive' | 'negative' = useMemo(() => {
+    if (m.closedTrades === 0) return 'neutral';
+    if (m.netPnL > 0 && m.profitFactor >= 1) return 'positive';
+    if (m.netPnL < 0) return 'negative';
+    return 'neutral';
+  }, [m.closedTrades, m.netPnL, m.profitFactor]);
 
   const expectancy = useMemo(() => {
     if (m.closedTrades === 0) return 0;
@@ -225,15 +238,22 @@ export const DashboardScreen: React.FC = () => {
           and "100.0%" sat directly under their labels with no air and the
           row read as a wall of digits. A 2x2 grid gives each number a full
           half-width cell and restores the label/value/sub hierarchy. */}
-      <Panel flush>
+      <LivePanel flush tone={kpiTone} live={m.openTrades > 0}>
         <View style={styles.metricGrid}>
           <View style={styles.metricRow}>
             <View style={styles.metricCell}>
               <Metric
                 label={t('winRateGlobal')}
                 value={`${m.winRate.toFixed(1)}%`}
-                sub={`${m.winCount}W / ${m.lossCount}L`}
+                // Breakeven trades are shown only when they exist: padding
+                // every account with "/ 0BE" costs width for no information.
+                sub={
+                  m.breakevenCount > 0
+                    ? `${m.winCount}W / ${m.lossCount}L / ${m.breakevenCount}BE`
+                    : `${m.winCount}W / ${m.lossCount}L`
+                }
                 size="small"
+                align="center"
                 trend={trends.winRate}
               />
             </View>
@@ -241,9 +261,12 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.metricCell}>
               <Metric
                 label={t('profitFactor')}
-                value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
+                // 0 means "no losses yet", so the ratio has no denominator.
+                // An em dash says that; "0.00" would read as a total failure.
+                value={m.profitFactor > 0 ? m.profitFactor.toFixed(2) : '—'}
                 sub={`R ${m.avgRMultiple >= 0 ? '+' : ''}${m.avgRMultiple.toFixed(2)}`}
                 size="small"
+                align="center"
                 tone="accent"
                 trend={trends.profitFactor}
               />
@@ -259,6 +282,7 @@ export const DashboardScreen: React.FC = () => {
                 value={money(expectancy, { decimals: 0 })}
                 sub={t('perTrade')}
                 size="small"
+                align="center"
                 tone="pnl"
                 pnlValue={expectancy}
                 trend={trends.expectancy}
@@ -271,6 +295,7 @@ export const DashboardScreen: React.FC = () => {
                 value={money(-m.maxDrawdown, { decimals: 0 })}
                 sub={`${m.dayWinRate.toFixed(0)}% ${t('greenDaysShort')}`}
                 size="small"
+                align="center"
                 tone="pnl"
                 pnlValue={-m.maxDrawdown}
                 trend={trends.drawdown}
@@ -279,7 +304,7 @@ export const DashboardScreen: React.FC = () => {
             </View>
           </View>
         </View>
-      </Panel>
+      </LivePanel>
 
       {/* ── 4. RISK TODAY ── */}
       <DailyRiskGauge trades={trades} account={activeAccount} />
@@ -535,7 +560,11 @@ const createStyles = (theme: AppTheme) =>
     metricCell: {
       flex: 1,
       paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      // Centred: left-aligned, each value sat hard against the divider while
+      // its sparkline floated in the empty half of the cell, so the block read
+      // as four ragged columns instead of one grid.
+      alignItems: 'center',
     },
     vRule: {
       width: StyleSheet.hairlineWidth,

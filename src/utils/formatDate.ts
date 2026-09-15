@@ -101,3 +101,49 @@ export function deviceTimezone(): string {
     return 'UTC';
   }
 }
+
+/**
+ * Human-readable holding time between two timestamps.
+ *
+ * Trade duration is one of the few numbers that tells a trader something about
+ * their behaviour rather than their results: scalps that quietly became swing
+ * trades are how accounts die. It was computable from the data but never
+ * displayed anywhere.
+ *
+ * Granularity adapts to magnitude, because "0.08 h" and "4380 min" are both
+ * unreadable. Under an hour: minutes. Under a day: hours and minutes. Beyond:
+ * days and hours.
+ */
+export function formatDuration(
+  start: string | Date | null | undefined,
+  end: string | Date | null | undefined,
+  lang: 'fr' | 'en' = 'fr'
+): string | null {
+  if (!start || !end) return null;
+
+  const a = new Date(start).getTime();
+  const b = new Date(end).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+
+  // A negative span means the row is corrupt (exit before entry). Showing
+  // "-3 h" invites the user to trust it; showing nothing prompts a fix.
+  const ms = b - a;
+  if (ms < 0) return null;
+
+  const totalMinutes = Math.round(ms / 60000);
+  if (totalMinutes < 1) return lang === 'fr' ? "< 1 min" : '< 1 min';
+
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  const dUnit = lang === 'fr' ? 'j' : 'd';
+
+  if (days > 0) {
+    return hours > 0 ? `${days} ${dUnit} ${hours} h` : `${days} ${dUnit}`;
+  }
+  if (hours > 0) {
+    return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+  }
+  return `${minutes} min`;
+}

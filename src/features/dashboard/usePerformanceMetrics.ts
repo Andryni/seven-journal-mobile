@@ -15,6 +15,8 @@ export interface PerformanceMetrics {
   openTrades: number;
   winCount: number;
   lossCount: number;
+  /** Trades closed exactly at zero. Neither a win nor a loss. */
+  breakevenCount: number;
   winRate: number;
   grossProfit: number;
   grossLoss: number;
@@ -35,8 +37,19 @@ export interface PerformanceMetrics {
   streak: StreakInfo;
 }
 
-export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr'): PerformanceMetrics {
-  return useMemo(() => {
+/**
+ * Pure computation behind usePerformanceMetrics.
+ *
+ * Extracted from the hook so it can be unit-tested without a renderer. This is
+ * the engine behind the dashboard's headline KPIs and it was the only
+ * calculation module in the codebase with no tests -- which is precisely how a
+ * `<= 0` loss filter and a fabricated 99.99 profit factor survived in it.
+ */
+export function computePerformanceMetrics(
+  trades: Trade[],
+  lang: 'fr' | 'en' = 'fr'
+): PerformanceMetrics {
+  {
     const closedTrades = trades.filter(
       (t): t is Trade & { exit_time: string; pnl: number } =>
         t.pnl !== null
@@ -44,13 +57,23 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
     const openTrades = trades.filter((t) => t.pnl === null);
 
     const winTrades = closedTrades.filter((t) => (t.pnl || 0) > 0);
-    const lossTrades = closedTrades.filter((t) => (t.pnl || 0) <= 0);
+    // Strictly < 0. This used to be `<= 0`, which filed every breakeven trade
+    // under losses: the dashboard showed "2W / 3L" where analytics showed
+    // "2W / 2L / 1BE" for the same account, and avgLoss was divided by a
+    // denominator padded with zeros, so the average loss read lower than it
+    // really was -- a number traders size their risk on.
+    const lossTrades = closedTrades.filter((t) => (t.pnl || 0) < 0);
+    const breakevenTrades = closedTrades.filter((t) => (t.pnl || 0) === 0);
     const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length) * 100 : 0;
 
     const grossProfit = winTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const grossLoss = Math.abs(lossTrades.reduce((sum, t) => sum + (t.pnl || 0), 0));
     const netPnL = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99.99 : 0;
+    // With no losses the ratio is undefined, not 99.99. That placeholder
+    // looked like a measurement: three wins and no loss rendered as
+    // "PF 99.99", reading as a world-class edge. 0 means "not computable yet"
+    // and the UI renders it as an em dash.
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : 0;
 
     const avgWin = winTrades.length > 0 ? grossProfit / winTrades.length : 0;
     const avgLoss = lossTrades.length > 0 ? grossLoss / lossTrades.length : 0;
@@ -213,6 +236,7 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
       openTrades: openTrades.length,
       winCount: winTrades.length,
       lossCount: lossTrades.length,
+      breakevenCount: breakevenTrades.length,
       winRate: Number(winRate.toFixed(2)),
       grossProfit: Number(grossProfit.toFixed(2)),
       grossLoss: Number(grossLoss.toFixed(2)),
@@ -232,5 +256,9 @@ export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr')
       dailyPnL,
       streak,
     };
-  }, [trades, lang]);
+  }
+}
+
+export function usePerformanceMetrics(trades: Trade[], lang: 'fr' | 'en' = 'fr'): PerformanceMetrics {
+  return useMemo(() => computePerformanceMetrics(trades, lang), [trades, lang]);
 }

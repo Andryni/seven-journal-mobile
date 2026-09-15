@@ -13,6 +13,7 @@ import { ScreenshotViewer } from './ScreenshotViewer';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
+import { formatDuration } from '../../utils/formatDate';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
@@ -52,6 +53,11 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const money = useMoney(accounts.find(a => a.id === trade?.account_id) ?? null);
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const holdingTime = useMemo(
+    () => formatDuration(trade?.entry_time, trade?.exit_time, lang),
+    [trade?.entry_time, trade?.exit_time, lang]
+  );
   // Which screenshot is open in the full-screen zoomable viewer.
   const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
   if (!trade) return null;
@@ -106,6 +112,24 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <Text style={styles.label}>{t('tdEntryDate')}</Text>
                 <Text style={styles.val}>{new Date(trade.entry_time).toLocaleString(localeFor(lang))}</Text>
               </View>
+              {/* Exit timestamp and holding time. Both were computable from
+                  the row and neither was ever shown, so there was no way to
+                  tell a 5-minute scalp from a position held for three days --
+                  the difference between following a plan and hoping. */}
+              <View style={styles.detailRow}>
+                <Text style={styles.label}>{t('tdExitDate')}</Text>
+                <Text style={styles.val}>
+                  {trade.exit_time
+                    ? new Date(trade.exit_time).toLocaleString(localeFor(lang))
+                    : t('tdStillOpen')}
+                </Text>
+              </View>
+              {holdingTime ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>{t('tdDuration')}</Text>
+                  <Text style={[styles.val, styles.durationVal]}>{holdingTime}</Text>
+                </View>
+              ) : null}
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdTimeframe')}</Text>
                 <Text style={styles.val}>{trade.timeframe}</Text>
@@ -350,6 +374,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderBottomColor: theme.colors.borderStrong,
     paddingBottom: 4,
     marginBottom: 8,
+  },
+  durationVal: {
+    color: theme.colors.primaryLight,
   },
   detailRow: {
     flexDirection: 'row',
