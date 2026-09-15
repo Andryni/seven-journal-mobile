@@ -27,6 +27,16 @@ export interface Trade {
   entry_time: string;
   exit_time: string | null;
   pnl: number | null;
+  /**
+   * Trading costs, as positive magnitudes. Optional at the type level because
+   * a database that has not run the latest schema simply will not return them,
+   * and every consumer must treat that as "unknown", never as zero-by-accident.
+   *
+   * `pnl` is the NET result and always has been: these fields explain it, they
+   * are never subtracted from it a second time.
+   */
+  commission?: number | null;
+  swap?: number | null;
   r_multiple: number | null;
   timeframe: 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
   setup_structures: string[];

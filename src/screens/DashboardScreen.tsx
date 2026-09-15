@@ -23,6 +23,7 @@ import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-
 import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
+import { CostImpactCard } from '../components/dashboard/CostImpactCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
@@ -346,6 +347,8 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 7. DISCIPLINE (replaces the achievements wall) ── */}
       {m.totalTrades > 0 ? <DisciplineCard trades={scopedTrades} /> : null}
+
+      {m.totalTrades > 0 ? <CostImpactCard trades={scopedTrades} /> : null}
 
       {/* ── 10. RECENT TRADES — blotter preview ── */}
       <Panel

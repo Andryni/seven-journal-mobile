@@ -144,8 +144,30 @@ create table if not exists public.trades (
   result                    text not null default 'OPEN'
                               check (result in ('TP','SL','BE','OPEN')),
   session                   text check (session in ('Asia','London','New York','Over Session')),
+  -- Trading costs. `pnl` is and remains the NET figure every statistic reads;
+  -- these columns exist so the net can be explained rather than asserted.
+  -- Stored as positive magnitudes (a 7.00 commission is 7, not -7) so no row
+  -- depends on a sign convention the UI would have to guess.
+  commission                numeric not null default 0,
+  swap                      numeric not null default 0,
   created_at                timestamptz not null default now()
 );
+
+-- Columns added after the first release: bring older databases up to date.
+alter table public.trades
+  add column if not exists commission numeric,
+  add column if not exists swap       numeric;
+
+-- Existing rows predate cost tracking. 0 means "no cost recorded", which is
+-- exactly the old behaviour, so no historical P&L changes.
+update public.trades set commission = 0 where commission is null;
+update public.trades set swap       = 0 where swap is null;
+
+alter table public.trades
+  alter column commission set default 0,
+  alter column commission set not null,
+  alter column swap       set default 0,
+  alter column swap       set not null;
 
 -- The app always filters by account and sorts by entry_time desc.
 create index if not exists trades_user_account_time_idx

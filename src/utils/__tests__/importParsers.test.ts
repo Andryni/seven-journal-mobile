@@ -1,4 +1,4 @@
-import { parseTradingViewExport, generateTradeCSV } from '../importParsers';
+import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../importParsers';
 import { parseCsv } from '../csv';
 
 describe('parseTradingViewExport — no fabricated data', () => {
@@ -169,5 +169,42 @@ describe('parseTradingViewExport — exit reason is not the P&L sign', () => {
     const trades = parseTradingViewExport(csv);
     expect(trades[0].pnl).toBeGreaterThan(0);
     expect(trades[1].pnl).toBeLessThan(0);
+  });
+});
+
+describe('parseMT4MT5Report — trading costs are no longer discarded', () => {
+  // Real MT4 statement layout: ticket, open time, type, size, item, open
+  // price, S/L, T/P, close time, close price, commission, swap, profit.
+  const line =
+    '12345,2025.03.10 10:00,buy,1.00,XAUUSD,2300.00,2290.00,2320.00,' +
+    '2025.03.10 12:00,2310.00,-7.00,-1.50,100.00';
+
+  it('captures commission and swap instead of throwing them away', () => {
+    const [t] = parseMT4MT5Report(line);
+    expect(t).toBeDefined();
+    expect(t.commission).toBe(7);
+    expect(t.swap).toBe(1.5);
+  });
+
+  it('stores costs as positive magnitudes even though MT4 exports negatives', () => {
+    const [t] = parseMT4MT5Report(line);
+    expect(t.commission).toBeGreaterThan(0);
+    expect(t.swap).toBeGreaterThan(0);
+  });
+
+  it('leaves the reported P&L untouched', () => {
+    // MT4's profit column is already net of commission and swap.
+    const [t] = parseMT4MT5Report(line);
+    expect(t.pnl).toBe(100);
+  });
+
+  it('defaults costs to 0 when the columns are empty', () => {
+    const noCosts =
+      '12346,2025.03.10 10:00,buy,1.00,XAUUSD,2300.00,2290.00,2320.00,' +
+      '2025.03.10 12:00,2310.00,,,100.00';
+    const [t] = parseMT4MT5Report(noCosts);
+    expect(t).toBeDefined();
+    expect(t.commission).toBe(0);
+    expect(t.swap).toBe(0);
   });
 });

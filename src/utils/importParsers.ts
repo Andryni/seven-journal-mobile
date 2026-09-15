@@ -22,6 +22,9 @@ export interface ParsedImportTrade {
   entry_time: string;
   exit_time: string | null;
   pnl: number | null;
+  /** Positive magnitudes. 0 = the report carried no cost for this trade. */
+  commission: number;
+  swap: number;
   r_multiple: number | null;
   result: 'TP' | 'SL' | 'BE' | 'OPEN';
   timeframe?: 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
@@ -37,11 +40,17 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
 
   lines.forEach((line) => {
     const match = line.match(
-      /^(\d+),([\d\.\s:\-]+),(buy|sell),([\d\.]+),([A-Za-z0-9]+),([\d\.]+),([\d\.]+),([\d\.]+),([\d\.\s:\-]+),([\d\.]+),.*?,.*?,\s*([\d\.\-]+)/i,
+      // The two fields between close price and profit are commission and swap
+      // in the MT4/MT5 statement layout. They were matched with `.*?,.*?,` and
+      // thrown away, so every imported book looked cost-free.
+      /^(\d+),([\d\.\s:\-]+),(buy|sell),([\d\.]+),([A-Za-z0-9]+),([\d\.]+),([\d\.]+),([\d\.]+),([\d\.\s:\-]+),([\d\.]+),([\d\.\-]*),([\d\.\-]*),\s*([\d\.\-]+)/i,
     );
     if (match) {
-      const [, , openTime, type, size, item, openPrice, sl, tp, closeTime, closePrice, profit] = match;
+      const [, , openTime, type, size, item, openPrice, sl, tp, closeTime, closePrice, commissionRaw, swapRaw, profit] = match;
       const pnl = parseFloat(profit);
+      // Brokers write commission as a negative ("-7.00"); we store magnitudes.
+      const commission = Math.abs(parseFloat(commissionRaw) || 0);
+      const swap = Math.abs(parseFloat(swapRaw) || 0);
       const entryP = parseFloat(openPrice);
       const slP = parseFloat(sl);
       const tpP = parseFloat(tp);
@@ -93,6 +102,8 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
           ? new Date(closeTime.replace(/\./g, '-')).toISOString()
           : null,
         pnl: isNaN(pnl) ? null : pnl,
+        commission,
+        swap,
         r_multiple: rMultiple,
         result,
         notes: `Importé via MT4/MT5 (${openTime})`,
@@ -152,6 +163,10 @@ export function parseTradingViewExport(content: string): ParsedImportTrade[] {
       entry_time: (isNaN(parsedEntry.getTime()) ? new Date() : parsedEntry).toISOString(),
       exit_time: parsedExit && !isNaN(parsedExit.getTime()) ? parsedExit.toISOString() : null,
       pnl,
+      // TradingView exports carry no cost columns. 0 means "not recorded",
+      // which the cost summary reports as such instead of implying free trades.
+      commission: 0,
+      swap: 0,
       r_multiple: null,
       // TradingView exports carry no SL/TP, so there is no evidence a target
       // or a stop was ever reached. Claiming 'TP' on every green row invented

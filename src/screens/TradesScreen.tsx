@@ -188,6 +188,10 @@ export const TradesScreen: React.FC = () => {
                       entry_time: entryTime,
                       exit_time: row.exit_time || null,
                       pnl: row.pnl != null ? Number(row.pnl) : null,
+                      // Costs recovered from the broker report. Without these
+                      // the import silently produced a cost-free book.
+                      commission: Number(row.commission ?? 0),
+                      swap: Number(row.swap ?? 0),
                       r_multiple: row.r_multiple != null ? Number(row.r_multiple) : null,
                       // Inferred from hold time rather than defaulted to M5:
                       // stamping every imported trade with one timeframe made

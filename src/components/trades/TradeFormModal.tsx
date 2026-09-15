@@ -111,6 +111,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Calculated / Manual Overwrite
   const [manualPnl, setManualPnl] = useState('');
+  const [commission, setCommission] = useState('');
+  const [swap, setSwap] = useState('');
 
   /**
    * Flags a result pill that contradicts the P&L. Deliberately a warning and
@@ -168,6 +170,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       }
       setResult(editingTrade.result);
       setManualPnl(editingTrade.pnl !== null ? editingTrade.pnl.toString() : '');
+      // 0 is a meaningful value ("no cost"), so only blank out null/undefined.
+      setCommission(editingTrade.commission != null ? String(editingTrade.commission) : '');
+      setSwap(editingTrade.swap != null ? String(editingTrade.swap) : '');
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
       setSelectedSetupTitle(
         editingTrade.setup_structures && editingTrade.setup_structures.length > 0
@@ -206,6 +211,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setRiskType('percent');
     setRiskValue('1');
     setManualPnl('');
+    setCommission('');
+    setSwap('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
     setScreenshotBefore('');
@@ -386,6 +393,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const lotSize = Number(size);
     const exit = exitPrice ? Number(exitPrice) : null;
     const finalPnl = manualPnl ? Number(manualPnl) : null;
+    // Costs are stored as positive magnitudes whatever the user typed, so the
+    // rest of the app never has to guess a sign convention.
+    const finalCommission = commission ? Math.abs(Number(commission)) : 0;
+    const finalSwap = swap ? Math.abs(Number(swap)) : 0;
     const finalR = manualRMultiple ? Number(manualRMultiple) : null;
 
     const setupStructures: string[] = [];
@@ -410,6 +421,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           ? new Date().toISOString()
           : null,
       pnl: finalPnl,
+      commission: finalCommission,
+      swap: finalSwap,
       r_multiple: finalR,
       timeframe,
       setup_structures: setupStructures,
@@ -1004,6 +1017,32 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   </View>
                 </View>
               </View>
+
+              <View style={styles.row2}>
+                <View style={styles.col}>
+                  <Text style={styles.fieldLabel}>{t('tfCommission')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={`0.00 ${sym}`}
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={commission}
+                    onChangeText={setCommission}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.fieldLabel}>{t('tfSwap')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={`0.00 ${sym}`}
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={swap}
+                    onChangeText={setSwap}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </View>
+              <Text style={styles.fieldHint}>{t('tfCostsHint')}</Text>
             </View>
 
             {/* ── SECTION 2 : STRATÉGIE PLAYBOOK ── */}
@@ -1370,6 +1409,13 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 10,
     fontFamily: theme.fonts.sans,
     lineHeight: 14,
+  },
+  fieldHint: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+    marginTop: 6,
+    lineHeight: 13,
   },
   fieldLabel: {
     color: theme.colors.textSecondary,

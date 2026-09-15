@@ -15,6 +15,7 @@ import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import { formatDuration } from '../../utils/formatDate';
 import { outcomeVariant } from '../../utils/tradeOutcome';
+import { tradeCost, hasCost, grossPnl } from '../../utils/tradingCosts';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
@@ -63,6 +64,11 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
   if (!trade) return null;
 
+  const cost = tradeCost(trade);
+  // Only show the breakdown when costs were actually recorded: a trade imported
+  // before the cost columns existed must not be displayed as commission-free.
+  const showCosts = hasCost(trade) && trade.pnl !== null;
+  const gross = grossPnl(trade);
   const isWin = (trade.pnl || 0) > 0;
   const isLoss = (trade.pnl || 0) < 0;
 
@@ -107,6 +113,32 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 </Text>
               </View>
             </View>
+
+            {showCosts && (
+              <View style={styles.costBox}>
+                <View style={styles.costRow}>
+                  <Text style={styles.costLabel}>{t('tdGrossPnl')}</Text>
+                  <Text style={styles.costValue}>{money(gross ?? 0)}</Text>
+                </View>
+                <View style={styles.costRow}>
+                  <Text style={styles.costLabel}>{t('tdCommission')}</Text>
+                  <Text style={styles.costNegative}>-{money(Math.abs(trade.commission ?? 0))}</Text>
+                </View>
+                <View style={styles.costRow}>
+                  <Text style={styles.costLabel}>{t('tdSwap')}</Text>
+                  <Text style={styles.costNegative}>-{money(Math.abs(trade.swap ?? 0))}</Text>
+                </View>
+                <View style={[styles.costRow, styles.costTotalRow]}>
+                  <Text style={styles.costTotalLabel}>{t('tdNetPnl')}</Text>
+                  <Text style={[styles.costTotalValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}>
+                    {money(trade.pnl ?? 0)}
+                  </Text>
+                </View>
+                {(gross ?? 0) > 0 && (trade.pnl ?? 0) <= 0 && (
+                  <Text style={styles.costWarn}>{t('tdCostsAteTrade')}</Text>
+                )}
+              </View>
+            )}
 
             {/* Détails Exécution */}
             <View style={styles.sectionBox}>
@@ -331,6 +363,59 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   scroll: {
     marginBottom: theme.spacing.md,
+  },
+  costBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
+  },
+  costRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  costTotalRow: {
+    marginTop: 6,
+    paddingTop: 7,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.cardBorder,
+  },
+  costLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.mono,
+  },
+  costValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+  },
+  costNegative: {
+    color: theme.colors.red,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+  },
+  costTotalLabel: {
+    color: theme.colors.textPrimary,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
+  },
+  costTotalValue: {
+    fontSize: 13,
+    fontFamily: theme.fonts.monoBold,
+    color: theme.colors.textPrimary,
+  },
+  costWarn: {
+    marginTop: 8,
+    color: theme.colors.gold,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+    lineHeight: 13,
   },
   pnlBanner: {
     flexDirection: 'row',

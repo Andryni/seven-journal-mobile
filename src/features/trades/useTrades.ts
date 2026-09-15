@@ -1,4 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  isMissingColumnError,
+  withoutPostReleaseColumns,
+} from './postReleaseColumns';
 import { supabase } from '../../api/supabaseClient';
 import { useUIStore } from '../../store/uiStore';
 import { useToast } from '../../store/toastStore';
@@ -41,6 +45,7 @@ export function useTrades() {
   };
 
   // Create trade mutation
+
   const createTradeMutation = useMutation({
     mutationFn: async (newTrade: Omit<Trade, 'id' | 'user_id' | 'created_at'>) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -51,11 +56,19 @@ export function useTrades() {
         user_id: user.id,
       };
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('trades')
         .insert(payload)
         .select()
         .single();
+
+      if (isMissingColumnError(error)) {
+        ({ data, error } = await supabase
+          .from('trades')
+          .insert(withoutPostReleaseColumns(payload))
+          .select()
+          .single());
+      }
 
       if (error) throw error;
       return data;
@@ -76,12 +89,21 @@ export function useTrades() {
   // Update trade mutation
   const updateTradeMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Trade> & { id: string }) => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('trades')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
+
+      if (isMissingColumnError(error)) {
+        ({ data, error } = await supabase
+          .from('trades')
+          .update(withoutPostReleaseColumns(updates))
+          .eq('id', id)
+          .select()
+          .single());
+      }
 
       if (error) throw error;
       return data;
