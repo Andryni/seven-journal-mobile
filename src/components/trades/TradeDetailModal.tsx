@@ -16,6 +16,8 @@ import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import { formatDuration } from '../../utils/formatDate';
 import { outcomeVariant } from '../../utils/tradeOutcome';
 import { tradeCost, hasCost, grossPnl } from '../../utils/tradingCosts';
+import { ExcursionBar } from './ExcursionBar';
+import { captureRatio, isNearMiss, isGiveBack } from '../../utils/excursions';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
@@ -71,6 +73,20 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const gross = grossPnl(trade);
   const isWin = (trade.pnl || 0) > 0;
   const isLoss = (trade.pnl || 0) < 0;
+
+  /**
+   * One actionable sentence, only when the excursion actually says something.
+   * Silence is preferable to narrating every ordinary trade.
+   */
+  const excursionNote = useMemo(() => {
+    if (isGiveBack(trade)) return t('excNoteGiveBack');
+    const cap = captureRatio(trade);
+    if (isWin && cap !== null && cap < 0.4) {
+      return t('excNoteLeftOnTable').replace('{pct}', String(Math.round(cap * 100)));
+    }
+    if (isNearMiss(trade)) return t('excNoteNearMiss');
+    return '';
+  }, [trade, isWin, t]);
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -140,7 +156,10 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </View>
             )}
 
-            {/* Détails Exécution */}
+<ExcursionBar trade={trade} />
+            {excursionNote ? <Text style={styles.costWarn}>{excursionNote}</Text> : null}
+
+                        {/* Détails Exécution */}
             <View style={styles.sectionBox}>
               <Text style={styles.sectionTitle}>{t('tdExecutionParams')}</Text>
               <View style={styles.detailRow}>

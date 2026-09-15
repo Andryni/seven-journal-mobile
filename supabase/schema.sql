@@ -150,13 +150,25 @@ create table if not exists public.trades (
   -- depends on a sign convention the UI would have to guess.
   commission                numeric not null default 0,
   swap                      numeric not null default 0,
+  -- Maximum adverse / favourable excursion, stored as the extreme PRICE the
+  -- trade reached while open. Prices (not R multiples) are stored because they
+  -- are what the user reads off the chart, and because every derived figure --
+  -- R excursion, capture ratio, heat -- can be recomputed from them if the
+  -- stop or risk model changes later.
+  --
+  -- NULL means "not recorded" and must stay distinct from a real value: unlike
+  -- a cost, a price of 0 is nonsense, so these are nullable with no backfill.
+  mae_price                 numeric,
+  mfe_price                 numeric,
   created_at                timestamptz not null default now()
 );
 
 -- Columns added after the first release: bring older databases up to date.
 alter table public.trades
   add column if not exists commission numeric,
-  add column if not exists swap       numeric;
+  add column if not exists swap       numeric,
+  add column if not exists mae_price  numeric,
+  add column if not exists mfe_price  numeric;
 
 -- Existing rows predate cost tracking. 0 means "no cost recorded", which is
 -- exactly the old behaviour, so no historical P&L changes.

@@ -113,6 +113,33 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [manualPnl, setManualPnl] = useState('');
   const [commission, setCommission] = useState('');
   const [swap, setSwap] = useState('');
+  const [maePrice, setMaePrice] = useState('');
+  const [mfePrice, setMfePrice] = useState('');
+
+  /**
+   * Live R read-out for the excursions being typed. Prices alone are hard to
+   * judge; "went 0.8R against you" is immediately meaningful, and it surfaces
+   * a mistyped price before it is saved.
+   */
+  const excursionPreview = useMemo(() => {
+    const entry = Number(entryPrice);
+    const sl = Number(stopLoss);
+    if (!entry || !sl) return '';
+    const risk = Math.abs(entry - sl);
+    if (!risk) return '';
+    const parts: string[] = [];
+    const mae = maePrice ? Number(maePrice) : null;
+    const mfe = mfePrice ? Number(mfePrice) : null;
+    if (mae !== null && Number.isFinite(mae)) {
+      const adverse = direction === 'BUY' ? entry - mae : mae - entry;
+      parts.push(`MAE ${(Math.max(0, adverse) / risk).toFixed(2)}R`);
+    }
+    if (mfe !== null && Number.isFinite(mfe)) {
+      const fav = direction === 'BUY' ? mfe - entry : entry - mfe;
+      parts.push(`MFE ${(Math.max(0, fav) / risk).toFixed(2)}R`);
+    }
+    return parts.join('   ·   ');
+  }, [entryPrice, stopLoss, direction, maePrice, mfePrice]);
 
   /**
    * Flags a result pill that contradicts the P&L. Deliberately a warning and
@@ -173,6 +200,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       // 0 is a meaningful value ("no cost"), so only blank out null/undefined.
       setCommission(editingTrade.commission != null ? String(editingTrade.commission) : '');
       setSwap(editingTrade.swap != null ? String(editingTrade.swap) : '');
+      setMaePrice(editingTrade.mae_price != null ? String(editingTrade.mae_price) : '');
+      setMfePrice(editingTrade.mfe_price != null ? String(editingTrade.mfe_price) : '');
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
       setSelectedSetupTitle(
         editingTrade.setup_structures && editingTrade.setup_structures.length > 0
@@ -213,6 +242,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setManualPnl('');
     setCommission('');
     setSwap('');
+    setMaePrice('');
+    setMfePrice('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
     setScreenshotBefore('');
@@ -397,6 +428,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     // rest of the app never has to guess a sign convention.
     const finalCommission = commission ? Math.abs(Number(commission)) : 0;
     const finalSwap = swap ? Math.abs(Number(swap)) : 0;
+    // Excursions stay null when blank: "not recorded" must never become a
+    // price of 0, which would read as a trade that collapsed to zero.
+    const finalMae = maePrice ? Number(maePrice) : null;
+    const finalMfe = mfePrice ? Number(mfePrice) : null;
     const finalR = manualRMultiple ? Number(manualRMultiple) : null;
 
     const setupStructures: string[] = [];
@@ -423,6 +458,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       pnl: finalPnl,
       commission: finalCommission,
       swap: finalSwap,
+      mae_price: finalMae,
+      mfe_price: finalMfe,
       r_multiple: finalR,
       timeframe,
       setup_structures: setupStructures,
@@ -1043,6 +1080,36 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
               <Text style={styles.fieldHint}>{t('tfCostsHint')}</Text>
+
+              <View style={styles.row2}>
+                <View style={styles.col}>
+                  <Text style={styles.fieldLabel}>{t('tfMaePrice')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t('tfMaePlaceholder')}
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={maePrice}
+                    onChangeText={setMaePrice}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.fieldLabel}>{t('tfMfePrice')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t('tfMfePlaceholder')}
+                    placeholderTextColor={theme.colors.textMuted}
+                    value={mfePrice}
+                    onChangeText={setMfePrice}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </View>
+              {excursionPreview ? (
+                <Text style={styles.fieldHint}>{excursionPreview}</Text>
+              ) : (
+                <Text style={styles.fieldHint}>{t('tfExcursionHint')}</Text>
+              )}
             </View>
 
             {/* ── SECTION 2 : STRATÉGIE PLAYBOOK ── */}

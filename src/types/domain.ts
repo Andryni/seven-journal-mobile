@@ -37,6 +37,13 @@ export interface Trade {
    */
   commission?: number | null;
   swap?: number | null;
+  /**
+   * Worst / best PRICE reached while the trade was open. Optional because a
+   * database that has not run the latest schema.sql does not return them, and
+   * null because "not recorded" must stay distinct from any real price.
+   */
+  mae_price?: number | null;
+  mfe_price?: number | null;
   r_multiple: number | null;
   timeframe: 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
   setup_structures: string[];

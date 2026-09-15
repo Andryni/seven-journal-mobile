@@ -7,7 +7,7 @@
  * We therefore retry once without them. The trade is saved; only the costs are
  * dropped, which is exactly the pre-migration behaviour.
  */
-export const POST_RELEASE_COLUMNS = ['commission', 'swap'] as const;
+export const POST_RELEASE_COLUMNS = ['commission', 'swap', 'mae_price', 'mfe_price'] as const;
 
 export function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;

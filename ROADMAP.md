@@ -114,8 +114,8 @@ façon dont on entraîne sa reconnaissance de patterns.
 
 | # | Chantier | Pourquoi maintenant |
 |---|---|---|
-| 1 | **Frais (commission/swap)** | Fausse toutes les statistiques d'un trader actif. Plus on attend, plus il y a de trades à recalculer. |
-| 2 | **MAE / MFE** | Deux champs, et le Playbook gagne les seules analyses qui font progresser. |
+| ~~1~~ ✅ | ~~**Frais (commission/swap)**~~ — livré (`6a1b6bd`) | Fausse toutes les statistiques d'un trader actif. Plus on attend, plus il y a de trades à recalculer. |
+| ~~2~~ ✅ | ~~**MAE / MFE**~~ — livré | Deux champs, et le Playbook gagne les seules analyses qui font progresser. |
 | 3 | **Objectifs personnels + Lock Guard pour tous** | Étend votre meilleur différenciateur aux comptes non-prop. |
 | 4 | **Tags libres + filtrage croisé** | Rend le journal interrogeable. |
 | 5 | **Sorties partielles** | Le plus lourd ; à faire une fois les trois premiers en place. |

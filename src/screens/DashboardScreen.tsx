@@ -24,6 +24,7 @@ import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
 import { CostImpactCard } from '../components/dashboard/CostImpactCard';
+import { ExcursionCard } from '../components/dashboard/ExcursionCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
@@ -349,6 +350,8 @@ export const DashboardScreen: React.FC = () => {
       {m.totalTrades > 0 ? <DisciplineCard trades={scopedTrades} /> : null}
 
       {m.totalTrades > 0 ? <CostImpactCard trades={scopedTrades} /> : null}
+
+      {m.totalTrades > 0 ? <ExcursionCard trades={scopedTrades} /> : null}
 
       {/* ── 10. RECENT TRADES — blotter preview ── */}
       <Panel
