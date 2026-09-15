@@ -268,6 +268,8 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 style={styles.select}
                 onPress={() => setInstrumentPickerVisible(true)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={instrument}
               >
                 <Text style={styles.selectText}>{INSTRUMENTS[instrument]?.label}</Text>
               </TouchableOpacity>
@@ -320,6 +322,9 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                       style={[styles.riskChip, active && styles.riskChipActive]}
                       onPress={() => setRiskPct(p)}
                       activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`${p}%`}
                     >
                       <Text style={[styles.riskChipText, active && styles.riskChipTextActive]}>
                         {p}%
@@ -414,6 +419,8 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 onPress={handleSave}
                 disabled={!canSave}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canSave }}
               >
                 <Text style={[styles.saveText, !canSave && { color: theme.colors.textDark }]}>
                   {t('save')}

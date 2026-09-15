@@ -17,6 +17,7 @@ import { duration, stagger } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
 import { AssetGlyph } from '../components/ui/AssetGlyph';
 import { EmptyState } from '../components/ui/EmptyState';
+import { SkeletonRows } from '../components/ui/Skeleton';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import { useUIStore } from '../store/uiStore';
@@ -409,8 +410,8 @@ export const TradesScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
+      <View style={styles.container} accessibilityLabel={t('loading')}>
+        <SkeletonRows rows={8} />
       </View>
     );
   }

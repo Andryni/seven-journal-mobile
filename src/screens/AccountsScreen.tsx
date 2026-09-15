@@ -20,6 +20,7 @@ import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
 import { MARKET_TYPES } from '../utils/positionSizing';
 import { useMarketUnitLabel } from '../features/accounts/useMarket';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { accountTypeLabel, useT } from '../i18n';
@@ -214,6 +215,9 @@ export const AccountsScreen: React.FC = () => {
         style={[styles.accountCard, isSelected && styles.selectedCard]}
         onPress={() => setActiveAccountId(isSelected ? null : item.id)}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelected }}
+        accessibilityLabel={item.name}
       >
         {/* Card Top Header */}
         <View style={styles.cardHeader}>
@@ -349,8 +353,9 @@ export const AccountsScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
+      <View style={styles.container} accessibilityLabel={t('loading')}>
+        <SkeletonCard lines={2} />
+        <SkeletonCard lines={2} />
       </View>
     );
   }
@@ -365,7 +370,13 @@ export const AccountsScreen: React.FC = () => {
           <Text style={styles.screenTitle}>{t('screenTitleAccounts')}</Text>
           <Text style={styles.screenSubtitle}>{t('screenSubtitleAccounts')}</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={openAddModal} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={openAddModal}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('addAccount')}
+        >
           <Plus color={theme.colors.textPrimary} size={16} />
           <Text style={styles.addBtnText}>{t('addAccount')}</Text>
         </TouchableOpacity>
@@ -434,6 +445,9 @@ export const AccountsScreen: React.FC = () => {
                       key={iType}
                       style={[styles.typeBtn, instrumentType === iType && styles.typeBtnActive]}
                       onPress={() => setInstrumentType(iType)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: instrumentType === iType }}
+                      accessibilityLabel={iType}
                     >
                       <Text style={[styles.typeBtnText, instrumentType === iType && styles.typeBtnTextActive]}>
                         {iType}
@@ -454,6 +468,9 @@ export const AccountsScreen: React.FC = () => {
                       key={id}
                       style={[styles.typeBtn, type === id && styles.typeBtnActive]}
                       onPress={() => setType(id)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: type === id }}
+                      accessibilityLabel={accountTypeLabel(t, id)}
                     >
                       <Text style={[styles.typeBtnText, type === id && styles.typeBtnTextActive]}>
                         {accountTypeLabel(t, id)}
@@ -469,6 +486,9 @@ export const AccountsScreen: React.FC = () => {
                       key={curr}
                       style={[styles.currBtn, currency === curr && styles.currBtnActive]}
                       onPress={() => setCurrency(curr)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: currency === curr }}
+                      accessibilityLabel={curr}
                     >
                       <Text style={[styles.currBtnText, currency === curr && styles.currBtnTextActive]}>
                         {curr} ({currencySymbol(curr)})

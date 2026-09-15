@@ -563,6 +563,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     style={styles.dropdownSelector}
                     onPress={() => setAccountPickerVisible(true)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('tfAccountLabel')}: ${selectedAccount?.name ?? ''}`}
                   >
                     <View style={styles.dropdownSelectedContent}>
                       <Wallet size={14} color={theme.colors.primaryLight} />
@@ -583,6 +585,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     style={styles.dropdownSelector}
                     onPress={() => setInstrumentPickerVisible(true)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('tfPairLabel')}: ${pair}`}
                   >
                     <View style={styles.dropdownSelectedContent}>
                       <Text style={styles.dropdownSelectedText} numberOfLines={1}>
@@ -603,6 +607,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     style={[styles.dropdownSelector, { flex: 1.2 }]}
                     onPress={() => setShowDatePicker(true)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('tfEntryDateTime')}
                   >
                     <View style={styles.dropdownSelectedContent}>
                       <Calendar size={14} color={theme.colors.primaryLight} />
@@ -622,6 +628,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     style={[styles.dropdownSelector, { flex: 0.8 }]}
                     onPress={() => setShowTimePicker(true)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('tfEntryDateTime')}
                   >
                     <View style={styles.dropdownSelectedContent}>
                       <Clock size={14} color={theme.colors.primaryLight} />
@@ -725,6 +733,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 <TouchableOpacity
                   style={[styles.directionBtn, direction === 'BUY' && styles.buyActive]}
                   onPress={() => setDirection('BUY')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: direction === 'BUY' }}
+                  accessibilityLabel={t('tfBuyLong')}
                 >
                   <Text style={[styles.directionText, direction === 'BUY' && styles.whiteText]}>
                     {t('tfBuyLong')}
@@ -733,6 +744,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 <TouchableOpacity
                   style={[styles.directionBtn, direction === 'SELL' && styles.sellActive]}
                   onPress={() => setDirection('SELL')}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: direction === 'SELL' }}
+                  accessibilityLabel={t('tfSellShort')}
                 >
                   <Text style={[styles.directionText, direction === 'SELL' && styles.whiteText]}>
                     {t('tfSellShort')}
@@ -750,6 +764,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                         key={tf}
                         style={[styles.pill, timeframe === tf && styles.pillActive]}
                         onPress={() => setTimeframe(tf)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: timeframe === tf }}
+                        accessibilityLabel={`${t('tfTimeframe')} ${tf}`}
                       >
                         <Text style={[styles.pillText, timeframe === tf && styles.whiteText]}>{tf}</Text>
                       </TouchableOpacity>
@@ -763,6 +780,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     style={styles.dropdownSelector}
                     onPress={() => setSessionPickerVisible(true)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('tfSession')}
                   >
                     <View style={styles.dropdownSelectedContent}>
                       <Clock size={14} color={theme.colors.primaryLight} />

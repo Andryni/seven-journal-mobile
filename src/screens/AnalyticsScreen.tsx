@@ -27,6 +27,7 @@ import { formatCurrency, currencySymbol } from '../utils/formatCurrency';
 import type { FormatCurrencyOptions } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT, useI18nStore } from '../i18n';
@@ -346,8 +347,10 @@ export const AnalyticsScreen: React.FC = () => {
 
   if (tradesLoading || accountsLoading || setupsLoading) {
     return (
-      <View style={s.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
+      <View style={s.container} accessibilityLabel={t('loading')}>
+        <SkeletonCard lines={3} />
+        <SkeletonCard lines={4} />
+        <SkeletonCard lines={2} />
       </View>
     );
   }

@@ -345,6 +345,8 @@ export const PlaybookScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'setups' && styles.tabBtnActive]}
           onPress={() => setActiveTab('setups')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'setups' }}
         >
           <Target color={activeTab === 'setups' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'setups' && styles.tabBtnTextActive]}>
@@ -355,6 +357,8 @@ export const PlaybookScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'debrief' && styles.tabBtnActive]}
           onPress={() => setActiveTab('debrief')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'debrief' }}
         >
           <BookOpen color={activeTab === 'debrief' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'debrief' && styles.tabBtnTextActive]}>
@@ -365,6 +369,8 @@ export const PlaybookScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'discipline' && styles.tabBtnActive]}
           onPress={() => setActiveTab('discipline')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'discipline' }}
         >
           <Brain color={activeTab === 'discipline' ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
           <Text style={[styles.tabBtnText, activeTab === 'discipline' && styles.tabBtnTextActive]}>
@@ -429,7 +435,12 @@ export const PlaybookScreen: React.FC = () => {
             </Animated.View>
           )}
 
-          <TouchableOpacity style={styles.addSetupBtn} onPress={openAddSetup}>
+          <TouchableOpacity
+            style={styles.addSetupBtn}
+            onPress={openAddSetup}
+            accessibilityRole="button"
+            accessibilityLabel={t('addNewStrategy')}
+          >
             <Plus size={16} color={theme.colors.textPrimary} />
             <Text style={styles.addSetupText}>{t('addNewStrategy')}</Text>
           </TouchableOpacity>

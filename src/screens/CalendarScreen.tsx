@@ -15,6 +15,7 @@ import { useUIStore } from '../store/uiStore';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
 import { useMoney } from '../features/accounts/useMoney';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
@@ -118,8 +119,9 @@ export const CalendarScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
+      <View style={styles.container} accessibilityLabel={t('loading')}>
+        <SkeletonCard lines={5} />
+        <SkeletonCard lines={2} />
       </View>
     );
   }

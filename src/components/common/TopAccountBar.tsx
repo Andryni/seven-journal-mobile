@@ -146,6 +146,9 @@ export const TopAccountBar: React.FC = () => {
                   setActiveAccountId(null);
                   setModalVisible(false);
                 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !activeAccountId }}
+                accessibilityLabel={t('allAccounts')}
               >
                 <View>
                   <Text style={[styles.accountItemName, !activeAccountId && styles.whiteText]}>
@@ -167,6 +170,9 @@ export const TopAccountBar: React.FC = () => {
                       setActiveAccountId(acc.id);
                       setModalVisible(false);
                     }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={acc.name}
                   >
                     <View>
                       <Text style={[styles.accountItemName, isSelected && styles.whiteText]}>

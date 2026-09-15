@@ -74,7 +74,12 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
               <Award color={theme.colors.goldLight} size={18} />
               <Text style={styles.modalTitle}>{t('scSharePerformance')}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('cancel')}
+            >
               <X color={theme.colors.textPrimary} size={18} />
             </TouchableOpacity>
           </View>
@@ -139,7 +144,13 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={handleShare}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('scExportShare')}
+            >
               <Share2 size={16} color={theme.colors.textPrimary} />
               <Text style={styles.shareBtnText}>{t('scExportShare')}</Text>
             </TouchableOpacity>

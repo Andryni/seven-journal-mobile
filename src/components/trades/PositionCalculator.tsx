@@ -99,6 +99,8 @@ export const PositionCalculator: React.FC = () => {
           style={styles.pickerBtn}
           onPress={() => setAccountPickerVisible(true)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('posCalcAccount')}
         >
           <Text style={styles.pickerLabel}>{t('posCalcAccount')}</Text>
           <Text style={styles.pickerValue} numberOfLines={1}>
@@ -109,6 +111,8 @@ export const PositionCalculator: React.FC = () => {
           style={styles.pickerBtn}
           onPress={() => setInstrumentPickerVisible(true)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={t('posCalcInstrument')}
         >
           <Text style={styles.pickerLabel}>{t('posCalcInstrument')}</Text>
           <Text style={styles.pickerValue} numberOfLines={1}>
@@ -127,6 +131,9 @@ export const PositionCalculator: React.FC = () => {
                 key={rt}
                 style={[styles.riskTypeBtn, riskType === rt && styles.riskTypeBtnActive]}
                 onPress={() => setRiskType(rt)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: riskType === rt }}
+                accessibilityLabel={rt}
               >
                 <Text style={[styles.riskTypeText, riskType === rt && styles.riskTypeTextActive]}>
                   {rt === 'percent' ? '%' : sym}

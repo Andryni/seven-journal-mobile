@@ -27,6 +27,7 @@ import { CostImpactCard } from '../components/dashboard/CostImpactCard';
 import { ExcursionCard } from '../components/dashboard/ExcursionCard';
 import { TagPerformanceCard } from '../components/dashboard/TagPerformanceCard';
 import { EmptyState } from '../components/ui/EmptyState';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
 import { ShareCardModal } from '../components/share/ShareCardModal';
@@ -127,10 +128,18 @@ export const DashboardScreen: React.FC = () => {
   }, [m.netPnL, m.closedTrades]);
 
   if (tradesLoading || accountsLoading) {
+    // Shaped like the dashboard that is coming, so the layout does not jump.
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
-      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={t('loading')}
+      >
+        <SkeletonCard lines={3} />
+        <SkeletonCard lines={2} />
+        <SkeletonCard lines={4} />
+      </ScrollView>
     );
   }
 

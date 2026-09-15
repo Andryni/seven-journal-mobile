@@ -262,7 +262,11 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                       </TouchableOpacity>
                     ) : null}
                     {trade.screenshot_before_url.startsWith('http') && (
-                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)} style={styles.linkRow}>
+                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)}
+                  style={styles.linkRow}
+                  accessibilityRole="link"
+                  accessibilityLabel={t('tdChartBefore')}
+                >
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
                         <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
@@ -288,7 +292,11 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                       </TouchableOpacity>
                     ) : null}
                     {trade.screenshot_after_url.startsWith('http') && (
-                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)} style={styles.linkRow}>
+                      <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)}
+                  style={styles.linkRow}
+                  accessibilityRole="link"
+                  accessibilityLabel={t('tdChartAfter')}
+                >
                         <ExternalLink size={12} color={theme.colors.primaryLight} />
                         <Text style={styles.linkText}>{t('tdOpenTradingView')}</Text>
                       </TouchableOpacity>
