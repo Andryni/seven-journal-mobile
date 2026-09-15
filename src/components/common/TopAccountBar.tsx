@@ -6,13 +6,13 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
-  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { SettingsSheet } from '../settings/SettingsSheet';
 import { useTheme } from '../../theme';
+import { SevenMark } from '../brand/SevenMark';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
 import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
@@ -37,11 +37,9 @@ export const TopAccountBar: React.FC = () => {
       {/* Brand Logo & Name */}
       <View style={styles.brandRow}>
         <View style={styles.logoWrapper}>
-          <Image
-            source={require('../../assets/seven_tracking_logo.png')}
-            style={styles.logoImg}
-            resizeMode="cover"
-          />
+          {/* Vector, not the PNG that was here: it takes the theme's colours
+              and stays sharp at any density. */}
+          <SevenMark size={36} plate />
         </View>
         <View>
           <View style={styles.flexRow}>
@@ -223,10 +221,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
-  },
-  logoImg: {
-    width: 36,
-    height: 36,
   },
   flexRow: {
     flexDirection: 'row',

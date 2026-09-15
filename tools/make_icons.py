@@ -26,65 +26,128 @@ ASSETS = os.path.join(ROOT, "assets")
 SRC_ASSETS = os.path.join(ROOT, "src", "assets")
 
 
-def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True):
+RED = (240, 74, 48, 255)     # colors.red
+GRID = (30, 33, 40, 255)     # faint chart rules
+
+
+def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True,
+              scene=True, mono=None):
     """
-    The mark: a bold '7' standing on a chart baseline.
+    The mark: a '7' standing on a chart baseline, with candlesticks printing
+    across it.
 
-    Two earlier attempts failed for the same reason -- they put a second
-    picture next to the numeral and hoped the two would read as one symbol.
-    First a candlestick speared through the horizontal bar. Then three
-    ascending bars in the counter, which at launcher size stopped reading as
-    bars at all and turned the icon into "a wifi glyph next to a 7".
+    Earlier versions kept failing the same way -- a second picture placed
+    beside the numeral, hoping the two would read as one symbol. This one
+    interlocks them instead. The candles that sit inside the diagonal are
+    shaded toward the plate so they recede, and the foreground series is drawn
+    with a plate-coloured keyline so the green never dissolves into the amber
+    behind it. The empty triangle under the 7 is where a chart naturally goes,
+    so nothing has to be shoved aside to make room.
 
-    This version stops adding objects. The numeral is drawn as one continuous
-    stroke with round joins, heavy enough to hold the whole plate, and the only
-    other element is a green rule beneath it. That rule is not decoration: it
-    is the axis the figure stands on, so the seven becomes a value on a chart
-    rather than a digit with an ornament. It also never touches the glyph, so
-    there is nothing to collide at any size.
+    `scene=False` drops the candles and the grid and draws only the numeral on
+    its rule. That is what the small slots use: at 48px the candle bodies stop
+    being candles and turn into noise, so the favicon keeps the silhouette and
+    loses the detail rather than shipping a smudge.
 
-    Drawn amber-on-dark or dark-on-amber depending on `fg`/`bg`; the silhouette
-    is identical either way, which is what the Android monochrome slot needs.
+    `mono` flattens everything to one colour for Android's themed-icon slot,
+    which the OS tints itself and cannot do with a multi-colour source.
     """
     S = size * SS
-    img = Image.new("RGBA", (S, S), bg if bg else (0, 0, 0, 0))
+    plate = bg if bg else None
+    img = Image.new("RGBA", (S, S), plate if plate else (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
     if accent is None:
         accent = fg
 
+    ink = mono or fg
+    rule = mono or accent
+    up = mono or GREEN
+    down = mono or RED
+
     m = S * inset
     w = S - 2 * m
-    stroke = int(w * 0.144)
+
+    def X(f):
+        return m + w * f
+
+    def Y(f):
+        return m + w * f
+
+    # Candles inside the diagonal are the ink colour mixed toward the plate,
+    # so they read as depth rather than as separate objects.
+    def recede(f):
+        if mono:
+            return mono
+        back = plate if plate else BACKGROUND
+        return tuple(int(ink[i] * f + back[i] * (1 - f)) for i in range(3)) + (255,)
+
+    if scene and not mono:
+        gw = max(1, int(w * 0.006))
+        for gx in (0.18, 0.46, 0.74):
+            d.line([(X(gx), Y(0.02)), (X(gx), Y(0.98))], fill=GRID, width=gw)
+        for gy in (0.22, 0.52, 0.82):
+            d.line([(X(0.02), Y(gy)), (X(0.98), Y(gy))], fill=GRID, width=gw)
+
+    # ── The numeral ──
+    stroke = int(w * 0.154)
     r = stroke / 2
+    x_l, x_r = X(0.04), X(0.92)
+    y_top = Y(0.06)
+    x_foot, y_foot = X(0.35), Y(0.94)
 
-    # Geometry in fractions of the inner box, matched to the reference art.
-    # The foot stops short of the bottom to leave the baseline its own air.
-    x0, x1 = m, m + w
-    y_top = m + w * 0.12
-    x_foot = m + w * 0.40
-    y_foot = m + w * 0.80
+    d.line([(x_l, y_top), (x_r, y_top)], fill=ink, width=stroke)
+    d.line([(x_r, y_top), (x_foot, y_foot)], fill=ink, width=stroke, joint="curve")
+    for px, py in ((x_l, y_top), (x_r, y_top), (x_foot, y_foot)):
+        d.ellipse([px - r, py - r, px + r, py + r], fill=ink)
 
-    def dot(x, y):
-        d.ellipse([x - r, y - r, x + r, y + r], fill=fg)
+    base_y = Y(1.02)
 
-    # Top bar and diagonal, as round-capped strokes: one gesture, no seams.
-    d.line([(x0, y_top), (x1, y_top)], fill=fg, width=stroke)
-    d.line([(x1, y_top), (x_foot, y_foot)], fill=fg, width=stroke, joint="curve")
-    dot(x0, y_top)
-    dot(x1, y_top)
-    dot(x_foot, y_foot)
+    if scene:
+        # Receding candles, climbing the diagonal.
+        for cx, top, bot, f in ((0.60, 0.42, 0.68, 0.52),
+                                (0.72, 0.30, 0.56, 0.62),
+                                (0.83, 0.18, 0.44, 0.72)):
+            col = recede(f)
+            bw = w * 0.052
+            wick = max(1, int(w * 0.016))
+            d.line([(X(cx), Y(top - 0.07)), (X(cx), Y(bot + 0.07))], fill=col, width=wick)
+            d.rectangle([X(cx) - bw / 2, Y(top), X(cx) + bw / 2, Y(bot)], fill=col)
 
-    # The baseline the numeral stands on.
+        # Foreground series, standing on the rule.
+        #
+        # The separation from the amber behind them is an OUTLINE on each
+        # shape, not a filled panel behind it: filling a rectangle blanks out
+        # the diagonal and the grid wherever a candle happens to sit, which
+        # reads as damage rather than depth.
+        key = plate if plate else BACKGROUND
+        kw = max(2, int(w * 0.022))
+        bw = w * 0.084
+        wick_w = max(1, int(w * 0.024))
+
+        def candle(cx, top, bot, col, wick_top, wick_bot):
+            x0, x1 = X(cx) - bw / 2, X(cx) + bw / 2
+            # Wick: keyline first, then the wick itself over it.
+            d.line([(X(cx), Y(wick_top)), (X(cx), Y(wick_bot))],
+                   fill=key, width=wick_w + kw)
+            d.line([(X(cx), Y(wick_top)), (X(cx), Y(wick_bot))],
+                   fill=col, width=wick_w)
+            # Body: outlined, then filled.
+            d.rectangle([x0 - kw / 2, Y(top) - kw / 2, x1 + kw / 2, Y(bot) + kw / 2],
+                        fill=key)
+            d.rectangle([x0, Y(top), x1, Y(bot)], fill=col)
+
+        base_f = 1.02
+        candle(0.40, 0.60, base_f, up, 0.53, base_f)
+        candle(0.55, 0.68, base_f, up, 0.61, base_f)
+        # One red print among the wins, floating clear of the rule.
+        candle(0.69, 0.76, 0.88, down, 0.69, 0.96)
+        candle(0.83, 0.50, base_f, up, 0.43, base_f)
+
     if baseline:
-        # Inset from the numeral's own width: a rule running the full span
-        # competes with the top bar for the eye, and the two equal horizontals
-        # made the mark read as a striped block rather than a figure standing
-        # on an axis.
-        bh = w * 0.072
-        by = m + w * 0.92
-        bx = w * 0.082
-        d.rounded_rectangle([x0 + bx, by, x1 - bx, by + bh], radius=bh / 2, fill=accent)
+        bh = w * 0.040
+        d.rounded_rectangle([X(-0.02), base_y, X(1.02), base_y + bh],
+                            radius=bh / 2, fill=rule)
 
     # Optically centre on the drawn ink rather than the nominal box.
     bbox = img.getbbox()
@@ -93,16 +156,16 @@ def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True):
         cy = (bbox[1] + bbox[3]) / 2
         dx, dy = int(round(S / 2 - cx)), int(round(S / 2 - cy))
         if dx or dy:
-            shifted = Image.new("RGBA", (S, S), bg if bg else (0, 0, 0, 0))
+            shifted = Image.new("RGBA", (S, S), plate if plate else (0, 0, 0, 0))
             shifted.paste(img, (dx, dy), img)
             img = shifted
 
     return img.resize((size, size), Image.LANCZOS)
 
 
-def compose(size, bg, inset=0.22, fg=AMBER, accent=None):
+def compose(size, bg, inset=0.22, fg=AMBER, accent=None, scene=True):
     base = Image.new("RGBA", (size, size), bg)
-    mark = draw_mark(size, fg=fg, accent=accent, inset=inset)
+    mark = draw_mark(size, fg=fg, accent=accent, inset=inset, bg=bg, scene=scene)
     base.alpha_composite(mark)
     return base
 
@@ -117,18 +180,20 @@ def save(img, *paths):
 print("Generating icons")
 
 # iOS / store icon: opaque, no transparency allowed by App Store.
-save(compose(1024, BACKGROUND, inset=0.24, accent=GREEN),
+save(compose(1024, BACKGROUND, inset=0.22, accent=GREEN),
      os.path.join(ASSETS, "icon.png"))
 
 # Android adaptive foreground: TRANSPARENT, and safe-zone aware. Only the
 # centre 66% survives the mask on a circular launcher, so the glyph is inset
 # far more than on the flat icon.
-save(draw_mark(1024, fg=AMBER, accent=GREEN, inset=0.34),
+save(draw_mark(1024, fg=AMBER, accent=GREEN, inset=0.32, bg=BACKGROUND),
      os.path.join(ASSETS, "android-icon-foreground.png"))
 
 # Android monochrome (themed icons, Android 13+): a single-colour silhouette.
 # The old file was a photoreal image, which the OS cannot tint.
-save(draw_mark(1024, fg=(255, 255, 255, 255), accent=(255, 255, 255, 255), inset=0.34),
+# A tintable silhouette cannot carry the scene: flattened to one colour the
+# candles merge with the numeral into a solid blob.
+save(draw_mark(1024, inset=0.34, scene=False, mono=(255, 255, 255, 255)),
      os.path.join(ASSETS, "android-icon-monochrome.png"))
 
 # Adaptive background: flat colour, matching app.json.
@@ -136,16 +201,18 @@ save(Image.new("RGBA", (1024, 1024), BACKGROUND),
      os.path.join(ASSETS, "android-icon-background.png"))
 
 # Splash: transparent so it sits on the configured background colour.
-save(draw_mark(1024, fg=AMBER, accent=GREEN, inset=0.30),
+save(draw_mark(1024, fg=AMBER, accent=GREEN, inset=0.28, bg=BACKGROUND),
      os.path.join(ASSETS, "splash-icon.png"))
 
-# Favicon: small, so the mark is tightened to stay legible at 48px.
-save(compose(196, BACKGROUND, inset=0.20, accent=GREEN),
+# Favicon: rendered large and reduced, so the candles survive the downscale
+# instead of being drawn at a size where they alias into noise.
+save(compose(1024, BACKGROUND, inset=0.18, accent=GREEN).resize((196, 196), Image.LANCZOS),
      os.path.join(ASSETS, "favicon.png"))
 
 # In-app wordmark glyph, transparent, used by AuthScreen / TopAccountBar /
 # splash / lock screen. Rendered at 512 since it is never shown larger.
-save(draw_mark(512, fg=AMBER, accent=GREEN, inset=0.16),
+save(draw_mark(1024, fg=AMBER, accent=GREEN, inset=0.14, bg=BACKGROUND)
+     .resize((512, 512), Image.LANCZOS),
      os.path.join(SRC_ASSETS, "seven_tracking_logo.png"))
 
 print("Done.")
