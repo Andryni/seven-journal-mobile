@@ -15,6 +15,9 @@ import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
+import { useSizeUnitLabel } from '../../features/accounts/useMarket';
+import { useAccounts } from '../../features/accounts/useAccounts';
 import { Badge } from '../ui/Badge';
 import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
 
@@ -34,6 +37,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   onDelete,
 }) => {
   const { theme } = useTheme();
+  const { accounts } = useAccounts();
+
+  // A size means nothing without its unit, and the unit comes from the account
+  // the trade belongs to. Fall back to the instrument's own market for trades
+  // whose account was deleted.
+  const sizeUnit = useMemo(() => {
+    const acc = accounts.find(a => a.id === trade?.account_id);
+    if (acc?.instrument_type) return unitForMarket(acc.instrument_type);
+    return INSTRUMENTS[trade?.pair ?? '']?.unit ?? 'lot';
+  }, [accounts, trade?.account_id, trade?.pair]);
+  const unitLabel = useSizeUnitLabel(sizeUnit);
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   // Which screenshot is open in the full-screen zoomable viewer.
@@ -99,7 +113,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdVolume')}</Text>
-                <Text style={styles.val}>{trade.size} Lots</Text>
+                <Text style={styles.val}>{formatSize(trade.size, sizeUnit)} {unitLabel}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.label}>{t('tdEntrySlTp')}</Text>

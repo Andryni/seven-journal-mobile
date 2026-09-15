@@ -18,6 +18,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
+import { formatSize, unitForMarket, INSTRUMENTS } from '../utils/positionSizing';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
@@ -42,6 +43,16 @@ export const TradesScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const { trades, createTrade, deleteTrade, isLoading } = useTrades();
   const { accounts } = useAccounts();
+
+  /** Blotter sizes carry the unit of the account that traded them. */
+  const unitFor = React.useCallback(
+    (trade: Trade) => {
+      const acc = accounts.find(a => a.id === trade.account_id);
+      if (acc?.instrument_type) return unitForMarket(acc.instrument_type);
+      return INSTRUMENTS[trade.pair]?.unit ?? 'lot';
+    },
+    [accounts]
+  );
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
@@ -251,7 +262,7 @@ export const TradesScreen: React.FC = () => {
                 minute: '2-digit',
               })}
               {item.timeframe ? `  ${item.timeframe}` : ''}
-              {item.size ? `  ${item.size}${t('lots')}` : ''}
+              {item.size ? `  ${formatSize(item.size, unitFor(item))}` : ''}
             </Text>
           </View>
 

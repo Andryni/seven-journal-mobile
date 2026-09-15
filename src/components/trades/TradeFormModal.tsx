@@ -38,6 +38,7 @@ import {
   Wallet,
   Calendar,
 } from 'lucide-react-native';
+import { estimatePnl } from '../../utils/positionSizing';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
@@ -205,15 +206,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         if (calculatedRiskUsd > 0) {
           setManualPnl((r * calculatedRiskUsd).toFixed(2));
         } else {
-          const lot = Number(size) || 1;
-          const pnl = direction === 'BUY'
-            ? ((exit ?? tp) - entry) * lot * 100
-            : (entry - (exit ?? tp)) * lot * 100;
-          setManualPnl(pnl.toFixed(2));
+          // This used to multiply by a hardcoded 100 (gold's contract size),
+          // which overstated index P&L and understated FX P&L by orders of
+          // magnitude. Derive it from the instrument's own tick spec instead.
+          const qty = Number(size) || 1;
+          const move = direction === 'BUY' ? (exit ?? tp) - entry : entry - (exit ?? tp);
+          setManualPnl(estimatePnl(pair, qty, move).toFixed(2));
         }
       }
     }
-  }, [entryPrice, stopLoss, takeProfit, exitPrice, direction, result, size, riskValue, riskType, accountId, accounts]);
+  }, [entryPrice, stopLoss, takeProfit, exitPrice, direction, result, size, riskValue, riskType, accountId, accounts, pair]);
 
   // Image Picker Handler
   const pickImage = async (target: 'before' | 'after') => {

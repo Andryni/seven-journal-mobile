@@ -17,7 +17,9 @@ import { useAccounts } from '../features/accounts/useAccounts';
 import { useTrades } from '../features/trades/useTrades';
 import { formatCurrency } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
-import type { TradingAccount, AccountType, Trade } from '../types/domain';
+import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
+import { MARKET_TYPES } from '../utils/positionSizing';
+import { useMarketUnitLabel } from '../features/accounts/useMarket';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { accountTypeLabel, useT } from '../i18n';
@@ -53,7 +55,8 @@ export const AccountsScreen: React.FC = () => {
   // Section 1: Identité
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('challenge');
-  const [instrumentType, setInstrumentType] = useState<'CFD' | 'Futures'>('CFD');
+  const [instrumentType, setInstrumentType] = useState<MarketType>('CFD');
+  const unitLabelForForm = useMarketUnitLabel(instrumentType);
   const [currency, setCurrency] = useState('USD');
 
   // Section 2: Capital & Garde-fou
@@ -98,7 +101,7 @@ export const AccountsScreen: React.FC = () => {
     setDrawdownType((acc as any).drawdown_type || 'static');
     setConsistencyRulePercent((acc as any).consistency_rule_percent ? (acc as any).consistency_rule_percent.toString() : '15');
     setChallengeEndDate((acc as any).challenge_end_date || '');
-    setInstrumentType((acc as any).instrument_type || 'CFD');
+    setInstrumentType(acc.instrument_type || 'CFD');
     setModalVisible(true);
   };
 
@@ -181,9 +184,9 @@ export const AccountsScreen: React.FC = () => {
               variant={item.type === 'funded' ? 'green' : item.type === 'challenge' ? 'gold' : 'blue'}
               size="sm"
             />
-            {(item as any).instrument_type && (
+            {item.instrument_type && (
               <Badge
-                label={(item as any).instrument_type}
+                label={item.instrument_type}
                 variant="neutral"
                 size="sm"
               />
@@ -385,7 +388,7 @@ export const AccountsScreen: React.FC = () => {
 
                 <Text style={styles.fieldLabel}>{t('accountInstrumentLabel')}</Text>
                 <View style={styles.typeGrid}>
-                  {(['CFD', 'Futures'] as const).map(iType => (
+                  {MARKET_TYPES.map(iType => (
                     <TouchableOpacity
                       key={iType}
                       style={[styles.typeBtn, instrumentType === iType && styles.typeBtnActive]}
@@ -397,6 +400,11 @@ export const AccountsScreen: React.FC = () => {
                     </TouchableOpacity>
                   ))}
                 </View>
+                {/* The market is not cosmetic: it selects the instrument list
+                    and the unit positions are sized in. */}
+                <Text style={styles.fieldHint}>
+                  {t('marketHint')} · {unitLabelForForm}
+                </Text>
 
                 <Text style={styles.fieldLabel}>{t('accountTypeLabel')}</Text>
                 <View style={styles.typeGrid}>

@@ -29,7 +29,7 @@ create table if not exists public.trading_accounts (
   drawdown_type           text check (drawdown_type in ('static','trailing')),
   profit_target           numeric,
   consistency_rule_percent numeric,
-  instrument_type         text check (instrument_type in ('CFD','Futures')),
+  instrument_type         text not null default 'CFD' check (instrument_type in ('CFD','Futures','Crypto')),
   challenge_end_date      date,
   created_at              timestamptz not null default now()
 );

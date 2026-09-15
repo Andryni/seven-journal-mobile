@@ -10,6 +10,9 @@ export type MentalState =
 
 export type AccountType = 'challenge' | 'funded' | 'personal' | 'demo';
 
+import type { MarketType } from '../utils/positionSizing';
+export type { MarketType };
+
 export interface Trade {
   id: string;
   user_id: string;
@@ -59,7 +62,8 @@ export interface TradingAccount {
   drawdown_type?: 'static' | 'trailing';
   profit_target?: number | null;
   consistency_rule_percent?: number | null;
-  instrument_type?: 'CFD' | 'Futures';
+  /** Market the account trades. Drives the size unit: lots / contracts / units. */
+  instrument_type?: MarketType;
   challenge_end_date?: string | null;
   created_at: string;
 }

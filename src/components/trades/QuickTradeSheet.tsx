@@ -24,11 +24,14 @@ import { Hairline } from '../ui/Panel';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
   INSTRUMENTS,
-  INSTRUMENT_KEYS,
   calculatePositionSize,
   calculatePlannedRR,
   estimateRiskAtStop,
+  instrumentsForMarket,
+  defaultInstrumentFor,
+  formatSize,
 } from '../../utils/positionSizing';
+import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 
 interface QuickTradeSheetProps {
   visible: boolean;
@@ -62,7 +65,20 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
     [accounts, activeAccountId]
   );
 
-  const [instrument, setInstrument] = useState('XAUUSD');
+  // The account's market decides what is tradable and in what unit. An ES
+  // contract on a CFD account is meaningless, so the picker is scoped.
+  const market = account?.instrument_type ?? 'CFD';
+  const availableInstruments = useMemo(() => instrumentsForMarket(market), [market]);
+
+  const [instrument, setInstrument] = useState(() => defaultInstrumentFor(market));
+
+  // Switching account can switch market; an instrument from the old market
+  // would size against the wrong contract spec.
+  useEffect(() => {
+    if (!availableInstruments.includes(instrument)) {
+      setInstrument(defaultInstrumentFor(market));
+    }
+  }, [availableInstruments, instrument, market]);
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [entry, setEntry] = useState('');
   const [stop, setStop] = useState('');
@@ -102,9 +118,11 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
 
   const plannedRisk = useMemo(
     () =>
-      sizing.lotSize ? estimateRiskAtStop(instrument, sizing.lotSize, entryNum, stopNum) : null,
-    [instrument, sizing.lotSize, entryNum, stopNum]
+      sizing.size ? estimateRiskAtStop(instrument, sizing.size, entryNum, stopNum) : null,
+    [instrument, sizing.size, entryNum, stopNum]
   );
+
+  const unitLabel = useSizeUnitLabel(sizing.unit);
 
   const guard = usePreTradeGuard(trades, account, isLocked, plannedRisk);
 
@@ -114,7 +132,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
     !!account &&
     entryNum > 0 &&
     stopNum > 0 &&
-    !!sizing.lotSize;
+    !!sizing.size;
 
   const handleSave = async () => {
     if (!canSave || !account) return;
@@ -126,7 +144,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
       exit_price: null,
       stop_loss: stopNum,
       take_profit: targetNum || 0,
-      size: sizing.lotSize!,
+      size: sizing.size!,
       entry_time: new Date().toISOString(),
       exit_time: null,
       pnl: null,
@@ -293,13 +311,27 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 />
               </View>
 
+              {/* Futures round to whole contracts, so the risk budget can be
+                  unspendable. Saying so beats showing a silent em-dash. */}
+              {sizing.belowMinimum && (
+                <View style={styles.warnRow}>
+                  <ShieldAlert color={theme.colors.gold} size={14} />
+                  <Text style={styles.warnText}>
+                    <Text style={styles.warnTitle}>{t('belowMinSize')}</Text>
+                    {'  '}
+                    {t('belowMinSizeHint')}
+                  </Text>
+                </View>
+              )}
+
               {/* Derived readout */}
               <View style={styles.readout}>
                 <View style={styles.readoutItem}>
                   <Text style={styles.readoutLabel}>{t('suggestedSize')}</Text>
                   <Text style={styles.readoutValue}>
-                    {sizing.lotSize !== null ? `${sizing.lotSize}` : '—'}
+                    {sizing.size !== null ? formatSize(sizing.size, sizing.unit) : '—'}
                   </Text>
+                  <Text style={styles.readoutUnit}>{unitLabel}</Text>
                 </View>
                 <View style={styles.vRule} />
                 <View style={styles.readoutItem}>
@@ -371,7 +403,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
       <PickerModal
         visible={instrumentPickerVisible}
         title={t('posCalcPickInstrument')}
-        items={INSTRUMENT_KEYS.map(k => ({ id: k, label: INSTRUMENTS[k].label }))}
+        items={availableInstruments.map(k => ({ id: k, label: INSTRUMENTS[k].label }))}
         selectedId={instrument}
         onSelect={id => {
           setInstrument(id);
@@ -514,6 +546,33 @@ const createStyles = (theme: AppTheme) =>
       fontSize: theme.type.metric,
       fontFamily: theme.fonts.monoExtraBold,
       fontVariant: ['tabular-nums'],
+    },
+    readoutUnit: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
+      marginTop: 2,
+    },
+    warnRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderLeftWidth: 2,
+      borderLeftColor: theme.colors.gold,
+    },
+    warnText: {
+      flex: 1,
+      color: theme.colors.textSecondary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+    },
+    warnTitle: {
+      color: theme.colors.gold,
+      fontFamily: theme.fonts.monoBold,
     },
     vRule: {
       width: StyleSheet.hairlineWidth,

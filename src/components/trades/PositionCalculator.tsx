@@ -18,9 +18,13 @@ import { Calculator, Info } from 'lucide-react-native';
  */
 import {
   INSTRUMENTS,
-  INSTRUMENT_KEYS,
   calculatePositionSize,
+  instrumentsForMarket,
+  defaultInstrumentFor,
+  formatSize,
 } from '../../utils/positionSizing';
+import type { SizeUnit } from '../../utils/positionSizing';
+import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 
 export const PositionCalculator: React.FC = () => {
   const { theme } = useTheme();
@@ -39,10 +43,13 @@ export const PositionCalculator: React.FC = () => {
   const [accountPickerVisible, setAccountPickerVisible] = useState(false);
   const [instrumentPickerVisible, setInstrumentPickerVisible] = useState(false);
 
-  const [lotSize, setLotSize] = useState<number | null>(null);
+  const [size, setSize] = useState<number | null>(null);
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>('lot');
+  const [belowMinimum, setBelowMinimum] = useState(false);
   const [riskUsd, setRiskUsd] = useState<number | null>(null);
-  const [pipValue, setPipValue] = useState<number | null>(null);
-  const [slPips, setSlPips] = useState<number | null>(null);
+  const [actualRisk, setActualRisk] = useState<number | null>(null);
+  const [tickValue, setTickValue] = useState<number | null>(null);
+  const [stopTicks, setStopTicks] = useState<number | null>(null);
 
   useEffect(() => {
     if (activeAccountId && !accountId) setAccountId(activeAccountId);
@@ -59,13 +66,26 @@ export const PositionCalculator: React.FC = () => {
       stopLoss: Number(stopLossPrice),
     });
 
-    setLotSize(result.lotSize);
+    setSize(result.size);
+    setSizeUnit(result.unit);
+    setBelowMinimum(result.belowMinimum);
     setRiskUsd(result.riskAmount);
-    setPipValue(result.pipValue);
-    setSlPips(result.stopPips);
+    setActualRisk(result.actualRisk);
+    setTickValue(result.tickValue);
+    setStopTicks(result.stopTicks);
   }, [entryPrice, stopLossPrice, riskValue, riskType, instrument, accountId, accounts]);
 
   const activeAccount = accounts.find((a) => a.id === accountId);
+  const market = activeAccount?.instrument_type ?? 'CFD';
+  const availableInstruments = useMemo(() => instrumentsForMarket(market), [market]);
+  const unitLabel = useSizeUnitLabel(sizeUnit);
+
+  // Keep the instrument inside the selected account's market.
+  useEffect(() => {
+    if (!availableInstruments.includes(instrument)) {
+      setInstrument(defaultInstrumentFor(market));
+    }
+  }, [availableInstruments, instrument, market]);
   const riskLabel = riskType === 'percent' ? '%' : '$';
 
   return (
@@ -152,35 +172,49 @@ export const PositionCalculator: React.FC = () => {
       </View>
 
       {/* Result */}
-      {lotSize !== null ? (
+      {size !== null ? (
         <Animated.View entering={FadeIn.duration(400)} style={styles.resultBox}>
           <Text style={styles.resultLabel}>{t('posCalcRecommendedLot')}</Text>
-          <Text style={styles.resultValue}>{lotSize.toFixed(2)}</Text>
-          <Text style={styles.resultUnit}>{t('posCalcLotsUnit')}</Text>
+          <Text style={styles.resultValue}>{formatSize(size, sizeUnit)}</Text>
+          <Text style={styles.resultUnit}>{unitLabel}</Text>
           <View style={styles.resultRow}>
             <View style={styles.resultItem}>
               <Text style={styles.resultItemLabel}>{t('posCalcRiskUsd')}</Text>
               <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
-                ${riskUsd?.toFixed(2)}
+                ${actualRisk?.toFixed(2)}
               </Text>
               {activeAccount && (
                 <Text style={styles.resultItemSub}>
-                  {((riskUsd! / activeAccount.balance) * 100).toFixed(2)}%
+                  {((actualRisk! / activeAccount.balance) * 100).toFixed(2)}%
                 </Text>
               )}
             </View>
             <View style={styles.resultItem}>
-              <Text style={styles.resultItemLabel}>{t('posCalcSlPips')}</Text>
-              <Text style={styles.resultItemValue}>{slPips}</Text>
+              <Text style={styles.resultItemLabel}>{t('stopTicksLabel')}</Text>
+              <Text style={styles.resultItemValue}>{stopTicks}</Text>
             </View>
             <View style={styles.resultItem}>
-              <Text style={styles.resultItemLabel}>{t('posCalcPipValue')}</Text>
+              <Text style={styles.resultItemLabel}>{t('tickValueLabel')}</Text>
               <Text style={[styles.resultItemValue, { color: theme.colors.goldLight }]}>
-                ${pipValue?.toFixed(2)}
+                ${tickValue?.toFixed(2)}
               </Text>
             </View>
           </View>
+          {/* Whole-contract rounding means the position often risks less than
+              asked. Showing only the budget would overstate the exposure. */}
+          {actualRisk !== null && riskUsd !== null && actualRisk < riskUsd - 0.01 && (
+            <Text style={styles.roundedNote}>
+              {t('roundedDown')} · {t('posCalcRiskUsd')} ${riskUsd.toFixed(2)}
+            </Text>
+          )}
         </Animated.View>
+      ) : belowMinimum ? (
+        <View style={styles.infoBox}>
+          <Info size={12} color={theme.colors.gold} />
+          <Text style={[styles.infoText, { color: theme.colors.gold }]}>
+            {t('belowMinSize')} — {t('belowMinSizeHint')}
+          </Text>
+        </View>
       ) : (
         <View style={styles.infoBox}>
           <Info size={12} color={theme.colors.textMuted} />
@@ -209,7 +243,7 @@ export const PositionCalculator: React.FC = () => {
         visible={instrumentPickerVisible}
         onClose={() => setInstrumentPickerVisible(false)}
         title={t('posCalcPickInstrument')}
-        items={INSTRUMENT_KEYS.map((k) => ({
+        items={availableInstruments.map((k) => ({
           label: INSTRUMENTS[k].label,
           id: k,
         }))}
@@ -316,6 +350,13 @@ const createStyles = (theme: AppTheme) =>
       color: theme.colors.goldLight,
       fontSize: 36,
       fontFamily: theme.fonts.monoExtraBold,
+    },
+    roundedNote: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
+      textAlign: 'center',
+      marginTop: 6,
     },
     resultUnit: {
       color: theme.colors.textMuted,
