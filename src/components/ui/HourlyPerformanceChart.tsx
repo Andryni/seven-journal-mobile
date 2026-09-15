@@ -17,6 +17,8 @@ import type { Trade } from '../../types/domain';
 const ARect = Animated.createAnimatedComponent(Rect);
 
 interface HourlyPerformanceChartProps {
+  /** Currency symbol for the tooltip. Defaults to '$'. */
+  symbol?: string;
   trades: Trade[];
   height?: number;
   width?: number;
@@ -31,6 +33,7 @@ interface HourlyPerformanceChartProps {
  */
 export const HourlyPerformanceChart: React.FC<HourlyPerformanceChartProps> = ({
   trades,
+  symbol = '$',
   height = 180,
   width = Dimensions.get('window').width - 64,
 }) => {
@@ -92,7 +95,7 @@ export const HourlyPerformanceChart: React.FC<HourlyPerformanceChartProps> = ({
                 { color: active.pnl >= 0 ? theme.colors.green : theme.colors.red },
               ]}
             >
-              {formatCurrency(active.pnl)}
+              {formatCurrency(active.pnl, { symbol })}
             </Text>
             <Text style={styles.readoutCount}>
               {active.count} {t('positions')}

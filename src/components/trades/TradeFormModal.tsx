@@ -22,7 +22,7 @@ import { usePlaybookSetups } from '../../features/playbook/usePlaybook';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -312,6 +312,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   };
 
   const selectedAccount = accounts.find(a => a.id === accountId);
+  // Risk and P&L are entered in the currency of the account being booked to.
+  const sym = currencySymbol(selectedAccount?.currency);
   const selectedSessionLabel = sessionLabel(t, session);
 
   return (
@@ -644,7 +646,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               {/* Risque % ou $ & Calcul live */}
               <View style={styles.row2}>
                 <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfRisk', riskType === 'percent' ? '%' : '$')}</Text>
+                  <Text style={styles.fieldLabel}>{t('tfRisk', riskType === 'percent' ? '%' : sym)}</Text>
                   <View style={styles.flexRow}>
                     <TouchableOpacity
                       style={[styles.toggleBtn, riskType === 'percent' && styles.toggleBtnActive]}
@@ -656,7 +658,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       style={[styles.toggleBtn, riskType === 'usd' && styles.toggleBtnActive]}
                       onPress={() => setRiskType('usd')}
                     >
-                      <Text style={styles.toggleText}>$</Text>
+                      <Text style={styles.toggleText}>{sym}</Text>
                     </TouchableOpacity>
                     <TextInput
                       style={[styles.input, { flex: 1, marginLeft: 6 }]}
@@ -673,7 +675,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   <View style={styles.flexRow}>
                     <TextInput
                       style={[styles.input, { flex: 1, marginRight: 6 }]}
-                      placeholder="P&L $"
+                      placeholder={`P&L ${sym}`}
                       placeholderTextColor={theme.colors.textMuted}
                       value={manualPnl}
                       onChangeText={setManualPnl}
@@ -882,8 +884,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         items={accounts.map(acc => ({
           id: acc.id,
           label: acc.name,
-          sub: `${accountTypeLabel(t, acc.type)} · ${formatCurrency(acc.initial_balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} ${acc.currency}`,
-          rightText: formatCurrency(acc.balance, { showPlus: false, decimals: 0, thousandsSeparator: true }),
+          sub: `${accountTypeLabel(t, acc.type)} · ${formatCurrency(acc.initial_balance, { symbol: currencySymbol(acc.currency), showPlus: false, decimals: 0, thousandsSeparator: true })} ${acc.currency}`,
+          rightText: formatCurrency(acc.balance, { symbol: currencySymbol(acc.currency), showPlus: false, decimals: 0, thousandsSeparator: true }),
         }))}
         selectedId={accountId}
         onSelect={id => {

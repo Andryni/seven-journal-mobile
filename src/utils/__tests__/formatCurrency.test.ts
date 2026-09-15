@@ -1,4 +1,4 @@
-import { formatCurrency } from '../formatCurrency';
+import { formatCurrency, currencySymbol, CURRENCIES } from '../formatCurrency';
 
 describe('formatCurrency', () => {
   describe('basic formatting', () => {
@@ -135,5 +135,32 @@ describe('formatCurrency', () => {
     it('should handle exactly 1000000 with compact', () => {
       expect(formatCurrency(1000000, { compact: true })).toBe('+$1.0M');
     });
+  });
+});
+
+describe('currencySymbol', () => {
+  it('maps the supported account currencies', () => {
+    expect(currencySymbol('USD')).toBe('$');
+    expect(currencySymbol('EUR')).toBe('\u20AC');
+    expect(currencySymbol('GBP')).toBe('\u00A3');
+  });
+
+  it('falls back to $ for null, undefined or unknown codes', () => {
+    expect(currencySymbol(null)).toBe('$');
+    expect(currencySymbol(undefined)).toBe('$');
+    expect(currencySymbol('JPY')).toBe('$');
+  });
+
+  it('covers every currency the account form offers', () => {
+    // A currency selectable in the UI but missing here would silently render
+    // as dollars, which is how the EUR/GBP bug shipped in the first place.
+    CURRENCIES.forEach(code => {
+      expect(currencySymbol(code)).not.toBe(code);
+    });
+  });
+
+  it('places the sign before a non-dollar symbol', () => {
+    expect(formatCurrency(-500, { symbol: currencySymbol('EUR') })).toBe('-\u20AC500.00');
+    expect(formatCurrency(1200, { symbol: currencySymbol('GBP'), compact: true })).toBe('+\u00A31.2k');
   });
 });

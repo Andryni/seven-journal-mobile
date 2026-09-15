@@ -14,7 +14,7 @@ import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
 import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { useAccounts } from '../../features/accounts/useAccounts';
@@ -48,6 +48,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     return INSTRUMENTS[trade?.pair ?? '']?.unit ?? 'lot';
   }, [accounts, trade?.account_id, trade?.pair]);
   const unitLabel = useSizeUnitLabel(sizeUnit);
+  const money = useMoney(accounts.find(a => a.id === trade?.account_id) ?? null);
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   // Which screenshot is open in the full-screen zoomable viewer.
@@ -85,7 +86,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <View>
                 <Text style={styles.pnlLabel}>{t('tdNetPnl')}</Text>
                 <Text style={[styles.pnlValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}>
-                  {trade.pnl !== null ? formatCurrency(trade.pnl) : 'OPEN'}
+                  {trade.pnl !== null ? money(trade.pnl) : 'OPEN'}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>

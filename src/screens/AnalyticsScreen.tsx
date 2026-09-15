@@ -23,6 +23,8 @@ import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { useAnalytics } from '../features/analytics/useAnalytics';
+import { formatCurrency, currencySymbol } from '../utils/formatCurrency';
+import type { FormatCurrencyOptions } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
@@ -300,6 +302,11 @@ export const AnalyticsScreen: React.FC = () => {
     t,
   });
 
+  // Analytics is scoped to one account, so all figures share its currency.
+  const sym = currencySymbol(selectedAccount?.currency);
+  const money = (v: number, o: FormatCurrencyOptions = {}) =>
+    formatCurrency(v, { symbol: sym, ...o });
+
   /** Chart palette lives in the view, not in the analytics hook. */
   const pieData = useMemo(
     () => [
@@ -455,6 +462,7 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(100).duration(350)}>
             <Card title={t('equityGlowing')}>
               <GlowingEquityAreaChart
+                symbol={sym}
                 data={equityKitData.labels.map((l, i) => ({
                   date: l || `#${i + 1}`,
                   value: equityKitData.datasets[0].data[i] || 0,
@@ -467,7 +475,7 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(200).duration(350)}>
             <Card title={t('dailyPnl')}>
               {dailyPnL.length > 0 ? (
-                <BicolorBarChart data={dailyPnL} height={170} />
+                <BicolorBarChart data={dailyPnL} height={170} yAxisPrefix={sym} />
               ) : (
                 <Text style={s.emptyText}>{t('noTradesYet')}</Text>
               )}
@@ -494,6 +502,7 @@ export const AnalyticsScreen: React.FC = () => {
                 </View>
               </View>
               <GlowingEquityAreaChart
+                symbol={sym}
                 data={equityKitData.labels.map((l, i) => ({
                   date: l || `#${i + 1}`,
                   value: equityKitData.datasets[0].data[i] || 0,
@@ -507,6 +516,7 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('drawdownCurve')}>
               {drawdownData.length > 0 ? (
                 <GlowingEquityAreaChart
+                symbol={sym}
                   data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
                   height={160}
                 />
@@ -546,6 +556,7 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('rollingWinRate')}>
               {winRateTrend.length > 0 ? (
                 <BicolorBarChart
+                yAxisPrefix={sym}
                   data={winRateTrend.map(wr => ({ label: wr.label, value: wr.value - 50 }))}
                   height={170}
                 />
@@ -558,6 +569,7 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(200).duration(350)}>
             <Card title={t('lastPositionsPnl')}>
               <BicolorBarChart
+                yAxisPrefix={sym}
                 data={closed.slice(-7).map((t, idx) => ({
                   label: `${t.pair.slice(0, 3)}#${idx + 1}`,
                   value: t.pnl || 0,
@@ -678,7 +690,7 @@ export const AnalyticsScreen: React.FC = () => {
             {/* 24h diverging columns replace the aggregated bar chart:
                 bleed usually concentrates in one or two specific hours. */}
             <Card title={t('hourlyPerformance')}>
-              <HourlyPerformanceChart trades={closed} />
+              <HourlyPerformanceChart trades={closed} symbol={sym} />
             </Card>
           </Animated.View>
             {/* Session Heatmap */}
@@ -903,7 +915,7 @@ export const AnalyticsScreen: React.FC = () => {
               {selectedAccount?.max_daily_loss_limit && (
                 <View style={s.rowBetween}>
                   <Text style={s.subMuted}>{t('maxDailyLossLabel2')}</Text>
-                  <Text style={s.boldWhite}>${selectedAccount.max_daily_loss_limit.toLocaleString()}</Text>
+                  <Text style={s.boldWhite}>{money(selectedAccount.max_daily_loss_limit, { showPlus: false, decimals: 0, thousandsSeparator: true })}</Text>
                 </View>
               )}
               <View style={s.rowBetween}>
@@ -1010,6 +1022,7 @@ export const AnalyticsScreen: React.FC = () => {
               {/* Mini bar chart of daily contributions */}
               {consistencyData.dailyContributions.length > 0 && (
                 <BicolorBarChart
+                yAxisPrefix={sym}
                   data={consistencyData.dailyContributions.map(d => ({ label: d.date, value: d.pct }))}
                   height={140}
                 />
@@ -1022,6 +1035,7 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('drawdownCurve')}>
               {drawdownData.length > 0 ? (
                 <GlowingEquityAreaChart
+                symbol={sym}
                   data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
                   height={160}
                 />

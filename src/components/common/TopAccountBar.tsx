@@ -17,7 +17,7 @@ import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
 import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
 
 export const TopAccountBar: React.FC = () => {
   const { theme } = useTheme();
@@ -71,7 +71,7 @@ export const TopAccountBar: React.FC = () => {
             </Text>
             <Text style={styles.accountSub} numberOfLines={1}>
               {activeAccount
-                ? `${formatCurrency(activeAccount.balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} ${activeAccount.currency}`
+                ? `${formatCurrency(activeAccount.balance, { symbol: currencySymbol(activeAccount.currency), showPlus: false, decimals: 0, thousandsSeparator: true })} ${activeAccount.currency}`
                 : t('accountsCount', accounts.length)}
             </Text>
           </View>
@@ -173,7 +173,7 @@ export const TopAccountBar: React.FC = () => {
                         {acc.name.toUpperCase()}
                       </Text>
                       <Text style={styles.accountItemSub}>
-                        {t('balance')}: {formatCurrency(acc.balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} {acc.currency} · {accountTypeLabel(t, acc.type)}
+                        {t('balance')}: {formatCurrency(acc.balance, { symbol: currencySymbol(acc.currency), showPlus: false, decimals: 0, thousandsSeparator: true })} {acc.currency} · {accountTypeLabel(t, acc.type)}
                       </Text>
                     </View>
                     {isSelected && <Check size={16} color={theme.colors.primaryLight} />}

@@ -19,7 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../utils/positionSizing';
-import { formatCurrency } from '../utils/formatCurrency';
+import { useMoney } from '../features/accounts/useMoney';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useAccounts } from '../features/accounts/useAccounts';
@@ -38,6 +38,7 @@ type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
 export const TradesScreen: React.FC = () => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
@@ -288,7 +289,7 @@ export const TradesScreen: React.FC = () => {
           {/* Col 3 — P&L + outcome */}
           <View style={styles.colPnl}>
             <Text style={[styles.pnl, { color: pnlColor }]} numberOfLines={1}>
-              {!isOpen ? formatCurrency(item.pnl!) : t('openTradeStatus')}
+              {!isOpen ? money(item.pnl!) : t('openTradeStatus')}
             </Text>
             <Text
               style={[
@@ -387,7 +388,7 @@ export const TradesScreen: React.FC = () => {
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>{t('netPnl')}</Text>
           <Text style={[styles.summaryVal, stats.totalPnl >= 0 ? styles.greenText : styles.redText]}>
-            {formatCurrency(stats.totalPnl)}
+            {money(stats.totalPnl)}
           </Text>
         </View>
       </View>

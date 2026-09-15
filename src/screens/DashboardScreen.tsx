@@ -29,7 +29,7 @@ import { Sparkline } from '../components/ui/Sparkline';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { duration, stagger } from '../theme/motion';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { formatCurrency } from '../utils/formatCurrency';
+import { useMoney, useCurrencySymbol } from '../features/accounts/useMoney';
 import { isSameLocalDay } from '../utils/formatDate';
 
 /**
@@ -45,6 +45,8 @@ import { isSameLocalDay } from '../utils/formatDate';
  */
 export const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
+  const money = useMoney();
+  const sym = useCurrencySymbol();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading: tradesLoading } = useTrades();
@@ -113,7 +115,7 @@ export const DashboardScreen: React.FC = () => {
         <View style={styles.heroValueRow}>
           <AnimatedNumber
             value={m.netPnL}
-            format={v => formatCurrency(v, { thousandsSeparator: true })}
+            format={v => money(v, { thousandsSeparator: true })}
             style={[
               styles.heroValue,
               { color: m.netPnL >= 0 ? theme.colors.green : theme.colors.red },
@@ -141,7 +143,7 @@ export const DashboardScreen: React.FC = () => {
                     : theme.colors.textSecondary,
               }}
             >
-              {formatCurrency(todayPnL)}
+              {money(todayPnL)}
             </Text>
           </Text>
           <Text style={styles.heroDot}>·</Text>
@@ -192,7 +194,7 @@ export const DashboardScreen: React.FC = () => {
           <View style={styles.vRule} />
           <Metric
             label={t('expectancyShort')}
-            value={formatCurrency(expectancy, { decimals: 0 })}
+            value={money(expectancy, { decimals: 0 })}
             sub={t('perTrade')}
             size="small"
             tone="pnl"
@@ -201,7 +203,7 @@ export const DashboardScreen: React.FC = () => {
           <View style={styles.vRule} />
           <Metric
             label={t('maxDrawdownLabel')}
-            value={formatCurrency(-m.maxDrawdown, { decimals: 0 })}
+            value={money(-m.maxDrawdown, { decimals: 0 })}
             sub={`${m.dayWinRate.toFixed(0)}% ${t('greenDaysShort')}`}
             size="small"
             tone="pnl"
@@ -230,6 +232,7 @@ export const DashboardScreen: React.FC = () => {
       {m.equityCurve.length > 0 ? (
         <Panel title={t('equityLive')}>
           <GlowingEquityAreaChart
+                symbol={sym}
             data={m.equityCurve.map(e => ({ date: e.date, value: e.pnl }))}
             height={180}
           />
@@ -239,6 +242,7 @@ export const DashboardScreen: React.FC = () => {
       {m.dailyPnL.length > 0 ? (
         <Panel title={t('dailyPnl')}>
           <BicolorBarChart
+                yAxisPrefix={sym}
             data={m.dailyPnL.map(d => ({ label: d.date, value: d.pnl }))}
             height={150}
           />
@@ -312,7 +316,7 @@ export const DashboardScreen: React.FC = () => {
                       },
                     ]}
                   >
-                    {tr.pnl !== null ? formatCurrency(tr.pnl) : '—'}
+                    {tr.pnl !== null ? money(tr.pnl) : '—'}
                   </Text>
                   <Badge
                     label={tr.result}

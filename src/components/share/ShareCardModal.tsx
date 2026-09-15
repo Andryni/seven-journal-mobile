@@ -13,7 +13,7 @@ import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useMoney } from '../../features/accounts/useMoney';
 
 interface ShareCardModalProps {
   visible: boolean;
@@ -29,6 +29,7 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   trades,
 }) => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -45,11 +46,11 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
       const text = [
         '📊 Seven Journal — Performance',
         '━━━━━━━━━━━━━━━━━━',
-        `💰 Net P&L: ${formatCurrency(totalPnL, { thousandsSeparator: true })}`,
+        `💰 Net P&L: ${money(totalPnL, { thousandsSeparator: true })}`,
         `🎯 Win Rate: ${winRate.toFixed(1)}%`,
         `📈 Positions: ${closed.length}`,
         `⚡ Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
-        `🏆 Best Trade: ${formatCurrency(bestTrade, { decimals: 0 })}`,
+        `🏆 Best Trade: ${money(bestTrade, { decimals: 0 })}`,
         '━━━━━━━━━━━━━━━━━━',
         '✅ Verified by Seven Journal',
       ].join('\n');
@@ -100,7 +101,7 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
               <View style={styles.pnlShowcase}>
                 <Text style={styles.pnlTitle}>{t('scNetPnl')}</Text>
                 <Text style={[styles.pnlAmount, isPositive ? styles.greenText : styles.redText]}>
-                  {formatCurrency(totalPnL, { thousandsSeparator: true })}
+                  {money(totalPnL, { thousandsSeparator: true })}
                 </Text>
               </View>
 
@@ -124,7 +125,7 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel}>{t('scBestTrade')}</Text>
                   <Text style={[styles.metricValue, styles.greenText]}>
-                    {formatCurrency(bestTrade, { decimals: 0 })}
+                    {money(bestTrade, { decimals: 0 })}
                   </Text>
                 </View>
               </View>

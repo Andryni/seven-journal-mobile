@@ -28,6 +28,8 @@ const AnimatedRect = Animated.createAnimatedComponent(Rect);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface GlowingEquityAreaChartProps {
+  /** Currency symbol for the axis and tooltip. Defaults to '$'. */
+  symbol?: string;
   data: { date: string; value: number }[];
   height?: number;
   width?: number;
@@ -42,6 +44,7 @@ interface GlowingEquityAreaChartProps {
  */
 export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   data,
+  symbol = '$',
   height = 200,
   width = Dimensions.get('window').width - 64,
 }) => {
@@ -139,7 +142,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
     }
   }
 
-  const formatCompact = (val: number) => formatCurrency(val, { compact: true, decimals: 0 });
+  const formatCompact = (val: number) =>
+    formatCurrency(val, { symbol, compact: true, decimals: 0 });
 
   return (
     <View style={[styles.container, { width, height }]}>
@@ -155,7 +159,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               activePoint.value >= 0 ? styles.greenText : styles.redText,
             ]}
           >
-            {formatCurrency(activePoint.value)}
+            {formatCurrency(activePoint.value, { symbol })}
           </Text>
         </View>
       )}
@@ -167,7 +171,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
             {formatCompact(maxVal)}
           </Text>
           <Text style={[styles.yAxisLabel, styles.yAxisZero, { top: zeroY - 7 }]}>
-            $0
+            {symbol}0
           </Text>
           {minVal < 0 && (
             <Text style={[styles.yAxisLabel, styles.yAxisBottom, styles.redText]}>

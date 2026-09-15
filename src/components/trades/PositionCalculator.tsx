@@ -24,6 +24,7 @@ import {
   formatSize,
 } from '../../utils/positionSizing';
 import type { SizeUnit } from '../../utils/positionSizing';
+import { currencySymbol } from '../../utils/formatCurrency';
 import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 
 export const PositionCalculator: React.FC = () => {
@@ -86,7 +87,8 @@ export const PositionCalculator: React.FC = () => {
       setInstrument(defaultInstrumentFor(market));
     }
   }, [availableInstruments, instrument, market]);
-  const riskLabel = riskType === 'percent' ? '%' : '$';
+  const sym = currencySymbol(activeAccount?.currency);
+  const riskLabel = riskType === 'percent' ? '%' : sym;
 
   return (
     <Card title={t('posCalcTitle')}>
@@ -126,7 +128,7 @@ export const PositionCalculator: React.FC = () => {
                 onPress={() => setRiskType(rt)}
               >
                 <Text style={[styles.riskTypeText, riskType === rt && styles.riskTypeTextActive]}>
-                  {rt === 'percent' ? '%' : '$'}
+                  {rt === 'percent' ? '%' : sym}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -181,7 +183,7 @@ export const PositionCalculator: React.FC = () => {
             <View style={styles.resultItem}>
               <Text style={styles.resultItemLabel}>{t('posCalcRiskUsd')}</Text>
               <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
-                ${actualRisk?.toFixed(2)}
+                {sym}{actualRisk?.toFixed(2)}
               </Text>
               {activeAccount && (
                 <Text style={styles.resultItemSub}>
@@ -196,7 +198,7 @@ export const PositionCalculator: React.FC = () => {
             <View style={styles.resultItem}>
               <Text style={styles.resultItemLabel}>{t('tickValueLabel')}</Text>
               <Text style={[styles.resultItemValue, { color: theme.colors.goldLight }]}>
-                ${tickValue?.toFixed(2)}
+                {sym}{tickValue?.toFixed(2)}
               </Text>
             </View>
           </View>
@@ -204,7 +206,7 @@ export const PositionCalculator: React.FC = () => {
               asked. Showing only the budget would overstate the exposure. */}
           {actualRisk !== null && riskUsd !== null && actualRisk < riskUsd - 0.01 && (
             <Text style={styles.roundedNote}>
-              {t('roundedDown')} · {t('posCalcRiskUsd')} ${riskUsd.toFixed(2)}
+              {t('roundedDown')} · {t('posCalcRiskUsd')} {sym}{riskUsd.toFixed(2)}
             </Text>
           )}
         </Animated.View>
@@ -230,7 +232,7 @@ export const PositionCalculator: React.FC = () => {
         onClose={() => setAccountPickerVisible(false)}
         title={t('posCalcPickAccount')}
         items={accounts.map((a) => ({
-          label: `${a.name.toUpperCase()} — ${a.currency} ${a.balance.toLocaleString()}`,
+          label: `${a.name.toUpperCase()} — ${currencySymbol(a.currency)}${a.balance.toLocaleString()}`,
           id: a.id,
         }))}
         selectedId={accountId}

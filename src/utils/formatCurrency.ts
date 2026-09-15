@@ -1,3 +1,20 @@
+/** Currencies an account can be denominated in. */
+export const CURRENCIES = ['USD', 'EUR', 'GBP'] as const;
+export type CurrencyCode = (typeof CURRENCIES)[number];
+
+const SYMBOLS: Record<string, string> = { USD: '$', EUR: '\u20AC', GBP: '\u00A3' };
+
+/**
+ * Symbol for a currency code, defaulting to '$'.
+ *
+ * Accounts have always been able to select EUR or GBP, but every display site
+ * called formatCurrency without a symbol and so rendered '$' regardless. The
+ * symbol now travels with the account instead of being retyped per call site.
+ */
+export function currencySymbol(code: string | null | undefined): string {
+  return SYMBOLS[code ?? 'USD'] ?? '$';
+}
+
 export interface FormatCurrencyOptions {
   /** Number of decimal places (default: 2) */
   decimals?: number;

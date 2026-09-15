@@ -14,7 +14,7 @@ import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useMoney } from '../../features/accounts/useMoney';
 import { isSameLocalDay } from '../../utils/formatDate';
 import type { Trade, TradingAccount } from '../../types/domain';
 
@@ -31,6 +31,7 @@ interface DailyRiskGaugeProps {
  */
 export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account }) => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -76,7 +77,7 @@ export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account 
     const today = new Date().toDateString();
     if (ratio >= 0.7 && ratio < 1 && notifiedForDay.current !== today) {
       notifiedForDay.current = today;
-      void notifyRiskThreshold(ratio * 100, formatCurrency(limit - Math.abs(todayPnL)));
+      void notifyRiskThreshold(ratio * 100, money(limit - Math.abs(todayPnL)));
     }
     if (ratio < 0.7 && notifiedForDay.current === today) {
       notifiedForDay.current = null;
@@ -134,12 +135,12 @@ export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account 
         <Text style={styles.footerText}>
           {t('todayPnlShort')}{' '}
           <Text style={[styles.footerVal, { color: todayPnL >= 0 ? theme.colors.greenLight : theme.colors.redLight }]}>
-            {formatCurrency(todayPnL)}
+            {money(todayPnL)}
           </Text>
         </Text>
         <Text style={styles.footerText}>
           {t('lossLimitShort')}{' '}
-          <Text style={styles.footerVal}>{formatCurrency(limit, { showPlus: false })}</Text>
+          <Text style={styles.footerVal}>{money(limit, { showPlus: false })}</Text>
         </Text>
       </View>
     </Animated.View>

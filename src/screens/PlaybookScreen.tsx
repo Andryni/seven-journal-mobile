@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
-import { formatCurrency } from '../utils/formatCurrency';
+import { useMoney } from '../features/accounts/useMoney';
 import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
@@ -91,6 +91,7 @@ function emotionIdFromStored(value: string | null | undefined): string {
 
 export const PlaybookScreen: React.FC = () => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
@@ -400,7 +401,7 @@ export const PlaybookScreen: React.FC = () => {
                     <Text style={[styles.statWr, winRate >= 50 ? styles.greenText : styles.redText]}>
                       {winRate.toFixed(0)}% WR
                     </Text>
-                    <Text style={styles.statCount}>{count} trades ({formatCurrency(pnl, { decimals: 0 })})</Text>
+                    <Text style={styles.statCount}>{count} trades ({money(pnl, { decimals: 0 })})</Text>
                   </View>
                 </View>
               </View>

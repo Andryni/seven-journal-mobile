@@ -8,7 +8,7 @@ import { useT } from '../../i18n';
 import { Panel, Hairline } from '../ui/Panel';
 import { Sparkline } from '../ui/Sparkline';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useMoney } from '../../features/accounts/useMoney';
 import { useWeeklyReview } from '../../features/analytics/useWeeklyReview';
 import { duration, stagger } from '../../theme/motion';
 import type { Trade } from '../../types/domain';
@@ -22,6 +22,7 @@ import type { Trade } from '../../types/domain';
  */
 export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const w = useWeeklyReview(trades);
@@ -61,7 +62,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
         <View style={{ flex: 1 }}>
           <AnimatedNumber
             value={w.netPnL}
-            format={v => formatCurrency(v, { thousandsSeparator: true })}
+            format={v => money(v, { thousandsSeparator: true })}
             style={[
               styles.headValue,
               { color: w.netPnL >= 0 ? theme.colors.green : theme.colors.red },
@@ -71,7 +72,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
             <DeltaIcon size={11} color={deltaColor} strokeWidth={2} />
             <Text style={[styles.deltaText, { color: deltaColor }]}>
               {w.deltaPnL >= 0 ? '+' : ''}
-              {formatCurrency(w.deltaPnL, { decimals: 0 })}
+              {money(w.deltaPnL, { decimals: 0 })}
             </Text>
             <Text style={styles.deltaLabel}>{t('weeklyVsPrev')}</Text>
           </View>
@@ -109,7 +110,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
           index={0}
           label={t('bestSetup')}
           name={w.bestSetup.key}
-          value={formatCurrency(w.bestSetup.pnl, { decimals: 0 })}
+          value={money(w.bestSetup.pnl, { decimals: 0 })}
           meta={`${w.bestSetup.trades}T · ${w.bestSetup.winRate.toFixed(0)}%`}
           color={theme.colors.green}
           theme={theme}
@@ -121,7 +122,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
           index={1}
           label={t('worstSetup')}
           name={w.worstSetup.key}
-          value={formatCurrency(w.worstSetup.pnl, { decimals: 0 })}
+          value={money(w.worstSetup.pnl, { decimals: 0 })}
           meta={`${w.worstSetup.trades}T · ${w.worstSetup.winRate.toFixed(0)}%`}
           color={theme.colors.red}
           theme={theme}
@@ -133,7 +134,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
           index={2}
           label={t('bestSession')}
           name={w.bestSession.key}
-          value={formatCurrency(w.bestSession.pnl, { decimals: 0 })}
+          value={money(w.bestSession.pnl, { decimals: 0 })}
           meta={`${w.bestSession.trades}T`}
           color={theme.colors.cyan}
           theme={theme}

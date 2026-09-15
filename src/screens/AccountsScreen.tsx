@@ -15,7 +15,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useTrades } from '../features/trades/useTrades';
-import { formatCurrency } from '../utils/formatCurrency';
+import { formatCurrency, currencySymbol, CURRENCIES } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
 import { MARKET_TYPES } from '../utils/positionSizing';
@@ -36,7 +36,7 @@ import {
 
 const ACCOUNT_TYPE_IDS: AccountType[] = ['challenge', 'funded', 'personal', 'demo'];
 
-const CURRENCIES = ['USD', 'EUR', 'GBP'];
+
 
 export const AccountsScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -168,6 +168,11 @@ export const AccountsScreen: React.FC = () => {
     const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length) * 100 : 0;
     const totalR = closedTrades.reduce((sum: number, t: Trade) => sum + (t.r_multiple || 0), 0);
 
+    // This is a list of accounts that may each be denominated differently,
+    // so the symbol comes from the row, not from the active account.
+    const sym = currencySymbol(item.currency);
+    const money = (v: number, o = {}) => formatCurrency(v, { symbol: sym, ...o });
+
     return (
       <TouchableOpacity
         style={[styles.accountCard, isSelected && styles.selectedCard]}
@@ -219,7 +224,7 @@ export const AccountsScreen: React.FC = () => {
           <View>
             <Text style={styles.statLabel}>{t('currentBalance')}</Text>
             <Text style={styles.balanceValue}>
-              {formatCurrency(computedBalance, { showPlus: false, thousandsSeparator: true })}
+              {money(computedBalance, { showPlus: false, thousandsSeparator: true })}
             </Text>
           </View>
           <View style={styles.alignRight}>
@@ -230,7 +235,7 @@ export const AccountsScreen: React.FC = () => {
                 cumulativePnl >= 0 ? styles.greenText : styles.redText,
               ]}
             >
-              {formatCurrency(cumulativePnl)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
+              {money(cumulativePnl)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(1)}%)
             </Text>
           </View>
         </View>
@@ -260,7 +265,7 @@ export const AccountsScreen: React.FC = () => {
           <View style={styles.lockRuleBox}>
             <Shield color={theme.colors.goldLight} size={11} />
             <Text style={styles.lockRuleText}>
-              {t('maxLossPerDay')} : {formatCurrency(item.max_daily_loss_limit ?? item.initial_balance * 0.01, { showPlus: false, decimals: 0 })}
+              {t('maxLossPerDay')} : {money(item.max_daily_loss_limit ?? item.initial_balance * 0.01, { showPlus: false, decimals: 0 })}
             </Text>
           </View>
 
@@ -268,14 +273,14 @@ export const AccountsScreen: React.FC = () => {
             <View style={styles.targetRuleBox}>
               <Target color={theme.colors.greenLight} size={11} />
               <Text style={styles.targetRuleText}>
-                {t('target')} : {formatCurrency(item.profit_target, { showPlus: false, decimals: 0, thousandsSeparator: true })}
+                {t('target')} : {money(item.profit_target, { showPlus: false, decimals: 0, thousandsSeparator: true })}
               </Text>
             </View>
           )}
 
           <View style={styles.initialCapBox}>
             <Text style={styles.initialCapText}>
-              {t('cap')}: {formatCurrency(item.initial_balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} {item.currency}
+              {t('cap')}: {money(item.initial_balance, { showPlus: false, decimals: 0, thousandsSeparator: true })} {item.currency}
             </Text>
           </View>
         </View>
@@ -430,7 +435,7 @@ export const AccountsScreen: React.FC = () => {
                       onPress={() => setCurrency(curr)}
                     >
                       <Text style={[styles.currBtnText, currency === curr && styles.currBtnTextActive]}>
-                        {curr} ({curr === 'USD' ? '$' : curr === 'EUR' ? '€' : '£'})
+                        {curr} ({currencySymbol(curr)})
                       </Text>
                     </TouchableOpacity>
                   ))}

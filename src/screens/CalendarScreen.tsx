@@ -11,7 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTrades } from '../features/trades/useTrades';
 import type { Trade } from '../types/domain';
-import { formatCurrency } from '../utils/formatCurrency';
+import { useMoney } from '../features/accounts/useMoney';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
@@ -29,6 +29,7 @@ const CELL_SIZE = Math.floor((calendarInnerWidth - CELL_GAP * (COLS - 1)) / COLS
 
 export const CalendarScreen: React.FC = () => {
   const { theme } = useTheme();
+  const money = useMoney();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades, isLoading } = useTrades();
@@ -121,7 +122,7 @@ export const CalendarScreen: React.FC = () => {
             <View>
               <Text style={styles.heroMonthLabel}>{monthName.toUpperCase()}</Text>
               <Text style={[styles.heroMonthPnl, monthlyStats.monthPnl >= 0 ? styles.greenText : styles.redText]}>
-                {formatCurrency(monthlyStats.monthPnl)}
+                {money(monthlyStats.monthPnl)}
               </Text>
             </View>
 
@@ -232,7 +233,7 @@ export const CalendarScreen: React.FC = () => {
                       adjustsFontSizeToFit
                       minimumFontScale={0.7}
                     >
-                      {formatCurrency(ds.pnl, { compact: true, decimals: 0 })}
+                      {money(ds.pnl, { compact: true, decimals: 0 })}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -248,7 +249,7 @@ export const CalendarScreen: React.FC = () => {
             {t('calFooterSummary', monthlyStats.totalTradesMonth, monthlyStats.greenDays + monthlyStats.redDays)}
           </Text>
           <Text style={[styles.footerPnl, monthlyStats.monthPnl >= 0 ? styles.greenText : styles.redText]}>
-            {formatCurrency(monthlyStats.monthPnl)}
+            {money(monthlyStats.monthPnl)}
           </Text>
         </View>
       </View>
@@ -277,7 +278,7 @@ export const CalendarScreen: React.FC = () => {
 
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={[styles.tradePnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
-                    {t.pnl !== null ? formatCurrency(t.pnl) : 'OPEN'}
+                    {t.pnl !== null ? money(t.pnl) : 'OPEN'}
                   </Text>
                   <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} size="sm" />
                 </View>

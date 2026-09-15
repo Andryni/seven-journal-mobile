@@ -5,12 +5,14 @@ import { useEffect } from 'react';
 import type { DailySessionLock } from '../../types/domain';
 import { localDayKey } from '../../utils/formatDate';
 import { useT } from '../../i18n';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
+import { useAccounts } from '../accounts/useAccounts';
 
 export function useDailyLock() {
   const queryClient = useQueryClient();
   const setDailySessionLocked = useUIStore((state) => state.setDailySessionLocked);
   const { t } = useT();
+  const { accounts } = useAccounts();
   // Local trading day (device timezone), consistent with checkAndApplyDailyLock
   const todayStr = localDayKey();
 
@@ -76,11 +78,16 @@ export function useDailyLock() {
     if (!lock) return null;
     if (lock.lock_code === 'DAILY_LOSS_LIMIT' && lock.lock_params) {
       const { account, loss, limit } = lock.lock_params;
+      // The engine locks a specific account, so the amounts are in that
+      // account's currency -- not necessarily dollars.
+      const sym = currencySymbol(
+        accounts.find(a => a.name === account)?.currency
+      );
       return t(
         'lockReasonDailyLoss',
         account ?? '',
-        formatCurrency(-(loss ?? 0)),
-        formatCurrency(limit ?? 0)
+        formatCurrency(-(loss ?? 0), { symbol: sym }),
+        formatCurrency(limit ?? 0, { symbol: sym })
       );
     }
     return lock.lock_reason ?? null;

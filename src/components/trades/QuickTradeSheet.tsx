@@ -21,7 +21,7 @@ import { usePreTradeGuard } from '../../features/guard/usePreTradeGuard';
 import { useUIStore } from '../../store/uiStore';
 import { PickerModal } from '../ui/PickerModal';
 import { Hairline } from '../ui/Panel';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useMoney } from '../../features/accounts/useMoney';
 import {
   INSTRUMENTS,
   calculatePositionSize,
@@ -123,6 +123,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   );
 
   const unitLabel = useSizeUnitLabel(sizing.unit);
+  const money = useMoney(account);
 
   const guard = usePreTradeGuard(trades, account, isLocked, plannedRisk);
 
@@ -337,7 +338,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 <View style={styles.readoutItem}>
                   <Text style={styles.readoutLabel}>{t('riskLabel')}</Text>
                   <Text style={[styles.readoutValue, { color: theme.colors.red }]}>
-                    {plannedRisk !== null ? formatCurrency(-plannedRisk, { decimals: 0 }) : '—'}
+                    {plannedRisk !== null ? money(-plannedRisk, { decimals: 0 }) : '—'}
                   </Text>
                 </View>
                 <View style={styles.vRule} />
@@ -375,7 +376,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.guardLabel}>{t('riskRemaining')}</Text>
                   <Text style={[styles.guardValue, { color: guardColor }]}>
-                    {formatCurrency(guard.remaining, { decimals: 0 })}
+                    {money(guard.remaining, { decimals: 0 })}
                   </Text>
                 </View>
               </View>
