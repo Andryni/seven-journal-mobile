@@ -57,5 +57,8 @@ yarn-error.*
 .impeccable/hook.cache.json
 .impeccable/hook.pending.json
 
-# Supabase CLI link state: contains the linked project ref and access token.
+# Supabase CLI local state, none of which belongs in the repo:
+#   .supabase/        link state and access token
+#   supabase/.temp/   CLI scratch files, rewritten on most commands
 .supabase/
+supabase/.temp/
