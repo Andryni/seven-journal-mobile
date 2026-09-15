@@ -72,6 +72,63 @@ const run = (trades: Trade[], overrides: Partial<Parameters<typeof useAnalytics>
     ...overrides,
   });
 
+describe('account scoping', () => {
+  const second: TradingAccount = { ...account, id: 'acc2', name: 'Perso', currency: 'EUR' };
+
+  it('is not aggregate when an account is selected', () => {
+    const r = run([mk('1', 100), mk('2', 50, { account_id: 'acc2' })]);
+    expect(r.isAggregate).toBe(false);
+  });
+
+  it('is not aggregate when only one account has traded', () => {
+    const r = run([mk('1', 100)], { activeAccountId: null });
+    expect(r.isAggregate).toBe(false);
+  });
+
+  it('flags aggregate once trades span several accounts', () => {
+    const r = run([mk('1', 100), mk('2', 50, { account_id: 'acc2' })], {
+      accounts: [account, second],
+      activeAccountId: null,
+    });
+    expect(r.isAggregate).toBe(true);
+    expect(r.accountsInScope).toHaveLength(2);
+  });
+
+  it('ignores accounts with no trades when scoping', () => {
+    const r = run([mk('1', 100)], {
+      accounts: [account, second],
+      activeAccountId: null,
+    });
+    expect(r.accountsInScope.map(a => a.id)).toEqual(['acc1']);
+    expect(r.isAggregate).toBe(false);
+  });
+
+  it('detects a total that adds different currencies', () => {
+    const r = run([mk('1', 100), mk('2', 50, { account_id: 'acc2' })], {
+      accounts: [account, second],
+      activeAccountId: null,
+    });
+    expect(r.hasMixedCurrencies).toBe(true);
+  });
+
+  it('does not flag currencies when they agree', () => {
+    const r = run([mk('1', 100), mk('2', 50, { account_id: 'acc2' })], {
+      accounts: [account, { ...second, currency: 'USD' }],
+      activeAccountId: null,
+    });
+    expect(r.hasMixedCurrencies).toBe(false);
+  });
+
+  it('never reports mixed currencies for a single selected account', () => {
+    const r = run([mk('1', 100), mk('2', 50, { account_id: 'acc2' })], {
+      accounts: [account, second],
+      activeAccountId: 'acc1',
+    });
+    expect(r.hasMixedCurrencies).toBe(false);
+    expect(r.isAggregate).toBe(false);
+  });
+});
+
 describe('useAnalytics', () => {
   it('handles an empty trade list without dividing by zero', () => {
     const r = run([]);

@@ -53,6 +53,29 @@ export function useAnalytics({
     return accounts[0];
   }, [accounts, activeAccountId]);
 
+  /**
+   * True when figures span more than one account.
+   *
+   * With no account selected we aggregate every trade, but selectedAccount
+   * falls back to accounts[0] -- so the prop-firm limits, the currency symbol
+   * and the challenge deadline all came from one arbitrary account while the
+   * P&L summed all of them. Worse, accounts can be denominated in different
+   * currencies and sized in different units, so the total was adding EUR to
+   * USD. Callers must degrade rather than present that as a real number.
+   */
+  const accountsInScope = useMemo(() => {
+    const ids = new Set(closedAll.map(t => t.account_id));
+    return accounts.filter(a => ids.has(a.id));
+  }, [accounts, closedAll]);
+
+  const isAggregate = !activeAccountId && accountsInScope.length > 1;
+
+  /** Aggregate figures are only meaningful if every account shares a currency. */
+  const hasMixedCurrencies = useMemo(
+    () => new Set(accountsInScope.map(a => a.currency || 'USD')).size > 1,
+    [accountsInScope]
+  );
+
   const initialBalance = selectedAccount?.initial_balance || 100000;
   const profitTarget = selectedAccount?.profit_target || 10000;
   const maxDrawdownLimit = selectedAccount?.max_drawdown_limit || 10000;
@@ -424,6 +447,9 @@ export function useAnalytics({
     return { daysLeft, isExpired: daysLeft <= 0, endDate };
   }, [selectedAccount]);
   return {
+    isAggregate,
+    hasMixedCurrencies,
+    accountsInScope,
     closedAll,
     closed,
     selectedAccount,

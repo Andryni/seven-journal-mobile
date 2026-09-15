@@ -32,6 +32,7 @@ import type { AppTheme } from '../theme';
 import { useT, useI18nStore } from '../i18n';
 import { formatShortDate, localDayKey } from '../utils/formatDate';
 import { Card } from '../components/ui/Card';
+import { Panel } from '../components/ui/Panel';
 import { DonutChart } from '../components/ui/DonutChart';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
@@ -51,6 +52,7 @@ import {
   Flame,
   Shield,
   Share2,
+  Info,
 } from 'lucide-react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
@@ -292,6 +294,8 @@ export const AnalyticsScreen: React.FC = () => {
     ddProjection,
     consistencyData,
     challengeCountdown,
+    isAggregate,
+    hasMixedCurrencies,
   } = useAnalytics({
     trades,
     accounts,
@@ -381,6 +385,17 @@ export const AnalyticsScreen: React.FC = () => {
       </View>
 
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
+      {hasMixedCurrencies && (
+        <View style={s.warnBanner}>
+          <Info color={theme.colors.red} size={14} />
+          <Text style={s.warnBannerText}>
+            <Text style={s.warnBannerStrong}>{t('mixedCurrencies')}</Text>
+            {'  '}
+            {t('mixedCurrenciesHint')}
+          </Text>
+        </View>
+      )}
+
       {activeTab === 'perf' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Weekly feedback loop sits above the raw KPIs: deltas first,
@@ -783,7 +798,24 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       {/* ── TAB 7 : PROP FIRM TRACKER ── */}
-      {activeTab === 'propfirm' && (
+      {/* Prop-firm rules are per-account: a profit target or a drawdown limit
+          summed across accounts is not a number that means anything. Rather
+          than render a confident-looking wrong figure, ask for a scope. */}
+      {activeTab === 'propfirm' && isAggregate && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Panel>
+            <View style={s.scopeNotice}>
+              <Info color={theme.colors.gold} size={16} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.scopeTitle}>{t('aggregateNotice')}</Text>
+                <Text style={s.scopeText}>{t('aggregateHint')}</Text>
+              </View>
+            </View>
+          </Panel>
+        </Animated.View>
+      )}
+
+      {activeTab === 'propfirm' && !isAggregate && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Status Chips */}
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: 12 }}>
@@ -1121,6 +1153,46 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   tabContent: {
     paddingBottom: theme.spacing.xxl,
+  },
+  scopeNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+  },
+  scopeTitle: {
+    color: theme.colors.gold,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  scopeText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 18,
+  },
+  warnBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.red,
+  },
+  warnBannerText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 17,
+  },
+  warnBannerStrong: {
+    color: theme.colors.red,
+    fontFamily: theme.fonts.monoBold,
   },
   grid2: {
     flexDirection: 'row',
