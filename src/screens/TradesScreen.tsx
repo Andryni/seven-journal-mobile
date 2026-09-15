@@ -14,6 +14,7 @@ import { Panel, Hairline } from '../components/ui/Panel';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { duration, stagger } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
+import { AssetGlyph } from '../components/ui/AssetGlyph';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
@@ -294,6 +295,10 @@ export const TradesScreen: React.FC = () => {
               { backgroundColor: item.direction === 'BUY' ? theme.colors.green : theme.colors.red },
             ]}
           />
+
+          {/* Asset mark — lets a row be identified by shape and colour before
+              the ticker is read. Typographic, so no logo licensing. */}
+          <AssetGlyph symbol={item.pair} size={28} />
 
           {/* Col 1 — instrument + context */}
           <View style={styles.colMain}>
@@ -726,7 +731,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     height: 26,
     borderRadius: 1,
   },
-  colMain: { flex: 1 },
+  colMain: { flex: 1, marginLeft: 10 },
   pairLine: {
     flexDirection: 'row',
     alignItems: 'baseline',

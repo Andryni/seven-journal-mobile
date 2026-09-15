@@ -19,6 +19,7 @@ import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizi
 import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { Badge } from '../ui/Badge';
+import { AssetGlyph } from '../ui/AssetGlyph';
 import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
 
 interface TradeDetailModalProps {
@@ -65,6 +66,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleInfo}>
+              <AssetGlyph symbol={trade.pair} size={30} />
               <Text style={styles.pairText}>{trade.pair}</Text>
               <Badge label={trade.direction} variant={trade.direction === 'BUY' ? 'blue' : 'gold'} />
               <Badge label={trade.result} variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'} />
