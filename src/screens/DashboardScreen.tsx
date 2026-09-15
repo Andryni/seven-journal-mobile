@@ -20,7 +20,6 @@ import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-
 import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
-import { ChecklistCard } from '../components/dashboard/ChecklistCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
@@ -212,41 +211,59 @@ export const DashboardScreen: React.FC = () => {
         </Animated.View>
       ) : null}
 
-      {/* ── 3. METRIC STRIP — four numbers, no boxes, hairline-separated ── */}
+      {/* ── 3. METRIC GRID ──
+          Four metrics on one row left each column ~80px wide, so "+$1253"
+          and "100.0%" sat directly under their labels with no air and the
+          row read as a wall of digits. A 2x2 grid gives each number a full
+          half-width cell and restores the label/value/sub hierarchy. */}
       <Panel flush>
-        <View style={styles.strip}>
-          <Metric
-            label={t('winRateGlobal')}
-            value={`${m.winRate.toFixed(1)}%`}
-            sub={`${m.winCount}W / ${m.lossCount}L`}
-            size="small"
-          />
-          <View style={styles.vRule} />
-          <Metric
-            label={t('profitFactor')}
-            value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
-            sub={`R ${m.avgRMultiple >= 0 ? '+' : ''}${m.avgRMultiple.toFixed(2)}`}
-            size="small"
-            tone="accent"
-          />
-          <View style={styles.vRule} />
-          <Metric
-            label={t('expectancyShort')}
-            value={money(expectancy, { decimals: 0 })}
-            sub={t('perTrade')}
-            size="small"
-            tone="pnl"
-            pnlValue={expectancy}
-          />
-          <View style={styles.vRule} />
-          <Metric
-            label={t('maxDrawdownLabel')}
-            value={money(-m.maxDrawdown, { decimals: 0 })}
-            sub={`${m.dayWinRate.toFixed(0)}% ${t('greenDaysShort')}`}
-            size="small"
-            tone="pnl"
-            pnlValue={-m.maxDrawdown}
-          />
+        <View style={styles.metricGrid}>
+          <View style={styles.metricRow}>
+            <View style={styles.metricCell}>
+              <Metric
+                label={t('winRateGlobal')}
+                value={`${m.winRate.toFixed(1)}%`}
+                sub={`${m.winCount}W / ${m.lossCount}L`}
+                size="small"
+              />
+            </View>
+            <View style={styles.vRule} />
+            <View style={styles.metricCell}>
+              <Metric
+                label={t('profitFactor')}
+                value={m.profitFactor === Infinity ? '∞' : m.profitFactor.toFixed(2)}
+                sub={`R ${m.avgRMultiple >= 0 ? '+' : ''}${m.avgRMultiple.toFixed(2)}`}
+                size="small"
+                tone="accent"
+              />
+            </View>
+          </View>
+
+          <View style={styles.hRule} />
+
+          <View style={styles.metricRow}>
+            <View style={styles.metricCell}>
+              <Metric
+                label={t('expectancyShort')}
+                value={money(expectancy, { decimals: 0 })}
+                sub={t('perTrade')}
+                size="small"
+                tone="pnl"
+                pnlValue={expectancy}
+              />
+            </View>
+            <View style={styles.vRule} />
+            <View style={styles.metricCell}>
+              <Metric
+                label={t('maxDrawdownLabel')}
+                value={money(-m.maxDrawdown, { decimals: 0 })}
+                sub={`${m.dayWinRate.toFixed(0)}% ${t('greenDaysShort')}`}
+                size="small"
+                tone="pnl"
+                pnlValue={-m.maxDrawdown}
+              />
+            </View>
+          </View>
         </View>
       </Panel>
 
@@ -292,9 +309,6 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 8. SESSIONS ── */}
       <MarketSessionsBar />
-
-      {/* ── 9. PRE-SESSION CHECKLIST ── */}
-      <ChecklistCard />
 
       {/* ── 10. RECENT TRADES — blotter preview ── */}
       <Panel
@@ -500,17 +514,27 @@ const createStyles = (theme: AppTheme) =>
     },
 
     // Metric strip
-    strip: {
+    metricGrid: {
+      paddingVertical: theme.spacing.xs,
+    },
+    metricRow: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'stretch',
+    },
+    metricCell: {
+      flex: 1,
       paddingVertical: theme.spacing.md,
       paddingHorizontal: theme.spacing.md,
-      gap: theme.spacing.sm,
     },
     vRule: {
       width: StyleSheet.hairlineWidth,
       alignSelf: 'stretch',
       backgroundColor: theme.colors.hairline,
+    },
+    hRule: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.hairline,
+      marginHorizontal: theme.spacing.md,
     },
 
     // View all

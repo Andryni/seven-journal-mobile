@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { BookMarked, Wallet, ChevronRight, Settings } from 'lucide-react-native';
@@ -33,6 +34,16 @@ export const MoreScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [route, setRoute] = useState<Route>('menu');
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const navigation = useNavigation();
+
+  // Reset to the menu whenever the tab loses focus. Without this the local
+  // route survives the tab switch, so leaving on Playbook and coming back to
+  // "More" later reopened Playbook instead of the list -- the menu looked
+  // unreachable.
+  useEffect(
+    () => navigation.addListener('blur', () => setRoute('menu')),
+    [navigation],
+  );
 
   const { accounts } = useAccounts();
   const { setups } = usePlaybookSetups();

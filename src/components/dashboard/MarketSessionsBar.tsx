@@ -5,13 +5,21 @@ import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { PressableScale } from '../ui/PressableScale';
 
+/**
+ * The three sessions the rest of the app knows about.
+ *
+ * This bar used to list Tokyo / Londres / New York / Sydney while trades are
+ * tagged Asia / London / New York everywhere else (see utils/sessionDetect and
+ * the analytics breakdown). Two different vocabularies for the same concept:
+ * the user could see "Sydney open" and then find no Sydney anywhere in their
+ * statistics. Windows below match sessionDetect exactly.
+ */
 function getMarketSessions(date: Date) {
   const utcHour = date.getUTCHours();
   return [
-    { name: 'Tokyo', open: utcHour >= 0 && utcHour < 9 },
-    { name: 'Londres', open: utcHour >= 7 && utcHour < 16 },
+    { name: 'Asia', open: utcHour >= 23 || utcHour < 7 },
+    { name: 'London', open: utcHour >= 7 && utcHour < 12 },
     { name: 'New York', open: utcHour >= 12 && utcHour < 21 },
-    { name: 'Sydney', open: utcHour >= 21 || utcHour < 6 },
   ];
 }
 

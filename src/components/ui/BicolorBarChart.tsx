@@ -2,13 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
-  useAnimatedProps,
+  useAnimatedStyle,
   withTiming,
 } from 'react-native-reanimated';
 import { duration as motionDuration, easing } from '../../theme/motion';
-import Svg, { Rect, Line, G, Defs, ClipPath } from 'react-native-svg';
+import Svg, { Rect, Line, G } from 'react-native-svg';
 
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -63,10 +62,11 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const zeroY = paddingTop + chartHeight / 2;
   const barWidth = Math.min(22, chartWidth / Math.max(data.length, 1) - 6);
 
-  const growClipProps = useAnimatedProps(() => ({
-    y: zeroY - (grow.value * chartHeight) / 2,
-    height: grow.value * chartHeight,
-  }));
+  // Reveal via a container fade rather than an animated <ClipPath>. Under
+  // Reanimated 4 the clip rect kept its initial zero height on device, so the
+  // whole plot was clipped away and the card rendered as an empty frame --
+  // axes and tooltip visible, no data. A fade cannot fail that way.
+  const revealStyle = useAnimatedStyle(() => ({ opacity: grow.value }));
 
   if (!data || data.length === 0) return null;
 
@@ -107,13 +107,10 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
         </View>
 
         {/* SVG Chart Canvas + X labels below */}
-        <View style={{ width: chartWidth + paddingRight, height: totalHeight }}>
+        <Animated.View
+          style={[{ width: chartWidth + paddingRight, height: totalHeight }, revealStyle]}
+        >
           <Svg width={chartWidth + paddingRight} height={height}>
-            <Defs>
-              <ClipPath id="barGrowClip">
-                <AnimatedRect x="0" width={chartWidth} animatedProps={growClipProps} />
-              </ClipPath>
-            </Defs>
             {/* Zero Axis Line */}
             <Line
               x1={0} y1={zeroY}
@@ -133,7 +130,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
             />
 
             {/* Bars — revealed growing outward from the zero line */}
-            <G clipPath="url(#barGrowClip)">
+            <G>
             {data.map((item, index) => {
               const x = index * (chartWidth / data.length) + (chartWidth / data.length - barWidth) / 2;
               const isPositive = item.value >= 0;
@@ -191,7 +188,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               />
             ))}
           </View>
-        </View>
+        </Animated.View>
       </View>
     </View>
   );

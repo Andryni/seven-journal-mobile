@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import Animated, {
   useSharedValue,
+  useAnimatedStyle,
   useAnimatedProps,
   withTiming,
   withRepeat,
@@ -20,11 +21,8 @@ import Svg, {
   Circle,
   Line,
   G,
-  ClipPath,
-  Rect,
 } from 'react-native-svg';
 
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface GlowingEquityAreaChartProps {
@@ -33,6 +31,13 @@ interface GlowingEquityAreaChartProps {
   data: { date: string; value: number }[];
   height?: number;
   width?: number;
+  /**
+   * Forces the curve colour. A drawdown series is never good news, but its
+   * last value is 0 whenever the account sits at a new high, and "0 >= 0"
+   * painted the whole chart green. Callers plotting a loss-only series pass
+   * 'negative' so the colour states what the data means.
+   */
+  tone?: 'auto' | 'negative' | 'positive';
 }
 
 /**
@@ -47,6 +52,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   symbol = '$',
   height = 200,
   width = Dimensions.get('window').width - 64,
+  tone = 'auto',
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -84,9 +90,12 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const clipProps = useAnimatedProps(() => ({
-    width: reveal.value * (chartW + paddingRight),
-  }));
+  // Reveal via a container fade rather than an animated <ClipPath>. Under
+  // Reanimated 4 the clip rect kept its initial zero width on device, so the
+  // curve, its glow and the area fill were all clipped away: the card showed
+  // axes and a tooltip over an empty frame. The live ring sat outside the clip
+  // group, which is why a single dot remained visible.
+  const revealStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
 
   const pulseRingProps = useAnimatedProps(() => ({
     r: 5 + pulse.value * 8,
@@ -100,7 +109,8 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   const maxVal = Math.max(10, ...values);
   const range = maxVal - minVal || 1;
 
-  const isOverallPositive = (values[values.length - 1] ?? 0) >= 0;
+  const isOverallPositive =
+    tone === 'auto' ? (values[values.length - 1] ?? 0) >= 0 : tone === 'positive';
   const mainColor = isOverallPositive ? theme.colors.green : theme.colors.red;
   const mainColorLight = isOverallPositive ? theme.colors.greenLight : theme.colors.redLight;
 
@@ -180,7 +190,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           )}
         </View>
 
-        <View style={{ width: chartW + paddingRight, height }}>
+        <Animated.View style={[{ width: chartW + paddingRight, height }, revealStyle]}>
           <Svg width={chartW + paddingRight} height={height}>
             <Defs>
               <LinearGradient id="equityGradGreen" x1="0" y1="0" x2="0" y2="1">
@@ -191,9 +201,6 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
                 <Stop offset="0" stopColor={theme.colors.red} stopOpacity="0.45" />
                 <Stop offset="0.8" stopColor={theme.colors.red} stopOpacity="0.02" />
               </LinearGradient>
-              <ClipPath id="revealClip">
-                <AnimatedRect x="0" y="0" height={height} animatedProps={clipProps} />
-              </ClipPath>
             </Defs>
 
             {/* Grid */}
@@ -202,7 +209,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
             <Line x1={0} y1={bottomY} x2={chartW} y2={bottomY} stroke={theme.colors.cardBorder} strokeWidth="1" />
 
             {/* Everything data-driven is revealed left → right */}
-            <G clipPath="url(#revealClip)">
+            <G>
               {/* Area fill */}
               <Path
                 d={fillPath}
@@ -309,7 +316,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               />
             ))}
           </View>
-        </View>
+        </Animated.View>
       </View>
     </View>
   );

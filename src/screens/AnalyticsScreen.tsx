@@ -532,9 +532,10 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('drawdownCurve')}>
               {drawdownData.length > 0 ? (
                 <GlowingEquityAreaChart
-                symbol={sym}
+                  symbol={sym}
                   data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
                   height={160}
+                  tone="negative"
                 />
               ) : (
                 <Text style={s.emptyText}>{t('noDrawdownData')}</Text>
@@ -1072,9 +1073,10 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('drawdownCurve')}>
               {drawdownData.length > 0 ? (
                 <GlowingEquityAreaChart
-                symbol={sym}
+                  symbol={sym}
                   data={drawdownData.map(d => ({ date: d.label, value: d.value }))}
                   height={160}
+                  tone="negative"
                 />
               ) : (
                 <Text style={s.emptyText}>{t('noDrawdownData')}</Text>
