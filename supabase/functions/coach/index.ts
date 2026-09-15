@@ -205,8 +205,23 @@ Deno.serve(async (req: Request) => {
         });
 
     if (!res.ok) {
-      // Never forward the upstream body: it can contain key or org details.
-      console.error('coach: upstream error', res.status);
+      /**
+       * The upstream BODY is never forwarded -- it can carry key or org
+       * details. But the status code and the provider's short reason are
+       * safe, and without them a failure here is undiagnosable: the app could
+       * only say "it failed", and the CLI has no `functions logs` command to
+       * fall back on.
+       */
+      let upstreamReason = '';
+      try {
+        const errBody = await res.clone().json();
+        const raw = errBody?.error?.status || errBody?.error?.message || '';
+        // Truncated and stripped of anything that could echo the key back.
+        upstreamReason = String(raw).replace(/[A-Za-z0-9_-]{30,}/g, '***').slice(0, 160);
+      } catch {
+        // Non-JSON error body; the status alone will have to do.
+      }
+      console.error('coach: upstream error', res.status, upstreamReason);
       // 429 is the one the user can act on: the free tier has a daily cap,
       // and "try again later" is true and useful, unlike a generic failure.
       if (res.status === 429) return json({ error: 'rate_limited' }, 429);
@@ -215,9 +230,18 @@ Deno.serve(async (req: Request) => {
       // case). That is a deployment fault, not a transient one, so it maps to
       // the same message as a missing key rather than "try again".
       if (res.status === 401 || res.status === 403) {
-        return json({ error: 'not_configured' }, 503);
+        return json({ error: 'not_configured', upstreamReason }, 503);
       }
-      return json({ error: 'upstream_error' }, 502);
+      if (res.status === 404) {
+        // The model id no longer exists. Google retires them on a schedule,
+        // and this is fixed with a secret, not a code change -- so say which
+        // id was tried.
+        return json({ error: 'model_not_found', model: GEMINI_MODEL }, 502);
+      }
+      return json(
+        { error: 'upstream_error', upstreamStatus: res.status, upstreamReason },
+        502
+      );
     }
 
     const data = await res.json();

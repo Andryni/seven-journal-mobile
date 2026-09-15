@@ -132,17 +132,17 @@ Chaque message de l'app désigne une cause précise :
 | Analyse IA non configurée | Pas de secret, ou clé refusée par Google (mauvais format, ou révoquée) |
 | Quota d'analyses atteint | Limite journalière du palier gratuit — revenez demain |
 | Session expirée | Déconnectez-vous et reconnectez-vous dans l'app |
-| La synthèse a échoué | La fonction a répondu en erreur — voir les logs ci-dessous |
+| La synthèse a échoué | Google a refusé l'appel — la raison exacte s'affiche juste en dessous |
+| Modèle IA introuvable | L'identifiant du modèle a été retiré — voir plus bas |
 
-Pour voir la cause exacte côté serveur :
+**La cause exacte est affichée dans l'application**, en petit sous le message
+d'erreur : c'est la réponse de Google elle-même. (La commande
+`supabase functions logs` n'existe pas dans le CLI ; les logs se consultent
+sur le site, dans **Edge Functions → coach → Logs**.)
 
-```
-npx supabase functions logs coach
-```
-
-Un `404` dans ces logs signifie que le modèle n'existe plus. Google retire
-les anciens identifiants régulièrement. Dans ce cas, choisissez-en un autre
-sans toucher au code :
+Si le message dit « Modèle IA introuvable », le détail affiché est
+l'identifiant qui a été essayé. Google retire les anciens régulièrement.
+Choisissez-en un autre, sans toucher au code :
 
 ```
 npx supabase secrets set GEMINI_MODEL=gemini-2.5-flash

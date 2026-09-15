@@ -23,6 +23,7 @@ export type CoachError =
   | 'not_enough_data'
   | 'not_configured'
   | 'not_deployed'
+  | 'model_not_found'
   | 'unauthorized'
   | 'rate_limited'
   | 'network'
@@ -32,6 +33,14 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
   const [result, setResult] = useState<CoachResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<CoachError | null>(null);
+  /**
+   * The provider's own words, when it gave any.
+   *
+   * Shown under the error message because the Supabase CLI has no
+   * `functions logs` command -- without this the only way to find out why a
+   * call failed is to guess.
+   */
+  const [detail, setDetail] = useState<string | null>(null);
 
   const ask = useCallback(async () => {
     const payload = buildCoachPayload(trades, locale, playbookTitles);
@@ -42,6 +51,7 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
 
     setLoading(true);
     setError(null);
+    setDetail(null);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('coach', {
         body: payload,
@@ -62,9 +72,20 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
           try {
             const body = await ctx.clone().json();
             if (typeof body?.error === 'string') code = body.error;
+            if (typeof body?.upstreamReason === 'string' && body.upstreamReason) {
+              setDetail(body.upstreamReason);
+            }
+            if (body?.error === 'model_not_found') {
+              setDetail(String(body.model ?? ''));
+            }
           } catch {
             // Non-JSON body; fall back to the status code below.
           }
+        }
+
+        if (code === 'model_not_found') {
+          setError('model_not_found');
+          return;
         }
 
         if (code === 'rate_limited' || ctx?.status === 429) {
@@ -124,7 +145,8 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
   const reset = useCallback(() => {
     setResult(null);
     setError(null);
+    setDetail(null);
   }, []);
 
-  return { result, loading, error, ask, reset };
+  return { result, loading, error, detail, ask, reset };
 }

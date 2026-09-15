@@ -65,6 +65,7 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
     not_enough_data: 'coachErrorNotEnough',
     not_configured: 'coachErrorNotConfigured',
     rate_limited: 'coachErrorRateLimited',
+    model_not_found: 'coachErrorModelNotFound',
     not_deployed: 'coachErrorNotDeployed',
     unauthorized: 'coachErrorUnauthorized',
     network: 'coachErrorNetwork',
@@ -150,7 +151,17 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
             ) : null}
 
             {coach.error ? (
-              <Text style={styles.coachError}>{t(coachErrorKey[coach.error])}</Text>
+              <>
+                <Text style={styles.coachError}>{t(coachErrorKey[coach.error])}</Text>
+                {/* The provider's own words. Shown because the Supabase CLI
+                    has no `functions logs`, so this is the only place the
+                    real cause can surface. */}
+                {coach.detail ? (
+                  <Text style={styles.coachErrorDetail} numberOfLines={3}>
+                    {coach.detail}
+                  </Text>
+                ) : null}
+              </>
             ) : null}
 
             <Pressable
@@ -251,7 +262,14 @@ const createStyles = (theme: AppTheme) =>
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 1,
     },
-    coachError: {
+    coachErrorDetail: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.mono,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  coachError: {
       color: theme.colors.textMuted,
       fontSize: theme.type.micro,
       fontFamily: theme.fonts.sans,
