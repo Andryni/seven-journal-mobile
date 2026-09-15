@@ -185,7 +185,7 @@ const createStyles = (theme: AppTheme) =>
     cellCount: {
       color: 'rgba(255,255,255,0.6)',
       fontSize: 7,
-      fontWeight: '800',
+      fontFamily: theme.fonts.monoBold,
     },
     legend: {
       flexDirection: 'row',

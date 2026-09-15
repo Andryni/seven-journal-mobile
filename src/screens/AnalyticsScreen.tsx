@@ -146,7 +146,7 @@ const ProgressRing: React.FC<{
           </SvgText>
         </Svg>
       </Animated.View>
-      <Text style={{ color: t.colors.textMuted, fontSize: 9, fontWeight: '800', marginTop: 6, letterSpacing: 0.5, textAlign: 'center' }}>
+      <Text style={{ color: t.colors.textMuted, fontSize: 9, fontFamily: t.fonts.monoBold, marginTop: 6, letterSpacing: 0.5, textAlign: 'center' }}>
         {label}
       </Text>
     </View>
@@ -180,10 +180,10 @@ const AnimatedProgressBar: React.FC<{
   return (
     <View style={{ marginBottom: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 10, fontFamily: theme.fonts.monoBold, letterSpacing: 0.5 }}>
           {label}
         </Text>
-        <Text style={{ color: isDanger ? theme.colors.redLight : isWarning ? theme.colors.goldLight : theme.colors.textPrimary, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: isDanger ? theme.colors.redLight : isWarning ? theme.colors.goldLight : theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.monoBold, fontVariant: ['tabular-nums'] }}>
           ${Math.abs(current).toLocaleString()} / ${Math.abs(limit).toLocaleString()}
         </Text>
       </View>
@@ -200,10 +200,10 @@ const AnimatedProgressBar: React.FC<{
         />
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontWeight: '700' }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontFamily: theme.fonts.mono }}>
           {invert ? (pct > 0.9 ? t('progressAlert') : pct > 0.7 ? t('progressWarning') : t('progressSafe')) : (pct > 0.95 ? t('progressAlmost') : pct > 0.85 ? t('progressOngoing') : t('progressAdvancing'))}
         </Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontFamily: theme.fonts.mono, fontVariant: ['tabular-nums'] }}>
           {(pct * 100).toFixed(1)}%
         </Text>
       </View>
@@ -234,8 +234,8 @@ const StatusChip: React.FC<{
     }}
   >
     {icon}
-    <Text style={{ color: t.colors.textMuted, fontSize: 8, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
-    <Text style={{ color, fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{value}</Text>
+    <Text style={{ color: t.colors.textMuted, fontSize: 8, fontFamily: t.fonts.monoBold, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
+    <Text style={{ color, fontSize: 14, fontFamily: t.fonts.monoBold, fontVariant: ['tabular-nums'] }}>{value}</Text>
   </Animated.View>
 );
 
@@ -408,25 +408,25 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
-                  <Text style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}>
                     {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
                   </Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('winRate')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{winRate.toFixed(1)}%</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>{winRate.toFixed(1)}%</Text>
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('profitFactor')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.primaryLight }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.primaryLight }]}>
                     {profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}
                   </Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('profitLossRatio')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.goldLight }]}>
                     {avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : '1.0'}x
                   </Text>
                 </View>
@@ -434,13 +434,13 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('avgRMultiple')}</Text>
-                  <Text style={[s.kpiVal, avgR >= 0 ? s.greenText : s.redText]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, avgR >= 0 ? s.greenText : s.redText]}>
                     {avgR >= 0 ? '+' : ''}{avgR.toFixed(2)}R
                   </Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('expectancy')}</Text>
-                  <Text style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
                     {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
                   </Text>
                 </View>
@@ -452,23 +452,23 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('expectancyR')} subtitle={t('expectancyDesc')}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={[s.kpiBox, { flex: 0, minWidth: 80, alignItems: 'center' }]}>
-                  <Text style={[s.kpiVal, expectancyR.value >= 0 ? s.greenText : s.redText, { fontSize: 22 }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, expectancyR.value >= 0 ? s.greenText : s.redText, { fontSize: 22 }]}>
                     {expectancyR.value >= 0 ? '+' : ''}{expectancyR.value.toFixed(2)}R
                   </Text>
                   <Text style={[s.kpiLabel, { marginTop: 4 }]}>{t('expectancyR')}</Text>
                 </View>
                 <View style={{ flex: 1, gap: 6 }}>
                   <View style={s.rowBetween}>
-                    <Text style={s.subMuted}>{t('winRate')} ({t('holdingTimeWins')})</Text>
-                    <Text style={[s.boldVal, s.greenText]}>{expectancyR.winPct > 0 ? `${(expectancyR.winPct * 100).toFixed(0)}%` : '—'}</Text>
+                    <Text numberOfLines={2} style={s.subMuted}>{t('winRate')} ({t('holdingTimeWins')})</Text>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, s.greenText]}>{expectancyR.winPct > 0 ? `${(expectancyR.winPct * 100).toFixed(0)}%` : '—'}</Text>
                   </View>
                   <View style={s.rowBetween}>
-                    <Text style={s.subMuted}>Avg Win R</Text>
-                    <Text style={[s.boldVal, s.greenText]}>+{expectancyR.avgWinR.toFixed(2)}R</Text>
+                    <Text numberOfLines={2} style={s.subMuted}>Avg Win R</Text>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, s.greenText]}>+{expectancyR.avgWinR.toFixed(2)}R</Text>
                   </View>
                   <View style={s.rowBetween}>
-                    <Text style={s.subMuted}>Avg Loss R</Text>
-                    <Text style={[s.boldVal, s.redText]}>{expectancyR.avgLossR.toFixed(2)}R</Text>
+                    <Text numberOfLines={2} style={s.subMuted}>Avg Loss R</Text>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, s.redText]}>{expectancyR.avgLossR.toFixed(2)}R</Text>
                   </View>
                 </View>
               </View>
@@ -508,11 +508,11 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxDrawdown')}</Text>
-                  <Text style={[s.kpiVal, s.redText]}>-${maxDrawdown.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>-${maxDrawdown.toFixed(2)}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('currentDrawdown')}</Text>
-                  <Text style={[s.kpiVal, currentDrawdown > 0 ? s.redText : s.greenText]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, currentDrawdown > 0 ? s.redText : s.greenText]}>
                     -${currentDrawdown.toFixed(2)}
                   </Text>
                 </View>
@@ -606,11 +606,11 @@ export const AnalyticsScreen: React.FC = () => {
                   <Animated.View key={ht.label} entering={FadeIn.delay(i * 60).duration(300)}>
                     <View style={s.rowBetween}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.boldWhite}>{ht.label}</Text>
-                        <Text style={s.subMuted}>{ht.count} trades</Text>
+                        <Text numberOfLines={1} style={s.boldWhite}>{ht.label}</Text>
+                        <Text numberOfLines={2} style={s.subMuted}>{ht.count} trades</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, ht.winRate >= 50 ? s.greenText : ht.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, ht.winRate >= 50 ? s.greenText : ht.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
                           {ht.count > 0 ? `${ht.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>
@@ -635,11 +635,11 @@ export const AnalyticsScreen: React.FC = () => {
                 <Animated.View key={st.name} entering={FadeIn.delay(i * 60).duration(300)}>
                   <View style={s.rowBetween}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.boldWhite}>{st.name}</Text>
-                      <Text style={s.subMuted}>{st.count} trades</Text>
+                      <Text numberOfLines={1} style={s.boldWhite}>{st.name}</Text>
+                      <Text numberOfLines={2} style={s.subMuted}>{st.count} trades</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
                         {st.count > 0 ? `${st.winRate.toFixed(1)}% WR` : '—'}
                       </Text>
                       <Text style={[s.subMuted, st.pnl >= 0 ? s.greenText : s.redText]}>
@@ -658,11 +658,11 @@ export const AnalyticsScreen: React.FC = () => {
                 <Animated.View key={p.name} entering={FadeIn.delay(i * 60).duration(300)}>
                   <View style={s.rowBetween}>
                     <View>
-                      <Text style={s.boldWhite}>{p.name}</Text>
-                      <Text style={s.subMuted}>{p.total} trades</Text>
+                      <Text numberOfLines={1} style={s.boldWhite}>{p.name}</Text>
+                      <Text numberOfLines={2} style={s.subMuted}>{p.total} trades</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.boldVal, p.winRate >= 50 ? s.greenText : s.redText]}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, p.winRate >= 50 ? s.greenText : s.redText]}>
                         {p.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
@@ -681,11 +681,11 @@ export const AnalyticsScreen: React.FC = () => {
                 <Animated.View key={tf.name} entering={FadeIn.delay(i * 60).duration(300)}>
                   <View style={s.rowBetween}>
                     <View>
-                      <Text style={s.boldWhite}>{tf.name}</Text>
-                      <Text style={s.subMuted}>{tf.total} trades</Text>
+                      <Text numberOfLines={1} style={s.boldWhite}>{tf.name}</Text>
+                      <Text numberOfLines={2} style={s.subMuted}>{tf.total} trades</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.boldVal, tf.winRate >= 50 ? s.greenText : s.redText]}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, tf.winRate >= 50 ? s.greenText : s.redText]}>
                         {tf.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
@@ -727,11 +727,11 @@ export const AnalyticsScreen: React.FC = () => {
                   <Animated.View key={sb.name} entering={FadeIn.delay(i * 60).duration(300)}>
                     <View style={s.rowBetween}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.boldWhite}>{t(sb.labelKey as any)}</Text>
-                        <Text style={s.subMuted}>{sb.count} {t('tradesCount').toLowerCase()} · Avg R: {sb.avgR >= 0 ? '+' : ''}{sb.avgR.toFixed(2)}</Text>
+                        <Text numberOfLines={1} style={s.boldWhite}>{t(sb.labelKey as any)}</Text>
+                        <Text numberOfLines={2} style={s.subMuted}>{sb.count} {t('tradesCount').toLowerCase()} · Avg R: {sb.avgR >= 0 ? '+' : ''}{sb.avgR.toFixed(2)}</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, sb.winRate >= 50 ? s.greenText : sb.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, sb.winRate >= 50 ? s.greenText : sb.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
                           {sb.count > 0 ? `${sb.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>
@@ -755,11 +755,11 @@ export const AnalyticsScreen: React.FC = () => {
                   <Animated.View key={dw.name} entering={FadeIn.delay(i * 60).duration(300)}>
                     <View style={s.rowBetween}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.boldWhite}>{dw.name}</Text>
-                        <Text style={s.subMuted}>{dw.count} trades</Text>
+                        <Text numberOfLines={1} style={s.boldWhite}>{dw.name}</Text>
+                        <Text numberOfLines={2} style={s.subMuted}>{dw.count} trades</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[s.boldVal, dw.winRate >= 50 ? s.greenText : dw.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
+                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, dw.winRate >= 50 ? s.greenText : dw.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
                           {dw.count > 0 ? `${dw.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, dw.pnl >= 0 ? s.greenText : s.redText]}>
@@ -784,11 +784,11 @@ export const AnalyticsScreen: React.FC = () => {
                 <Animated.View key={mb.state} entering={FadeIn.delay(i * 60).duration(300)}>
                   <View style={s.rowBetween}>
                     <View>
-                      <Text style={s.boldWhite}>{mb.state}</Text>
-                      <Text style={s.subMuted}>{mb.count} sessions</Text>
+                      <Text numberOfLines={1} style={s.boldWhite}>{mb.state}</Text>
+                      <Text numberOfLines={2} style={s.subMuted}>{mb.count} sessions</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[s.boldVal, mb.winRate >= 50 ? s.greenText : s.redText]}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, mb.winRate >= 50 ? s.greenText : s.redText]}>
                         {mb.winRate.toFixed(0)}% WR
                       </Text>
                       <Text style={[s.subMuted, mb.pnl >= 0 ? s.greenText : s.redText]}>
@@ -905,31 +905,31 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('bestDay')}</Text>
-                  <Text style={[s.kpiVal, s.greenText]}>+${propFirmData.bestDay.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.greenText]}>+${propFirmData.bestDay.toFixed(2)}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('worstDay')}</Text>
-                  <Text style={[s.kpiVal, s.redText]}>${propFirmData.worstDay.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>${propFirmData.worstDay.toFixed(2)}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxWinStreak')}</Text>
-                  <Text style={[s.kpiVal, s.greenText]}>{propFirmData.maxConsecWins}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.greenText]}>{propFirmData.maxConsecWins}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxLossStreak')}</Text>
-                  <Text style={[s.kpiVal, s.redText]}>{propFirmData.maxConsecLosses}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>{propFirmData.maxConsecLosses}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('tradingDays')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>{propFirmData.uniqueDays}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>{propFirmData.uniqueDays}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('consistencyScore')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>{propFirmData.consistencyPct.toFixed(0)}%</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.goldLight }]}>{propFirmData.consistencyPct.toFixed(0)}%</Text>
                 </View>
               </View>
             </Card>
@@ -939,25 +939,25 @@ export const AnalyticsScreen: React.FC = () => {
           <Animated.View entering={FadeIn.delay(320).duration(350)}>
             <Card title={t('challengeParams')}>
               <View style={s.rowBetween}>
-                <Text style={s.subMuted}>{t('profitTargetLabelStat')}</Text>
-                <Text style={s.boldWhite}>${profitTarget.toLocaleString()}</Text>
+                <Text numberOfLines={2} style={s.subMuted}>{t('profitTargetLabelStat')}</Text>
+                <Text numberOfLines={1} style={s.boldWhite}>${profitTarget.toLocaleString()}</Text>
               </View>
               <View style={s.rowBetween}>
-                <Text style={s.subMuted}>{t('maxDrawdownLimitStat')}</Text>
-                <Text style={s.boldWhite}>${maxDrawdownLimit.toLocaleString()}</Text>
+                <Text numberOfLines={2} style={s.subMuted}>{t('maxDrawdownLimitStat')}</Text>
+                <Text numberOfLines={1} style={s.boldWhite}>${maxDrawdownLimit.toLocaleString()}</Text>
               </View>
               <View style={s.rowBetween}>
-                <Text style={s.subMuted}>{t('initialBalanceLabel2')}</Text>
-                <Text style={s.boldWhite}>${initialBalance.toLocaleString()}</Text>
+                <Text numberOfLines={2} style={s.subMuted}>{t('initialBalanceLabel2')}</Text>
+                <Text numberOfLines={1} style={s.boldWhite}>${initialBalance.toLocaleString()}</Text>
               </View>
               {selectedAccount?.max_daily_loss_limit && (
                 <View style={s.rowBetween}>
-                  <Text style={s.subMuted}>{t('maxDailyLossLabel2')}</Text>
-                  <Text style={s.boldWhite}>{money(selectedAccount.max_daily_loss_limit, { showPlus: false, decimals: 0, thousandsSeparator: true })}</Text>
+                  <Text numberOfLines={2} style={s.subMuted}>{t('maxDailyLossLabel2')}</Text>
+                  <Text numberOfLines={1} style={s.boldWhite}>{money(selectedAccount.max_daily_loss_limit, { showPlus: false, decimals: 0, thousandsSeparator: true })}</Text>
                 </View>
               )}
               <View style={s.rowBetween}>
-                <Text style={s.subMuted}>{t('accountTypeLabel2')}</Text>
+                <Text numberOfLines={2} style={s.subMuted}>{t('accountTypeLabel2')}</Text>
                 <Text style={[s.boldWhite, { color: theme.colors.primaryLight }]}>
                   {selectedAccount?.type?.toUpperCase() || 'CHALLENGE'}
                   {/* @ts-ignore - type is a valid account type */}
@@ -979,7 +979,7 @@ export const AnalyticsScreen: React.FC = () => {
                     backgroundColor: challengeCountdown.isExpired ? 'rgba(255, 77, 77, 0.15)' : 'rgba(43, 213, 118, 0.1)',
                   }}>
                     <Text style={{
-                      fontSize: 28, fontWeight: '900',
+                      fontSize: 28, fontFamily: theme.fonts.monoBold,
                       color: challengeCountdown.isExpired ? theme.colors.red : challengeCountdown.daysLeft <= 7 ? theme.colors.goldLight : theme.colors.green,
                       fontVariant: ['tabular-nums'],
                     }}>
@@ -987,7 +987,7 @@ export const AnalyticsScreen: React.FC = () => {
                     </Text>
                   </View>
                   <Text style={{
-                    marginTop: 8, fontSize: 12, fontWeight: '800',
+                    marginTop: 8, fontFamily: theme.fonts.monoBold, fontSize: 12,
                     color: challengeCountdown.isExpired ? theme.colors.redLight : theme.colors.textPrimary,
                     letterSpacing: 0.8,
                   }}>
@@ -1007,23 +1007,23 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('projectionDaysLeft')}</Text>
-                  <Text style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText]}>
                     {ddProjection.daysUntilMaxDd >= 999 ? '∞' : `${ddProjection.daysUntilMaxDd}J`}
                   </Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('projectionAvgDailyDD')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.cyan }]}>-${ddProjection.avgDailyDd.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>-${ddProjection.avgDailyDd.toFixed(2)}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxDrawdownLabel')} restant</Text>
-                  <Text style={[s.kpiVal, s.redText]}>-${ddProjection.remainingDd.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>-${ddProjection.remainingDd.toFixed(2)}</Text>
                 </View>
                 <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(43, 213, 118, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(212, 162, 76, 0.1)' : 'rgba(255, 77, 77, 0.1)' }]}>
                   <Text style={s.kpiLabel}>STATUS</Text>
-                  <Text style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText, { fontSize: 11 }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText, { fontSize: 11 }]}>
                     {ddProjection.ddLevel === 'safe' ? t('projectionSafe') : ddProjection.ddLevel === 'warning' ? t('projectionWarning') : t('projectionDanger')}
                   </Text>
                 </View>
@@ -1037,11 +1037,11 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('consistencyRule')}</Text>
-                  <Text style={[s.kpiVal, { color: theme.colors.goldLight }]}>{consistencyData.consistencyRule}%</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.goldLight }]}>{consistencyData.consistencyRule}%</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('consistencyMaxDay')}</Text>
-                  <Text style={[s.kpiVal, consistencyData.isCompliant ? s.greenText : s.redText]}>{consistencyData.maxDayContrib.toFixed(1)}%</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, consistencyData.isCompliant ? s.greenText : s.redText]}>{consistencyData.maxDayContrib.toFixed(1)}%</Text>
                 </View>
               </View>
               <View style={{
@@ -1050,7 +1050,7 @@ export const AnalyticsScreen: React.FC = () => {
                 borderWidth: 1, borderColor: consistencyData.isCompliant ? 'rgba(43, 213, 118, 0.3)' : 'rgba(255, 77, 77, 0.3)',
                 alignItems: 'center',
               }}>
-                <Text style={{ color: consistencyData.isCompliant ? theme.colors.greenLight : theme.colors.redLight, fontSize: 12, fontWeight: '800' }}>
+                <Text style={{ color: consistencyData.isCompliant ? theme.colors.greenLight : theme.colors.redLight, fontSize: 12, fontFamily: theme.fonts.monoBold }}>
                   {consistencyData.isCompliant ? t('consistencyCompliant') : t('consistencyViolation')}
                 </Text>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 9, marginTop: 2 }}>
@@ -1119,7 +1119,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 18,
     fontFamily: theme.fonts.sansExtraBold,
     letterSpacing: 1,
@@ -1152,11 +1152,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   tabText: {
     color: theme.colors.textMuted,
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
   },
   tabContent: {
     paddingBottom: theme.spacing.xxl,
@@ -1217,12 +1217,12 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   kpiLabel: {
     color: theme.colors.textSecondary,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
     marginBottom: 4,
   },
   kpiVal: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
@@ -1242,7 +1242,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderBottomWidth: 1,
   },
   boldWhite: {
-    color: '#ffffff',
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontFamily: theme.fonts.sansBold,
   },
@@ -1271,7 +1271,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   dateRangeText: {
     color: theme.colors.textMuted,
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.5,
   },
   shareBtn: {

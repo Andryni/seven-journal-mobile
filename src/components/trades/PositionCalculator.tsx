@@ -277,7 +277,7 @@ const createStyles = (theme: AppTheme) =>
     pickerLabel: {
       color: theme.colors.textMuted,
       fontSize: 8,
-      fontWeight: '800',
+      fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
       marginBottom: 4,
     },
@@ -292,7 +292,7 @@ const createStyles = (theme: AppTheme) =>
     fieldLabel: {
       color: theme.colors.textMuted,
       fontSize: 8,
-      fontWeight: '800',
+      fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
       marginBottom: 4,
     },
@@ -327,7 +327,7 @@ const createStyles = (theme: AppTheme) =>
     riskTypeText: {
       color: theme.colors.textMuted,
       fontSize: 11,
-      fontWeight: '800',
+      fontFamily: theme.fonts.monoBold,
     },
     riskTypeTextActive: {
       color: theme.colors.goldLight,
@@ -344,7 +344,7 @@ const createStyles = (theme: AppTheme) =>
     resultLabel: {
       color: theme.colors.goldLight,
       fontSize: 8,
-      fontWeight: '800',
+      fontFamily: theme.fonts.monoBold,
       letterSpacing: 1,
       marginBottom: 4,
     },

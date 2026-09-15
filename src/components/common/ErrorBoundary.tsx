@@ -80,13 +80,13 @@ const fallbackStyles = StyleSheet.create({
   title: {
     color: '#f1f5f9',
     fontSize: 17,
-    fontWeight: '800',
+    fontFamily: 'JetBrainsMono_700Bold',
     marginBottom: 4,
   },
   screen: {
     color: '#FF9F1C',
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: 'JetBrainsMono_400Regular',
     marginBottom: 8,
   },
   message: {
@@ -105,6 +105,6 @@ const fallbackStyles = StyleSheet.create({
   retryText: {
     color: '#f1f5f9',
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'JetBrainsMono_700Bold',
   },
 });

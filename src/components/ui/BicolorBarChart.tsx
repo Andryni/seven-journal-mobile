@@ -263,7 +263,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   xAxisLabelActive: {
     color: theme.colors.textPrimary,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   tooltipBadge: {
     position: 'absolute',

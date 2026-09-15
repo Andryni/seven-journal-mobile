@@ -529,11 +529,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   dayNumToday: {
     color: theme.colors.primaryLight,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   dayNumSelected: {
     color: theme.colors.textPrimary,
-    fontWeight: '900',
+    fontFamily: theme.fonts.monoBold,
   },
   dayPnl: {
     fontSize: 9,

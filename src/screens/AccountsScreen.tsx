@@ -938,12 +938,12 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   lockBadge: {
     color: theme.colors.goldLight,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   goldBadge: {
     color: theme.colors.goldLight,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: theme.fonts.monoBold,
   },
   fieldLabel: {
     color: theme.colors.textSecondary,

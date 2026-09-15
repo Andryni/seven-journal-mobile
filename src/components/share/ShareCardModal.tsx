@@ -237,7 +237,7 @@ const createStyles = (theme: AppTheme) =>
     dateLabel: {
       color: theme.colors.textMuted,
       fontSize: 10,
-      fontWeight: '700',
+      fontFamily: theme.fonts.monoBold,
     },
     accountLabel: {
       color: theme.colors.goldLight,
