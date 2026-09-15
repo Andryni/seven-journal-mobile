@@ -24,6 +24,23 @@
 
 create extension if not exists "pgcrypto";
 
+-- Remove the legacy BEFORE-write guard from earlier deployments.
+--
+-- It raised P0001 on ANY write to trades while the day was locked, which is
+-- the wrong enforcement point for two reasons: it made routine maintenance
+-- (backfills, corrections, imports of *past* trades) impossible, and it meant
+-- a trader could not even fix a typo on yesterday's journal entry after a
+-- locked day. The lock exists to stop new risk being taken, not to freeze the
+-- record of what already happened.
+--
+-- The app enforces the lock where the decision is actually made: the pre-trade
+-- guard blocks the entry before it is placed, and trg_trades_enforce_lock
+-- re-evaluates the rules after every write. Dropping this is a deliberate
+-- narrowing of enforcement, not a loss of it.
+-- CASCADE also drops any trigger still bound to it, so this single statement
+-- is the whole cleanup. It is a no-op on a database that never had it.
+drop function if exists public.enforce_daily_loss_limit_before_write() cascade;
+
 -- ============================================================================
 -- SECTION 1 — TABLES
 -- ============================================================================
@@ -178,18 +195,49 @@ create table if not exists public.trades (
 );
 
 -- Columns added after the first release: bring older databases up to date.
+--
+-- The defaults are declared HERE rather than backfilled with UPDATE. Postgres
+-- fills existing rows as part of the ALTER, which matters because some
+-- deployments carry a BEFORE trigger on trades that raises when the daily
+-- session is locked: a backfill UPDATE would touch every historical row, trip
+-- that trigger, and abort the whole migration with
+--   P0001: Session verrouillee : la limite de perte journaliere a ete atteinte
+-- ALTER TABLE does not fire row-level triggers, so this route is immune.
 alter table public.trades
-  add column if not exists commission numeric,
-  add column if not exists swap       numeric,
+  add column if not exists commission numeric not null default 0,
+  add column if not exists swap       numeric not null default 0,
   add column if not exists mae_price  numeric,
   add column if not exists mfe_price  numeric,
-  add column if not exists tags       text[];
+  add column if not exists tags       text[] not null default '{}';
 
--- Existing rows predate cost tracking. 0 means "no cost recorded", which is
--- exactly the old behaviour, so no historical P&L changes.
-update public.trades set commission = 0 where commission is null;
-update public.trades set swap       = 0 where swap is null;
-update public.trades set tags = '{}' where tags is null;
+-- Residual backfill, only for a database where these columns already exist as
+-- NULLable from an earlier partial run. Row triggers are suspended for the
+-- duration: this is housekeeping on historical rows, not trading activity, and
+-- a lock that exists to stop a trader placing trades must not stop a migration.
+do $$
+declare
+  v_needs_backfill boolean;
+begin
+  select exists (
+    select 1 from public.trades
+    where commission is null or swap is null or tags is null
+  ) into v_needs_backfill;
+
+  if v_needs_backfill then
+    alter table public.trades disable trigger user;
+
+    update public.trades set commission = 0 where commission is null;
+    update public.trades set swap       = 0 where swap is null;
+    update public.trades set tags       = '{}' where tags is null;
+
+    alter table public.trades enable trigger user;
+  end if;
+exception when others then
+  -- Never leave the table with its triggers switched off.
+  alter table public.trades enable trigger user;
+  raise;
+end;
+$$;
 
 alter table public.trades
   alter column commission set default 0,
