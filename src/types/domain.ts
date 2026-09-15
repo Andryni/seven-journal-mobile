@@ -64,6 +64,8 @@ export interface TradingAccount {
   consistency_rule_percent?: number | null;
   /** Market the account trades. Drives the size unit: lots / contracts / units. */
   instrument_type?: MarketType;
+  /** IANA timezone used server-side to bucket trades into trading days. */
+  timezone?: string;
   challenge_end_date?: string | null;
   created_at: string;
 }

@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
 import type { TradingAccount } from '../../types/domain';
+import { deviceTimezone } from '../../utils/formatDate';
 
 export function useAccounts() {
   const queryClient = useQueryClient();
@@ -18,6 +20,38 @@ export function useAccounts() {
     },
   });
 
+  /**
+   * Adopt the device timezone for accounts created before the column existed.
+   *
+   * They default to 'UTC', which would keep the daily-loss lock filing itself
+   * under the wrong date for anyone not actually on UTC. Correct it once, in
+   * the background: the value only matters to the server-side trigger, so a
+   * silent failure here is not worth surfacing to the trader.
+   */
+  useEffect(() => {
+    const tz = deviceTimezone();
+    if (tz === 'UTC') return;
+
+    const stale = accounts.filter(a => !a.timezone || a.timezone === 'UTC');
+    if (stale.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const { error } = await supabase
+        .from('trading_accounts')
+        .update({ timezone: tz })
+        .in('id', stale.map(a => a.id));
+
+      if (!error && !cancelled) {
+        queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts, queryClient]);
+
   const createAccountMutation = useMutation({
     mutationFn: async (newAccount: Omit<TradingAccount, 'id' | 'user_id' | 'created_at'>) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -32,6 +66,10 @@ export function useAccounts() {
         is_active: newAccount.is_active,
         max_daily_loss_limit: newAccount.max_daily_loss_limit,
         user_id: user.id,
+        // The server groups trades into trading days to apply the daily-loss
+        // lock. It must use the same day boundary the app does, which is the
+        // device's local midnight -- not UTC.
+        timezone: deviceTimezone(),
       };
 
       if (newAccount.max_drawdown_limit !== undefined && newAccount.max_drawdown_limit !== null) {
@@ -46,8 +84,8 @@ export function useAccounts() {
       if (newAccount.consistency_rule_percent !== undefined && newAccount.consistency_rule_percent !== null) {
         payload.consistency_rule_percent = newAccount.consistency_rule_percent;
       }
-      if ((newAccount as any).instrument_type) {
-        payload.instrument_type = (newAccount as any).instrument_type;
+      if (newAccount.instrument_type) {
+        payload.instrument_type = newAccount.instrument_type;
       }
       if ((newAccount as any).challenge_end_date) {
         payload.challenge_end_date = (newAccount as any).challenge_end_date;

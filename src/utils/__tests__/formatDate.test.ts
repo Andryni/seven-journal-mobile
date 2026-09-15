@@ -1,4 +1,4 @@
-import { localDayKey, localDayStartISO, isSameLocalDay, formatShortDate } from '../formatDate';
+import { localDayKey, localDayStartISO, isSameLocalDay, formatShortDate, deviceTimezone } from '../formatDate';
 
 describe('localDayKey', () => {
   it('returns YYYY-MM-DD based on LOCAL time, not UTC', () => {
@@ -57,5 +57,31 @@ describe('formatShortDate', () => {
   });
   it('formats EN as M/D/YY', () => {
     expect(formatShortDate(new Date(2025, 7, 12), 'en')).toBe('8/12/25');
+  });
+});
+
+describe('deviceTimezone', () => {
+  it('returns a usable IANA zone name', () => {
+    const tz = deviceTimezone();
+    expect(typeof tz).toBe('string');
+    expect(tz.length).toBeGreaterThan(0);
+    // Must be accepted by Intl, since the server stores it verbatim and
+    // Postgres will reject an unknown zone at AT TIME ZONE evaluation.
+    expect(() =>
+      new Intl.DateTimeFormat('en', { timeZone: tz }).format(new Date())
+    ).not.toThrow();
+  });
+
+  it('falls back to UTC when the runtime cannot resolve a zone', () => {
+    const original = Intl.DateTimeFormat;
+    // @ts-expect-error -- deliberately breaking the global for this test
+    Intl.DateTimeFormat = () => {
+      throw new Error('no zone');
+    };
+    try {
+      expect(deviceTimezone()).toBe('UTC');
+    } finally {
+      Intl.DateTimeFormat = original;
+    }
   });
 });

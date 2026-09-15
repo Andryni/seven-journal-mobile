@@ -99,7 +99,7 @@ Objectif : sortir de la palette Tailwind et de la carte-gradient-glow.
 - Passer de 6 à **5 onglets** : Dashboard · Trades · Calendar · Analytics · Plus (Playbook, Accounts, Settings dans un stack).
 - Sortir les 145 `rgba()` et 32 hex dans le thème.
 - Supprimer le fichier parasite `idth width as any,`, les `console.*`, les `any`.
-- Écrire un **schema.sql complet** + migrations ordonnées.
+- Écrire un **schema.sql complet et idempotent** (fichier unique, rejouable ; le dossier migrations/ a été supprimé au profit de cette source unique).
 - Tests : ajouter des tests sur `usePerformanceMetrics` et le rule engine prop firm (le cœur métier n'est testé qu'en surface).
 
 ---

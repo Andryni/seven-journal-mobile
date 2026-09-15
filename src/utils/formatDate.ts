@@ -86,3 +86,18 @@ export function isSameLocalDay(iso: string | null | undefined, ref: Date = new D
   if (isNaN(d.getTime())) return false;
   return localDayKey(d) === localDayKey(ref);
 }
+
+/**
+ * The device's IANA timezone, e.g. 'Indian/Antananarivo'.
+ *
+ * Stored on the account so the server can bucket trades into the same trading
+ * days the client does. Falls back to UTC on the rare runtime without a
+ * resolved timezone, which matches the column default.
+ */
+export function deviceTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
