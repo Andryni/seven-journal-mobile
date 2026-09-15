@@ -7,6 +7,7 @@ import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useDailyLock } from '../features/guard/useDailyLock';
 import { computeMetricTrends } from '../features/dashboard/metricTrends';
+import { outcomeVariant } from '../utils/tradeOutcome';
 import { usePerformanceMetrics } from '../features/dashboard/usePerformanceMetrics';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
@@ -409,7 +410,7 @@ export const DashboardScreen: React.FC = () => {
                   <Badge
                     label={tr.result}
                     size="sm"
-                    variant={tr.result === 'TP' ? 'green' : tr.result === 'SL' ? 'red' : 'neutral'}
+                    variant={outcomeVariant(tr)}
                   />
                 </View>
               </View>

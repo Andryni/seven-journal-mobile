@@ -14,6 +14,7 @@ import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
 import { formatDuration } from '../../utils/formatDate';
+import { outcomeVariant } from '../../utils/tradeOutcome';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
@@ -75,7 +76,9 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <AssetGlyph symbol={trade.pair} size={30} />
               <Text style={styles.pairText}>{trade.pair}</Text>
               <Badge label={trade.direction} variant={trade.direction === 'BUY' ? 'blue' : 'gold'} />
-              <Badge label={trade.result} variant={trade.result === 'TP' ? 'green' : trade.result === 'SL' ? 'red' : 'neutral'} />
+              {/* Colour follows the money, not the label: a BE exit that banked
+                  +0.5R on partials is a win and was being greyed out. */}
+              <Badge label={trade.result} variant={outcomeVariant(trade)} />
             </View>
             <TouchableOpacity
               onPress={onClose}

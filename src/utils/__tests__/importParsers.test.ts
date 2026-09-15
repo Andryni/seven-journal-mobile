@@ -142,3 +142,32 @@ describe('generateTradeCSV', () => {
     expect(rows[1][rows[0].indexOf('PnL')]).toBe('100');
   });
 });
+
+describe('parseTradingViewExport — exit reason is not the P&L sign', () => {
+  const csv = [
+    'Symbol,Type,Entry Price,Exit Price,Profit,Contracts,Date/Time',
+    'XAUUSD,BUY,2300.50,2310.00,95.00,1.0,2025-03-10T10:00:00Z',
+    'EURUSD,SELL,1.0850,1.0900,-50.00,0.5,2025-03-11T14:30:00Z',
+  ].join('\n');
+
+  it('does not claim a target was hit on a profitable row', () => {
+    // TradingView exports carry no TP level, so there is no evidence the
+    // target was reached. Labelling every green row 'TP' inflated the hit
+    // rate of every setup in the playbook.
+    const trades = parseTradingViewExport(csv);
+    expect(trades[0].pnl).toBe(95);
+    expect(trades[0].result).not.toBe('TP');
+  });
+
+  it('does not claim a stop was hit on a losing row', () => {
+    const trades = parseTradingViewExport(csv);
+    expect(trades[1].pnl).toBe(-50);
+    expect(trades[1].result).not.toBe('SL');
+  });
+
+  it('preserves the real P&L, which is what statistics classify on', () => {
+    const trades = parseTradingViewExport(csv);
+    expect(trades[0].pnl).toBeGreaterThan(0);
+    expect(trades[1].pnl).toBeLessThan(0);
+  });
+});

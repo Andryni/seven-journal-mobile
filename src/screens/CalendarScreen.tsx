@@ -21,6 +21,7 @@ import { localeFor, useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react-native';
+import { outcomeVariant } from '../utils/tradeOutcome';
 
 const screenWidth = Dimensions.get('window').width;
 const CALENDAR_PADDING = 16; // horizontal padding inside the calendar frame
@@ -314,7 +315,7 @@ export const CalendarScreen: React.FC = () => {
                   <Text style={[styles.tradePnl, (t.pnl || 0) >= 0 ? styles.greenText : styles.redText]}>
                     {t.pnl !== null ? money(t.pnl) : 'OPEN'}
                   </Text>
-                  <Badge label={t.result} variant={t.result === 'TP' ? 'green' : t.result === 'SL' ? 'red' : 'neutral'} size="sm" />
+                  <Badge label={t.result} variant={outcomeVariant(t)} size="sm" />
                 </View>
               </View>
             ))

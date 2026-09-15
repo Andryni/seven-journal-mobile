@@ -54,6 +54,7 @@ import {
   TriangleAlert,
 } from 'lucide-react-native';
 import { estimatePnl } from '../../utils/positionSizing';
+import { isOutcomeInconsistent } from '../../utils/tradeOutcome';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
@@ -110,6 +111,20 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Calculated / Manual Overwrite
   const [manualPnl, setManualPnl] = useState('');
+
+  /**
+   * Flags a result pill that contradicts the P&L. Deliberately a warning and
+   * not an auto-correction: only the trader knows whether the label or the
+   * number is the typo. A BE exit with a non-zero P&L is legitimate (partials,
+   * trailed stop) and is never flagged.
+   */
+  const outcomeWarning = useMemo(() => {
+    const pnlNum = manualPnl ? Number(manualPnl) : null;
+    if (pnlNum === null || !Number.isFinite(pnlNum)) return null;
+    if (!isOutcomeInconsistent(result, pnlNum)) return null;
+    return result === 'TP' ? t('tfOutcomeMismatchTp') : t('tfOutcomeMismatchSl');
+  }, [result, manualPnl, t]);
+
   const [manualRMultiple, setManualRMultiple] = useState('');
 
   // Section 2: Strategy & Setup (Playbook Only)
@@ -294,14 +309,18 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
       const slDist = Math.abs(entry - sl);
       let r = 0;
-      if (result === 'TP') {
+      // A real exit price is the ground truth and always wins. The result
+      // pills are an exit REASON, not a payout: forcing r = -1 for SL or
+      // r = 0 for BE overwrote what the trade actually earned. A position
+      // moved to breakeven that banked +0.5R on partials was being recorded
+      // as a flat 0, erasing the gain from every statistic.
+      if (exit !== null && exit > 0) {
+        r = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
+      } else if (result === 'TP') {
+        // No exit price yet: fall back to the planned target.
         r = Math.abs(tp - entry) / slDist;
       } else if (result === 'SL') {
         r = -1;
-      } else if (result === 'BE') {
-        r = 0;
-      } else if (exit !== null && exit > 0) {
-        r = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
       }
 
       if (r !== 0 && !isNaN(r)) {
@@ -872,6 +891,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
+              {outcomeWarning ? (
+                <View style={styles.outcomeWarn}>
+                  <TriangleAlert size={13} color={theme.colors.gold} />
+                  <Text style={styles.outcomeWarnText}>{outcomeWarning}</Text>
+                </View>
+              ) : null}
+
               {/* Exit timestamp. Always visible: gating it behind
                   result !== 'OPEN' meant it never appeared, since OPEN is the
                   default and most traders set the result last -- or log an
@@ -1325,6 +1351,25 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  outcomeWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.gold,
+    backgroundColor: 'rgba(240, 180, 41, 0.10)',
+  },
+  outcomeWarnText: {
+    flex: 1,
+    color: theme.colors.gold,
+    fontSize: 10,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 14,
   },
   fieldLabel: {
     color: theme.colors.textSecondary,

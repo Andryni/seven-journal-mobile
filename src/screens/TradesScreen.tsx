@@ -38,6 +38,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 import { detectSession, detectTimeframe } from '../utils/sessionDetect';
 import { formatDuration } from '../utils/formatDate';
+import { outcomeVariant } from '../utils/tradeOutcome';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
@@ -366,12 +367,14 @@ export const TradesScreen: React.FC = () => {
               style={[
                 styles.result,
                 {
-                  color:
-                    item.result === 'TP'
-                      ? theme.colors.green
-                      : item.result === 'SL'
-                      ? theme.colors.red
-                      : theme.colors.textDark,
+                  // Driven by P&L, not by the label: a BE exit that banked a
+                  // partial gain was rendered in the same dead grey as a
+                  // scratch, hiding a winning trade in the blotter.
+                  color: {
+                    green: theme.colors.green,
+                    red: theme.colors.red,
+                    neutral: theme.colors.textDark,
+                  }[outcomeVariant(item)],
                 },
               ]}
             >

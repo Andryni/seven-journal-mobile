@@ -7,6 +7,7 @@
 // their decimals and parseFloat('1,234.56') silently yields 1.
 
 import { parseCsvRecords, csvEscape, parseLooseNumber } from './csv';
+import { inferExitReason } from './tradeOutcome';
 
 export interface ParsedImportTrade {
   pair: string;
@@ -47,10 +48,27 @@ export function parseMT4MT5Report(content: string): ParsedImportTrade[] {
       const exitP = parseFloat(closePrice);
       const direction = type.toUpperCase() === 'BUY' ? 'BUY' : 'SELL';
 
-      let result: 'TP' | 'SL' | 'BE' | 'OPEN' = 'OPEN';
-      if (pnl > 0) result = 'TP';
-      else if (pnl < 0) result = 'SL';
-      else if (closeTime) result = 'BE';
+      // Exit reason from PRICES, not from the P&L sign. Labelling every
+      // profitable close "TP" claimed the target was hit when the trade may
+      // have been closed manually well short of it -- which inflated the
+      // apparent hit rate of every setup in the playbook.
+      const inferred = inferExitReason({
+        direction,
+        entryPrice: entryP,
+        exitPrice: Number.isFinite(exitP) ? exitP : null,
+        stopLoss: Number.isFinite(slP) ? slP : null,
+        takeProfit: Number.isFinite(tpP) ? tpP : null,
+        closed: !!closeTime,
+      });
+      // The DB check constraint only allows TP/SL/BE/OPEN, and forcing a new
+      // enum value would break imports on any instance that has not run the
+      // latest schema. So BE doubles as "closed for neither target nor stop".
+      // This is a labelling compromise only: the real P&L and R-multiple are
+      // stored untouched, and every statistic classifies by P&L sign, so no
+      // number is affected -- unlike the old mapping, which claimed a target
+      // had been hit whenever a trade merely closed green.
+      const result: 'TP' | 'SL' | 'BE' | 'OPEN' =
+        inferred === 'MANUAL' ? 'BE' : inferred;
 
       // R-multiple is only computed when the report actually contains a stop loss.
       // We never fabricate risk data — unknown stays null and is excluded from analytics.
@@ -135,7 +153,11 @@ export function parseTradingViewExport(content: string): ParsedImportTrade[] {
       exit_time: parsedExit && !isNaN(parsedExit.getTime()) ? parsedExit.toISOString() : null,
       pnl,
       r_multiple: null,
-      result: pnl === null ? 'OPEN' : pnl > 0 ? 'TP' : pnl < 0 ? 'SL' : 'BE',
+      // TradingView exports carry no SL/TP, so there is no evidence a target
+      // or a stop was ever reached. Claiming 'TP' on every green row invented
+      // that evidence. Closed rows are recorded as 'BE' -- "closed, reason
+      // unknown" -- and the P&L, which drives every statistic, is untouched.
+      result: pnl === null ? 'OPEN' : 'BE',
       notes: 'Imported from TradingView',
     });
   }
