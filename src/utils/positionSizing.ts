@@ -82,8 +82,25 @@ export const INSTRUMENT_KEYS = Object.keys(INSTRUMENTS);
 export const MARKET_TYPES: MarketType[] = ['CFD', 'Futures', 'Crypto'];
 
 /** Instruments tradable on a given market, for filtering pickers per account. */
+/**
+ * Instruments a futures account offers in the pickers.
+ *
+ * The catalogue carries specs for more contracts than this (YM/MYM, RTY/M2K,
+ * CL/MCL, 6E) so an imported fill on any of them is still priced correctly.
+ * But a picker is a decision, not a catalogue: these six -- the S&P, Nasdaq
+ * and gold contracts in both full and micro size -- are what the account
+ * actually trades, and a list of thirteen made the common choice slower.
+ *
+ * Widen this list, do not delete it: dropping the specs would silently
+ * mis-price any historical trade on the others.
+ */
+const FUTURES_PICKER = ['ES', 'MES', 'NQ', 'MNQ', 'GC', 'MGC'];
+
 export function instrumentsForMarket(market: MarketType | null | undefined): string[] {
   if (!market) return INSTRUMENT_KEYS;
+  if (market === 'Futures') {
+    return FUTURES_PICKER.filter(k => INSTRUMENTS[k]);
+  }
   return INSTRUMENT_KEYS.filter(k => INSTRUMENTS[k].market === market);
 }
 

@@ -9,6 +9,7 @@ import {
   INSTRUMENTS,
   INSTRUMENT_KEYS,
   MARKET_TYPES,
+  defaultInstrumentFor,
 } from '../positionSizing';
 
 describe('calculatePositionSize', () => {
@@ -130,9 +131,24 @@ describe('INSTRUMENTS', () => {
     });
   });
 
-  it('partitions the catalogue across the three markets', () => {
-    const total = MARKET_TYPES.reduce((n, m) => n + instrumentsForMarket(m).length, 0);
-    expect(total).toBe(INSTRUMENT_KEYS.length);
+  it('offers only instruments that belong to the requested market', () => {
+    // The picker lists are no longer a partition of the catalogue -- futures
+    // deliberately expose a subset -- but nothing may appear under the wrong
+    // market, and every listed key must have a spec.
+    for (const m of MARKET_TYPES) {
+      const listed = instrumentsForMarket(m);
+      expect(listed.length).toBeGreaterThan(0);
+      for (const k of listed) {
+        expect(INSTRUMENTS[k]).toBeDefined();
+        expect(INSTRUMENTS[k].market).toBe(m);
+      }
+    }
+  });
+
+  it('keeps a spec for every catalogue key, listed or not', () => {
+    for (const k of INSTRUMENT_KEYS) {
+      expect(INSTRUMENTS[k].market).toBeDefined();
+    }
   });
 });
 
@@ -246,5 +262,31 @@ describe('estimatePnl', () => {
 
   it('falls back to a 1:1 tick for an unknown symbol', () => {
     expect(estimatePnl('WHATEVER', 3, 2)).toBe(6);
+  });
+});
+
+describe('instrumentsForMarket — picker scope', () => {
+  it('offers exactly the six futures contracts the account trades', () => {
+    expect(instrumentsForMarket('Futures').sort()).toEqual(
+      ['ES', 'GC', 'MES', 'MGC', 'MNQ', 'NQ'],
+    );
+  });
+
+  it('still prices the contracts it no longer lists, so imports stay correct', () => {
+    // Dropping these from the picker must not drop their specs.
+    for (const k of ['YM', 'MYM', 'RTY', 'M2K', 'CL', 'MCL', '6E']) {
+      expect(INSTRUMENTS[k]).toBeDefined();
+      expect(estimatePnl(k, 1, INSTRUMENTS[k].tick)).toBeCloseTo(INSTRUMENTS[k].tickValue);
+    }
+  });
+
+  it('leaves CFD and crypto lists untouched', () => {
+    expect(instrumentsForMarket('CFD')).toContain('XAUUSD');
+    expect(instrumentsForMarket('CFD')).not.toContain('ES');
+    expect(instrumentsForMarket('Crypto')).toContain('BTCUSD');
+  });
+
+  it('defaults a futures account to a listed contract', () => {
+    expect(instrumentsForMarket('Futures')).toContain(defaultInstrumentFor('Futures'));
   });
 });
