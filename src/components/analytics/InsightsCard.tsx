@@ -23,6 +23,8 @@ import type { Trade } from '../../types/domain';
 interface InsightsCardProps {
   /** Already account-scoped, like every other figure in the app. */
   trades: Trade[];
+  /** The user's own strategies; only these can be named as a best setup. */
+  playbookSetups?: { title: string }[];
 }
 
 const ICONS: Record<InsightSeverity, React.FC<{ color: string; size: number }>> = {
@@ -38,17 +40,31 @@ const ICONS: Record<InsightSeverity, React.FC<{ color: string; size: number }>> 
  * explicitly rather than rendering an empty card: "not enough data yet" is
  * information, a blank panel is a bug.
  */
-export const InsightsCard: React.FC<InsightsCardProps> = ({ trades }) => {
+export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetups = [] }) => {
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const result = useMemo(() => computeInsights(trades), [trades]);
-  const coach = useCoach(trades, lang);
+  /**
+   * Only the user's own strategy titles are eligible to be named as a best
+   * setup. See computeInsights: setup_structures still holds fixed ICT labels
+   * written by an older version of the app.
+   */
+  const playbookTitles = useMemo(
+    () => playbookSetups.map(p => p.title).filter(Boolean),
+    [playbookSetups]
+  );
+
+  const result = useMemo(
+    () => computeInsights(trades, playbookTitles),
+    [trades, playbookTitles]
+  );
+  const coach = useCoach(trades, lang, playbookTitles);
 
   const coachErrorKey = {
     not_enough_data: 'coachErrorNotEnough',
     not_configured: 'coachErrorNotConfigured',
+    rate_limited: 'coachErrorRateLimited',
     network: 'coachErrorNetwork',
     unknown: 'coachErrorUnknown',
   } as const;

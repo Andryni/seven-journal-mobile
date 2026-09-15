@@ -229,15 +229,57 @@ describe('tilt state', () => {
 });
 
 describe('best setup', () => {
+  const winners = (setup: string) => [
+    ...filler(20, { setup_structures: ['MEH'], pnl: -5 }),
+    ...Array.from({ length: 8 }, () => base({ setup_structures: [setup], pnl: 300 })),
+  ];
+
   it('surfaces the setup that earns, so the report is not all negative', () => {
-    const t = [
-      ...filler(20, { setup_structures: ['MEH'], pnl: -5 }),
-      ...Array.from({ length: 8 }, () => base({ setup_structures: ['FVG-SWEEP'], pnl: 300 })),
-    ];
-    const f = computeInsights(t).insights.find(i => i.id === 'best-setup');
+    const f = computeInsights(winners('FVG-SWEEP'), ['FVG-SWEEP', 'MEH']).insights.find(
+      i => i.id === 'best-setup'
+    );
     expect(f).toBeTruthy();
     expect(f!.severity).toBe('good');
     expect(f!.params.setup).toBe('FVG-SWEEP');
+  });
+
+  it('never names a setup the user does not have in their playbook', () => {
+    // Reported: "BOS is your best setup" shown to a trader whose playbook has
+    // no BOS. The label came from an older version of the app that wrote
+    // fixed ICT tags into setup_structures.
+    const t = [
+      ...filler(20, { setup_structures: ['MEH'], pnl: -5 }),
+      ...Array.from({ length: 8 }, () => base({ setup_structures: ['BOS'], pnl: 300 })),
+    ];
+    const f = computeInsights(t, ['My Range Reversal']).insights.find(
+      i => i.id === 'best-setup'
+    );
+    expect(f).toBeUndefined();
+  });
+
+  it('stays silent when no playbook is defined at all', () => {
+    // Nothing to name, so the rule must not invent a vocabulary.
+    expect(ids(computeInsights(winners('FVG-SWEEP')))).not.toContain('best-setup');
+  });
+
+  it('matches a playbook title case-insensitively', () => {
+    const f = computeInsights(winners('fvg-sweep'), ['FVG-Sweep']).insights.find(
+      i => i.id === 'best-setup'
+    );
+    expect(f).toBeTruthy();
+    // Reported under the title as the user wrote it in their playbook.
+    expect(f!.params.setup).toBe('FVG-Sweep');
+  });
+
+  it('ignores legacy labels while still ranking real playbook setups', () => {
+    const t = [
+      ...filler(20, { setup_structures: ['MEH'], pnl: -5 }),
+      // Legacy tag earns more, but is not a strategy the user chose.
+      ...Array.from({ length: 8 }, () => base({ setup_structures: ['BOS'], pnl: 900 })),
+      ...Array.from({ length: 8 }, () => base({ setup_structures: ['Range Reversal'], pnl: 200 })),
+    ];
+    const f = computeInsights(t, ['Range Reversal']).insights.find(i => i.id === 'best-setup');
+    expect(f!.params.setup).toBe('Range Reversal');
   });
 });
 

@@ -295,6 +295,7 @@ export const translations = {
     coachPrivacy: 'Seuls des agr\u00e9gats anonymes sont envoy\u00e9s : aucun trade, prix, note ni solde ne quitte votre appareil.',
     coachErrorNotEnough: 'Pas assez d\u2019historique pour une synth\u00e8se.',
     coachErrorNotConfigured: 'La synth\u00e8se IA n\u2019est pas configur\u00e9e sur ce serveur.',
+    coachErrorRateLimited: 'Quota d\u2019analyses atteint pour aujourd\u2019hui. R\u00e9essayez demain.',
     coachErrorNetwork: 'Synth\u00e8se indisponible. R\u00e9essayez plus tard.',
     coachErrorUnknown: 'La synth\u00e8se a \u00e9chou\u00e9.',
     insightRevenge: (p: any) =>
@@ -1173,6 +1174,7 @@ export const translations = {
     coachPrivacy: 'Only anonymous aggregates are sent: no trade, price, note or balance leaves your device.',
     coachErrorNotEnough: 'Not enough history for a summary.',
     coachErrorNotConfigured: 'The AI summary is not configured on this server.',
+    coachErrorRateLimited: 'Daily analysis quota reached. Try again tomorrow.',
     coachErrorNetwork: 'Summary unavailable. Try again later.',
     coachErrorUnknown: 'The summary failed.',
     insightRevenge: (p: any) =>

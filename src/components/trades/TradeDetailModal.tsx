@@ -606,7 +606,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   noStrategyText: {
     color: theme.colors.textMuted,
     fontSize: 10,
-    fontStyle: 'italic',
+    fontFamily: theme.fonts.mono,
   },
   miniLabel: {
     color: theme.colors.textSecondary,
@@ -634,7 +634,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   notesText: {
     color: theme.colors.textSecondary,
     fontSize: 11,
-    fontStyle: 'italic',
+    fontFamily: theme.fonts.mono,
     marginTop: 6,
     borderLeftWidth: 2,
     borderLeftColor: theme.colors.primary,

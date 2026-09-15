@@ -307,15 +307,34 @@ function overtradingDay(trades: Trade[]): Insight | null {
   };
 }
 
-/** The setup that actually earns, so the report is not purely negative. */
-function bestSetup(trades: Trade[]): Insight | null {
+/**
+ * The setup that actually earns, so the report is not purely negative.
+ *
+ * Only setups that exist in the user's Playbook are eligible.
+ *
+ * `setup_structures` is a free-form string array and still holds labels from
+ * an older version of the app that wrote fixed ICT tags -- 'BOS', 'FVG',
+ * 'OB'. Bucketing on whatever strings happen to be in there surfaced "BOS is
+ * your best setup" to a user whose Playbook contains no such strategy, which
+ * is advice about a name they never chose and cannot act on.
+ *
+ * With no Playbook defined there is nothing to name, so the rule stays quiet
+ * rather than inventing a vocabulary.
+ */
+function bestSetup(trades: Trade[], playbook: string[] = []): Insight | null {
+  if (playbook.length === 0) return null;
+
+  // Matched case-insensitively on a trimmed title: the trade stores the title
+  // as it was when the trade was logged, and the user may have re-cased it.
+  const allowed = new Map(playbook.map(p => [p.toLowerCase().trim(), p.trim()]));
+
   const buckets = new Map<string, number[]>();
   for (const t of trades) {
     for (const s of t.setup_structures ?? []) {
-      const key = s.trim();
-      if (!key) continue;
-      if (!buckets.has(key)) buckets.set(key, []);
-      buckets.get(key)!.push(t.pnl ?? 0);
+      const canonical = allowed.get(s.toLowerCase().trim());
+      if (!canonical) continue;
+      if (!buckets.has(canonical)) buckets.set(canonical, []);
+      buckets.get(canonical)!.push(t.pnl ?? 0);
     }
   }
 
@@ -345,6 +364,7 @@ function bestSetup(trades: Trade[]): Insight | null {
   };
 }
 
+/** Rules that only need the trades. */
 const RULES = [
   noStop,
   revengeTrading,
@@ -354,7 +374,6 @@ const RULES = [
   losingHour,
   losingWeekday,
   overtradingDay,
-  bestSetup,
 ];
 
 const SEVERITY_ORDER: Record<InsightSeverity, number> = {
@@ -376,14 +395,21 @@ export interface InsightsResult {
  * Pure and synchronous: no network, no model, no key. Callers pass already
  * account-scoped trades (see features/accounts/accountScope).
  */
-export function computeInsights(trades: Trade[]): InsightsResult {
+export function computeInsights(
+  trades: Trade[],
+  /** Titles of the user's own strategies, from the Playbook. */
+  playbookTitles: string[] = []
+): InsightsResult {
   const closed = closedOnly(trades);
 
   if (closed.length < MIN_TRADES_FOR_INSIGHTS) {
     return { hasEnoughData: false, tradesAnalysed: closed.length, insights: [] };
   }
 
-  const insights = RULES.map(rule => rule(closed)).filter((x): x is Insight => x !== null);
+  const insights = [
+    ...RULES.map(rule => rule(closed)),
+    bestSetup(closed, playbookTitles),
+  ].filter((x): x is Insight => x !== null);
 
   insights.sort((a, b) => {
     const s = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];

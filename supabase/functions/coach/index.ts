@@ -3,8 +3,16 @@
  *
  * Runs server-side for one reason: the model API key. An Expo app ships its
  * JS bundle to the device, so EXPO_PUBLIC_ anything is readable by anyone who
- * installs the app. The key lives here, set with
- * `supabase secrets set OPENAI_API_KEY=...`, and never reaches the client.
+ * installs the app. The key lives here and never reaches the client.
+ *
+ * Two providers are supported, chosen by whichever secret is set:
+ *
+ *   supabase secrets set GEMINI_API_KEY=...     (Google AI Studio, free tier)
+ *   supabase secrets set OPENAI_API_KEY=...     (paid)
+ *
+ * Gemini is preferred when both are present. Its free tier needs no credit
+ * card, which matters for a request the user fires by hand a few times a week
+ * -- this endpoint is nowhere near any published rate limit at that volume.
  *
  * Contract with the app (see src/features/insights/buildCoachPayload.ts):
  * the client sends findings the local engine already computed, plus coarse
@@ -17,7 +25,12 @@
  * sees comes from computeInsights, on the device.
  */
 
-const MODEL = 'gpt-4o-mini';
+const OPENAI_MODEL = 'gpt-4o-mini';
+/**
+ * Flash rather than Pro: this task is short-form rewriting of findings that
+ * are already computed, and Flash carries a far higher free daily allowance.
+ */
+const GEMINI_MODEL = 'gemini-2.0-flash';
 const ALLOWED_SEVERITIES = ['critical', 'warning', 'good'];
 
 const SYSTEM_PROMPT = `You are a trading performance coach reviewing a trader's journal statistics.
@@ -103,7 +116,11 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  // Gemini first: its free tier means a deployment can work without a card.
+  const geminiKey = Deno.env.get('GEMINI_API_KEY');
+  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+  const useGemini = Boolean(geminiKey);
+  const apiKey = geminiKey || openaiKey;
   if (!apiKey) return json({ error: 'not_configured' }, 503);
 
   // Require the caller's Supabase JWT. Without this the endpoint is an open
@@ -120,32 +137,69 @@ Deno.serve(async (req: Request) => {
   if (!payload) return json({ error: 'bad_request' }, 400);
 
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.4,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify(payload) },
-        ],
-      }),
-    });
+    const res = useGemini
+      ? await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'x-goog-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              // Gemini has no system role: the instructions go in
+              // systemInstruction, which it treats with the same weight.
+              systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+              contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+              generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 400,
+                // Guarantees parseable output instead of prose wrapped in
+                // a markdown fence, which is what a plain prompt returns.
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    briefing: { type: 'STRING' },
+                    priority: { type: 'STRING' },
+                  },
+                  required: ['briefing', 'priority'],
+                },
+              },
+            }),
+          }
+        )
+      : await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: OPENAI_MODEL,
+            temperature: 0.4,
+            max_tokens: 400,
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: JSON.stringify(payload) },
+            ],
+          }),
+        });
 
     if (!res.ok) {
       // Never forward the upstream body: it can contain key or org details.
       console.error('coach: upstream error', res.status);
+      // 429 is the one the user can act on: the free tier has a daily cap,
+      // and "try again later" is true and useful, unlike a generic failure.
+      if (res.status === 429) return json({ error: 'rate_limited' }, 429);
       return json({ error: 'upstream_error' }, 502);
     }
 
     const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content;
+    const raw = useGemini
+      ? data.candidates?.[0]?.content?.parts?.[0]?.text
+      : data.choices?.[0]?.message?.content;
     if (!raw) return json({ error: 'upstream_error' }, 502);
 
     let parsed: { briefing?: unknown; priority?: unknown };
@@ -164,7 +218,7 @@ Deno.serve(async (req: Request) => {
       // slip through, so model output can never contradict the app's figures.
       briefing: stripNumbers(briefing).slice(0, 900),
       priority: stripNumbers(priority).slice(0, 300),
-      model: MODEL,
+      model: useGemini ? GEMINI_MODEL : OPENAI_MODEL,
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {

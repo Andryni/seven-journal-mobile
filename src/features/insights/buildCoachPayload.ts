@@ -48,13 +48,17 @@ export interface CoachPayload {
 /** Rounds to two decimals, keeping payloads small and non-identifying. */
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export function buildCoachPayload(trades: Trade[], locale: string): CoachPayload | null {
+export function buildCoachPayload(
+  trades: Trade[],
+  locale: string,
+  playbookTitles: string[] = []
+): CoachPayload | null {
   const closed = trades.filter(t => t.pnl !== null);
   // Below the local engine's threshold there is nothing worth asking about,
   // and we do not send data just to receive a hedge.
   if (closed.length < MIN_TRADES_FOR_INSIGHTS) return null;
 
-  const { insights, tradesAnalysed } = computeInsights(trades);
+  const { insights, tradesAnalysed } = computeInsights(trades, playbookTitles);
 
   const wins = closed.filter(t => (t.pnl as number) > 0);
   const grossWin = wins.reduce((s, t) => s + (t.pnl as number), 0);

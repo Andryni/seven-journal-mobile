@@ -12,14 +12,45 @@ only in this function's environment.
 
 ## Deploy
 
+Pick one provider. Gemini is preferred when both keys are present.
+
+### Gemini (free tier, no credit card)
+
+```bash
+supabase functions deploy coach
+supabase secrets set GEMINI_API_KEY=AIza...
+```
+
+Get the key at <https://aistudio.google.com/apikey> — sign in with a Google
+account, "Create API key", done. The function calls `gemini-2.0-flash`:
+Flash rather than Pro because this task is short-form rewriting of findings
+that are already computed, and Flash carries a far higher free daily
+allowance.
+
+Google publishes the current free limits at
+<https://ai.google.dev/gemini-api/docs/rate-limits>, and has changed them
+before — check there rather than trusting a number written here. It does not
+matter much either way: this endpoint fires only when the user presses the
+button, a few times a week.
+
+Two things worth knowing before choosing the free tier: Google may use free
+tier traffic to train its models, and the free tier is not offered in the
+EU/EEA/UK/Switzerland. The payload contains no trades, prices, notes or
+balances — only anonymous finding ids and ratios — but if that is still not
+acceptable, use the paid option below.
+
+### OpenAI (paid)
+
 ```bash
 supabase functions deploy coach
 supabase secrets set OPENAI_API_KEY=sk-...
 ```
 
-No client change is needed. Until the secret is set the function returns
-`503 not_configured`, and the app shows "AI summary is not configured" rather
-than a generic error.
+No client change is needed for either. Until a secret is set the function
+returns `503 not_configured`, and the app shows "AI summary is not configured"
+rather than a generic error. A daily-cap refusal returns `429 rate_limited`,
+which the app shows as "try again tomorrow" — actionable, unlike a generic
+failure.
 
 ## What is sent
 

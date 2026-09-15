@@ -768,7 +768,7 @@ export const AnalyticsScreen: React.FC = () => {
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Statistical findings first: they say what to change, whereas the
               charts below only say what happened. */}
-          <InsightsCard trades={closed} />
+          <InsightsCard trades={closed} playbookSetups={playbookSetups} />
 
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             {/* 24h diverging columns replace the aggregated bar chart:
@@ -1431,6 +1431,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   subMuted: {
     color: theme.colors.textMuted,
     fontSize: 10,
+    fontFamily: theme.fonts.mono,
     marginTop: 2,
   },
   dateRangeBtn: {
@@ -1475,6 +1476,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     paddingVertical: theme.spacing.lg,
-    fontStyle: 'italic',
+    fontFamily: theme.fonts.mono,
   },
 });

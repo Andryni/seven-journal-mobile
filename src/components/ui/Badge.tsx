@@ -103,6 +103,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   textSm: {
     fontSize: theme.type.micro,
+    fontFamily: theme.fonts.monoBold,
   },
   textGreen: { color: theme.colors.green },
   textRed: { color: theme.colors.red },

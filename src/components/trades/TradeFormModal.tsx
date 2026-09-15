@@ -1843,7 +1843,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 11,
     fontFamily: theme.fonts.sans,
-    fontStyle: 'italic',
     paddingVertical: 8,
   },
   screenshotBox: {

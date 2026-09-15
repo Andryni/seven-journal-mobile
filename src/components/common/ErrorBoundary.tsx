@@ -92,6 +92,9 @@ const fallbackStyles = StyleSheet.create({
   message: {
     color: '#A3A09B',
     fontSize: 12,
+    // Hardcoded, like the rest of this file: the boundary renders when the
+    // theme provider itself may have failed, so it cannot read from it.
+    fontFamily: 'JetBrainsMono_400Regular',
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 18,

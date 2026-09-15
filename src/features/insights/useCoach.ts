@@ -19,15 +19,20 @@ export interface CoachResult {
   generatedAt: string;
 }
 
-export type CoachError = 'not_enough_data' | 'not_configured' | 'network' | 'unknown';
+export type CoachError =
+  | 'not_enough_data'
+  | 'not_configured'
+  | 'rate_limited'
+  | 'network'
+  | 'unknown';
 
-export function useCoach(trades: Trade[], locale: string) {
+export function useCoach(trades: Trade[], locale: string, playbookTitles: string[] = []) {
   const [result, setResult] = useState<CoachResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<CoachError | null>(null);
 
   const ask = useCallback(async () => {
-    const payload = buildCoachPayload(trades, locale);
+    const payload = buildCoachPayload(trades, locale, playbookTitles);
     if (!payload) {
       setError('not_enough_data');
       return;
@@ -41,7 +46,33 @@ export function useCoach(trades: Trade[], locale: string) {
       });
 
       if (fnError) {
+        // invoke() turns a non-2xx into an error, so the body has to be read
+        // back off it to tell a daily-cap refusal from a dead network.
+        const ctx = (fnError as { context?: Response }).context;
+        if (ctx?.status === 429) {
+          setError('rate_limited');
+          return;
+        }
+        if (ctx) {
+          try {
+            const body = await ctx.clone().json();
+            if (body?.error === 'rate_limited') {
+              setError('rate_limited');
+              return;
+            }
+            if (body?.error === 'not_configured') {
+              setError('not_configured');
+              return;
+            }
+          } catch {
+            // Fall through to the generic network error.
+          }
+        }
         setError('network');
+        return;
+      }
+      if (data?.error === 'rate_limited') {
+        setError('rate_limited');
         return;
       }
       if (data?.error === 'not_configured') {
@@ -65,7 +96,7 @@ export function useCoach(trades: Trade[], locale: string) {
     } finally {
       setLoading(false);
     }
-  }, [trades, locale]);
+  }, [trades, locale, playbookTitles]);
 
   const reset = useCallback(() => {
     setResult(null);

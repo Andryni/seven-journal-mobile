@@ -792,6 +792,58 @@ export const PlaybookScreen: React.FC = () => {
               placeholderTextColor={theme.colors.textMuted}
             />
 
+            {/* Mistakes and rules belong to the debrief record that is being
+                written here. They used to sit on the Discipline tab, which has
+                no save button, so every tick was silently discarded unless the
+                user happened to come back and save a debrief afterwards. */}
+            <Text style={styles.fieldLabel}>{t('mistakesCard')}</Text>
+            <View style={styles.chipWrap}>
+              {COMMON_MISTAKES.map(id => {
+                const isChecked = committedMistakes.includes(id);
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={[styles.checkChip, isChecked && styles.checkChipRed]}
+                    onPress={() =>
+                      setCommittedMistakes(prev =>
+                        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                      )
+                    }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isChecked }}
+                  >
+                    <Text style={[styles.checkChipText, isChecked && styles.redText]}>
+                      {mistakeLabel(t, id)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.fieldLabel}>{t('rulesCard')}</Text>
+            <View style={styles.chipWrap}>
+              {PLAYBOOK_RULES.map(id => {
+                const isChecked = rulesFollowed.includes(id);
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={[styles.checkChip, isChecked && styles.checkChipGreen]}
+                    onPress={() =>
+                      setRulesFollowed(prev =>
+                        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                      )
+                    }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isChecked }}
+                  >
+                    <Text style={[styles.checkChipText, isChecked && styles.greenText]}>
+                      {ruleLabel(t, id)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <TouchableOpacity
               style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
               onPress={handleSaveDailyDebrief}
@@ -918,45 +970,6 @@ export const PlaybookScreen: React.FC = () => {
             ))}
           </Card>
 
-          <Card title={t('mistakesCard')}>
-            {COMMON_MISTAKES.map(id => {
-              const isChecked = committedMistakes.includes(id);
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.mistakeRow, isChecked && styles.mistakeRowActive]}
-                  onPress={() => {
-                    setCommittedMistakes(prev =>
-                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                    );
-                  }}
-                >
-                  <View style={[styles.checkDot, isChecked && styles.checkDotRed]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.redText]}>{mistakeLabel(t, id)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </Card>
-
-          <Card title={t('rulesCard')}>
-            {PLAYBOOK_RULES.map(id => {
-              const isChecked = rulesFollowed.includes(id);
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.mistakeRow, isChecked && styles.ruleRowActive]}
-                  onPress={() => {
-                    setRulesFollowed(prev =>
-                      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                    );
-                  }}
-                >
-                  <View style={[styles.checkDot, isChecked && styles.checkDotGreen]} />
-                  <Text style={[styles.mistakeText, isChecked && styles.greenText]}>{ruleLabel(t, id)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </Card>
         </View>
       )}
 
@@ -1387,6 +1400,34 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 9,
     fontFamily: theme.fonts.sansMedium,
   },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  checkChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
+  },
+  checkChipRed: {
+    borderColor: theme.colors.red,
+    backgroundColor: theme.colors.red + '18',
+  },
+  checkChipGreen: {
+    borderColor: theme.colors.green,
+    backgroundColor: theme.colors.green + '18',
+  },
+  checkChipText: {
+    color: theme.colors.textMuted,
+    fontSize: 9.5,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.4,
+  },
   fieldLabel: {
     color: theme.colors.textSecondary,
     fontSize: 9,
@@ -1552,38 +1593,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.xs,
   },
-  mistakeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.cardBorder,
-  },
-  mistakeRowActive: {
-    backgroundColor: 'rgba(255, 77, 77, 0.08)',
-  },
-  ruleRowActive: {
-    backgroundColor: 'rgba(43, 213, 118, 0.08)',
-  },
-  checkDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.textMuted,
-  },
-  checkDotRed: { backgroundColor: theme.colors.red },
-  checkDotGreen: { backgroundColor: theme.colors.green },
-  mistakeText: {
-    color: theme.colors.textPrimary,
-    fontSize: 12,
-    fontFamily: theme.fonts.sansMedium,
-  },
   emptyText: {
     color: theme.colors.textMuted,
     fontSize: 11,
     fontFamily: theme.fonts.sans,
-    fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: theme.spacing.lg,
   },
