@@ -3,6 +3,11 @@ import type { Trade, TradingAccount } from '../../types/domain';
 import type { Language } from '../../i18n/translations';
 import type { PlaybookSetup } from '../playbook/usePlaybook';
 import { formatShortDate, localDayKey } from '../../utils/formatDate';
+import {
+  accountsWithTrades,
+  isAggregateScope,
+  hasMixedCurrencies as mixedCurrencies,
+} from '../accounts/accountScope';
 
 export type DateRange = 'all' | '7d' | '30d' | '90d';
 
@@ -63,17 +68,17 @@ export function useAnalytics({
    * currencies and sized in different units, so the total was adding EUR to
    * USD. Callers must degrade rather than present that as a real number.
    */
-  const accountsInScope = useMemo(() => {
-    const ids = new Set(closedAll.map(t => t.account_id));
-    return accounts.filter(a => ids.has(a.id));
-  }, [accounts, closedAll]);
+  const accountsInScope = useMemo(
+    () => accountsWithTrades(closedAll, accounts),
+    [accounts, closedAll]
+  );
 
-  const isAggregate = !activeAccountId && accountsInScope.length > 1;
+  const isAggregate = isAggregateScope(closedAll, accounts, activeAccountId);
 
   /** Aggregate figures are only meaningful if every account shares a currency. */
   const hasMixedCurrencies = useMemo(
-    () => new Set(accountsInScope.map(a => a.currency || 'USD')).size > 1,
-    [accountsInScope]
+    () => mixedCurrencies(closedAll, accounts, activeAccountId),
+    [closedAll, accounts, activeAccountId]
   );
 
   const initialBalance = selectedAccount?.initial_balance || 100000;

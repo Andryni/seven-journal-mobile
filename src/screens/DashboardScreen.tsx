@@ -16,7 +16,7 @@ import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
-import { ShieldAlert, Share2, ChevronRight, BookOpen } from 'lucide-react-native';
+import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
@@ -31,6 +31,7 @@ import { duration, stagger } from '../theme/motion';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useMoney, useCurrencySymbol } from '../features/accounts/useMoney';
 import { isSameLocalDay } from '../utils/formatDate';
+import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 
 /**
  * Dashboard — "Trading Desk" rebuild.
@@ -52,7 +53,6 @@ export const DashboardScreen: React.FC = () => {
   const { trades, isLoading: tradesLoading } = useTrades();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { isLocked, lockReason } = useDailyLock();
-  const m = usePerformanceMetrics(trades, lang);
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const activeAccountId = useUIStore(s => s.activeAccountId);
 
@@ -63,12 +63,37 @@ export const DashboardScreen: React.FC = () => {
     [accounts, activeAccountId]
   );
 
+  /**
+   * Every figure on this screen is scoped to the selected account.
+   *
+   * It previously fed the raw `trades` list to usePerformanceMetrics while the
+   * currency symbol came from the active account, so selecting a EUR account
+   * relabelled the combined P&L of every account as euros. DailyRiskGauge
+   * already filtered by account, which made the gauge disagree with the hero
+   * number right above it.
+   */
+  const scopedTrades = useMemo(
+    () => scopeTrades(trades, activeAccountId),
+    [trades, activeAccountId]
+  );
+
+  /**
+   * With no account selected we show a combined view. That total is only
+   * honest if the accounts share a currency.
+   */
+  const mixedCurrencies = useMemo(
+    () => hasMixedCurrencies(trades, accounts, activeAccountId),
+    [trades, accounts, activeAccountId]
+  );
+
+  const m = usePerformanceMetrics(scopedTrades, lang);
+
   const todayPnL = useMemo(
     () =>
-      trades
+      scopedTrades
         .filter(tr => isSameLocalDay(tr.entry_time))
         .reduce((sum, tr) => sum + (tr.pnl || 0), 0),
-    [trades]
+    [scopedTrades]
   );
 
   /** Cumulative equity points, for the hero sparkline. */
@@ -96,6 +121,19 @@ export const DashboardScreen: React.FC = () => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* A combined total across currencies is not a quantity. Say so rather
+          than stamping one symbol on a sum of euros and dollars. */}
+      {mixedCurrencies ? (
+        <View style={styles.warnBanner}>
+          <Info color={theme.colors.red} size={14} strokeWidth={2} />
+          <Text style={styles.warnBannerText}>
+            <Text style={styles.warnBannerStrong}>{t('mixedCurrencies')}</Text>
+            {'  '}
+            {t('mixedCurrenciesHint')}
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── 1. HERO — the one number that matters, and nothing next to it ── */}
       <Animated.View entering={FadeInDown.duration(duration.base)} style={styles.hero}>
         <View style={styles.heroTop}>
@@ -250,7 +288,7 @@ export const DashboardScreen: React.FC = () => {
       ) : null}
 
       {/* ── 7. DISCIPLINE (replaces the achievements wall) ── */}
-      {m.totalTrades > 0 ? <DisciplineCard trades={trades} /> : null}
+      {m.totalTrades > 0 ? <DisciplineCard trades={scopedTrades} /> : null}
 
       {/* ── 8. SESSIONS ── */}
       <MarketSessionsBar />
@@ -334,7 +372,7 @@ export const DashboardScreen: React.FC = () => {
       <ShareCardModal
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
-        trades={trades}
+        trades={scopedTrades}
         accountName={activeAccount?.name || 'Compte Principal'}
       />
     </ScrollView>
@@ -360,6 +398,28 @@ const createStyles = (theme: AppTheme) =>
     },
 
     // Hero
+    warnBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderLeftWidth: 2,
+      borderLeftColor: theme.colors.red,
+    },
+    warnBannerText: {
+      flex: 1,
+      color: theme.colors.textSecondary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+      lineHeight: 17,
+    },
+    warnBannerStrong: {
+      color: theme.colors.red,
+      fontFamily: theme.fonts.monoBold,
+    },
     hero: {
       marginBottom: theme.spacing.lg,
     },
