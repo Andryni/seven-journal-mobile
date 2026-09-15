@@ -46,14 +46,18 @@ export const SevenMark: React.FC<SevenMarkProps> = ({
   // Geometry in viewBox units, mirroring draw_mark() at inset 0.22.
   const m = 22;
   const w = 100 - m * 2;
-  const stroke = w * 0.175;
+  const stroke = w * 0.144;
 
-  const yTop = m + w * 0.04;
+  const yTop = m + w * 0.12;
   const xFoot = m + w * 0.4;
-  const yFoot = m + w * 0.78;
+  const yFoot = m + w * 0.8;
 
-  const baseH = w * 0.075;
-  const baseY = m + w * 0.93;
+  // Inset from the numeral's width: a rule running the full span competes
+  // with the top bar, and two equal horizontals read as a striped block
+  // rather than a figure standing on an axis.
+  const baseH = w * 0.072;
+  const baseY = m + w * 0.92;
+  const baseInset = w * 0.082;
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
@@ -78,9 +82,9 @@ export const SevenMark: React.FC<SevenMarkProps> = ({
         />
         {/* The baseline it stands on. */}
         <Rect
-          x={m}
+          x={m + baseInset}
           y={baseY}
-          width={w}
+          width={w - baseInset * 2}
           height={baseH}
           rx={baseH / 2}
           fill={rule}

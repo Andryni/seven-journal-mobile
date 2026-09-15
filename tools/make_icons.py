@@ -55,15 +55,15 @@ def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True):
 
     m = S * inset
     w = S - 2 * m
-    stroke = int(w * 0.175)
+    stroke = int(w * 0.144)
     r = stroke / 2
 
-    # Geometry in fractions of the inner box. The foot stops short of the
-    # bottom to leave the baseline its own air.
+    # Geometry in fractions of the inner box, matched to the reference art.
+    # The foot stops short of the bottom to leave the baseline its own air.
     x0, x1 = m, m + w
-    y_top = m + w * 0.04
+    y_top = m + w * 0.12
     x_foot = m + w * 0.40
-    y_foot = m + w * 0.78
+    y_foot = m + w * 0.80
 
     def dot(x, y):
         d.ellipse([x - r, y - r, x + r, y + r], fill=fg)
@@ -77,9 +77,14 @@ def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True):
 
     # The baseline the numeral stands on.
     if baseline:
-        bh = w * 0.075
-        by = m + w * 0.93
-        d.rounded_rectangle([x0, by, x1, by + bh], radius=bh / 2, fill=accent)
+        # Inset from the numeral's own width: a rule running the full span
+        # competes with the top bar for the eye, and the two equal horizontals
+        # made the mark read as a striped block rather than a figure standing
+        # on an axis.
+        bh = w * 0.072
+        by = m + w * 0.92
+        bx = w * 0.082
+        d.rounded_rectangle([x0 + bx, by, x1 - bx, by + bh], radius=bh / 2, fill=accent)
 
     # Optically centre on the drawn ink rather than the nominal box.
     bbox = img.getbbox()
