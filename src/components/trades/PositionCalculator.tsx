@@ -193,7 +193,9 @@ export const PositionCalculator: React.FC = () => {
               <Text style={[styles.resultItemValue, { color: theme.colors.redLight }]}>
                 {sym}{actualRisk?.toFixed(2)}
               </Text>
-              {activeAccount && (
+              {/* A zero balance renders "Infinity%" -- a blown or freshly
+                  created account is exactly when this screen gets opened. */}
+              {activeAccount && activeAccount.balance > 0 && (
                 <Text style={styles.resultItemSub}>
                   {((actualRisk! / activeAccount.balance) * 100).toFixed(2)}%
                 </Text>

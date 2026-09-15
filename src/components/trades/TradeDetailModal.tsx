@@ -150,19 +150,26 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               <View style={styles.costBox}>
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>{t('tdGrossPnl')}</Text>
-                  <Text style={styles.costValue}>{money(gross ?? 0)}</Text>
+                  <Text style={styles.costValue} numberOfLines={1}>{money(gross ?? 0)}</Text>
                 </View>
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>{t('tdCommission')}</Text>
-                  <Text style={styles.costNegative}>-{money(Math.abs(trade.commission ?? 0))}</Text>
+                  <Text style={styles.costNegative} numberOfLines={1}>
+                    -{money(Math.abs(trade.commission ?? 0))}
+                  </Text>
                 </View>
                 <View style={styles.costRow}>
                   <Text style={styles.costLabel}>{t('tdSwap')}</Text>
-                  <Text style={styles.costNegative}>-{money(Math.abs(trade.swap ?? 0))}</Text>
+                  <Text style={styles.costNegative} numberOfLines={1}>
+                    -{money(Math.abs(trade.swap ?? 0))}
+                  </Text>
                 </View>
                 <View style={[styles.costRow, styles.costTotalRow]}>
                   <Text style={styles.costTotalLabel}>{t('tdNetPnl')}</Text>
-                  <Text style={[styles.costTotalValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}>
+                  <Text
+                    style={[styles.costTotalValue, isWin ? styles.greenText : isLoss ? styles.redText : null]}
+                    numberOfLines={1}
+                  >
                     {money(trade.pnl ?? 0)}
                   </Text>
                 </View>

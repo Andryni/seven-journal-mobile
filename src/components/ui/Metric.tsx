@@ -31,6 +31,19 @@ interface MetricProps {
    * happens to point.
    */
   trendInverted?: boolean;
+  /**
+   * Value the trend is judged against when picking green or red.
+   *
+   * Without it the sparkline compares the last point to the FIRST, which is
+   * meaningless for these series: after one closed trade a win rate is either
+   * 0 or 100 and an expectancy is that single trade's P&L, so almost any real
+   * history reads as a decline. A trader with a 57% win rate and a positive
+   * expectancy was shown two red sparklines.
+   *
+   * Pass the value that separates good from bad for this metric -- 50 for a
+   * win rate, 1 for a profit factor, 0 for an expectancy.
+   */
+  trendBaseline?: number;
   style?: ViewStyle;
 }
 
@@ -47,6 +60,7 @@ export const Metric: React.FC<MetricProps> = ({
   value,
   trend,
   trendInverted = false,
+  trendBaseline,
   sub,
   size = 'default',
   tone = 'default',
@@ -97,6 +111,13 @@ export const Metric: React.FC<MetricProps> = ({
         <View style={styles.spark}>
           <Sparkline
             data={trendInverted ? trend.map(v => -v) : trend}
+            baseline={
+              trendBaseline === undefined
+                ? undefined
+                : trendInverted
+                ? -trendBaseline
+                : trendBaseline
+            }
             width={78}
             height={22}
             strokeWidth={1.5}

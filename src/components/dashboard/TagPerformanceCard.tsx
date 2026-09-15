@@ -56,7 +56,10 @@ export const TagPerformanceCard: React.FC<{ trades: Trade[] }> = ({ trades }) =>
                   {row.trades} · {row.winRate.toFixed(0)}%
                 </Text>
               </View>
-              <Text style={[styles.expectancy, positive ? styles.green : styles.red]}>
+              <Text
+                style={[styles.expectancy, positive ? styles.green : styles.red]}
+                numberOfLines={1}
+              >
                 {money(row.expectancy)}
               </Text>
             </View>
@@ -110,7 +113,7 @@ const createStyles = (theme: AppTheme) =>
     },
     tagMeta: {
       color: theme.colors.textMuted,
-      fontSize: 8.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
     },
     expectancy: { fontSize: 11, fontFamily: theme.fonts.monoBold },
@@ -119,7 +122,7 @@ const createStyles = (theme: AppTheme) =>
     advice: {
       marginTop: 12,
       color: theme.colors.gold,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
       lineHeight: 14,
     },

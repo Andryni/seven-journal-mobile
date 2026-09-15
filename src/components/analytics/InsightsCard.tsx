@@ -65,6 +65,8 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
     not_enough_data: 'coachErrorNotEnough',
     not_configured: 'coachErrorNotConfigured',
     rate_limited: 'coachErrorRateLimited',
+    not_deployed: 'coachErrorNotDeployed',
+    unauthorized: 'coachErrorUnauthorized',
     network: 'coachErrorNetwork',
     unknown: 'coachErrorUnknown',
   } as const;

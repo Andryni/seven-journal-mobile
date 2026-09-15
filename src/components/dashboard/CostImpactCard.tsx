@@ -87,11 +87,13 @@ export const CostImpactCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
 
         <View style={styles.footRow}>
           <Text style={styles.footLabel}>{t('costAvgPerTrade')}</Text>
-          <Text style={styles.footValue}>{money(s.avgCostPerTrade)}</Text>
+          <Text style={styles.footValue} numberOfLines={1}>
+            {money(s.avgCostPerTrade)}
+          </Text>
         </View>
         <View style={styles.footRow}>
           <Text style={styles.footLabel}>{t('costExpectancy')}</Text>
-          <Text style={styles.footValue}>
+          <Text style={styles.footValue} numberOfLines={1}>
             {money(s.grossExpectancy)} → {money(s.netExpectancy)}
           </Text>
         </View>
@@ -127,7 +129,7 @@ const createStyles = (theme: AppTheme) =>
     cell: { flex: 1 },
     cellLabel: {
       color: theme.colors.textSecondary,
-      fontSize: 8.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.5,
       marginBottom: 4,
@@ -156,7 +158,7 @@ const createStyles = (theme: AppTheme) =>
     },
     footLabel: {
       color: theme.colors.textSecondary,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
     },
     footValue: {
@@ -167,7 +169,7 @@ const createStyles = (theme: AppTheme) =>
     warn: {
       marginTop: 12,
       color: theme.colors.gold,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
       lineHeight: 14,
     },

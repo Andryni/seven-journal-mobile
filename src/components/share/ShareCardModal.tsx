@@ -339,7 +339,7 @@ const createStyles = (theme: AppTheme) =>
     },
     scopeText: {
       color: theme.colors.textMuted,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.5,
     },
@@ -387,7 +387,7 @@ const createStyles = (theme: AppTheme) =>
     },
     cardDate: {
       color: theme.colors.textSecondary,
-      fontSize: 8.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.6,
     },
@@ -457,13 +457,13 @@ const createStyles = (theme: AppTheme) =>
     verified: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     verifiedText: {
       color: theme.colors.green,
-      fontSize: 7.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.6,
     },
     watermark: {
       color: theme.colors.textMuted,
-      fontSize: 7.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.6,
     },
@@ -485,14 +485,14 @@ const createStyles = (theme: AppTheme) =>
     },
     actionGhostText: {
       color: theme.colors.textSecondary,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.6,
     },
     actionPrimary: { backgroundColor: theme.colors.primary },
     actionPrimaryText: {
       color: theme.colors.background,
-      fontSize: 9.5,
+      fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.6,
     },

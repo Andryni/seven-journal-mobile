@@ -22,6 +22,8 @@ export interface CoachResult {
 export type CoachError =
   | 'not_enough_data'
   | 'not_configured'
+  | 'not_deployed'
+  | 'unauthorized'
   | 'rate_limited'
   | 'network'
   | 'unknown';
@@ -46,27 +48,48 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
       });
 
       if (fnError) {
-        // invoke() turns a non-2xx into an error, so the body has to be read
-        // back off it to tell a daily-cap refusal from a dead network.
+        /**
+         * invoke() collapses any non-2xx into an error object, so the real
+         * cause has to be read back off it. Without this every failure --
+         * a missing secret, a retired model id, a rejected key -- surfaced as
+         * "Summary unavailable. Try again later", which is both wrong and
+         * unactionable: none of those get better by waiting.
+         */
         const ctx = (fnError as { context?: Response }).context;
-        if (ctx?.status === 429) {
-          setError('rate_limited');
-          return;
-        }
+
+        let code: string | null = null;
         if (ctx) {
           try {
             const body = await ctx.clone().json();
-            if (body?.error === 'rate_limited') {
-              setError('rate_limited');
-              return;
-            }
-            if (body?.error === 'not_configured') {
-              setError('not_configured');
-              return;
-            }
+            if (typeof body?.error === 'string') code = body.error;
           } catch {
-            // Fall through to the generic network error.
+            // Non-JSON body; fall back to the status code below.
           }
+        }
+
+        if (code === 'rate_limited' || ctx?.status === 429) {
+          setError('rate_limited');
+          return;
+        }
+        if (code === 'not_configured' || ctx?.status === 503) {
+          setError('not_configured');
+          return;
+        }
+        if (ctx?.status === 401 || ctx?.status === 403) {
+          // The function itself refused us: the user's session is stale.
+          setError('unauthorized');
+          return;
+        }
+        if (ctx?.status === 404) {
+          // The function is not deployed under this name.
+          setError('not_deployed');
+          return;
+        }
+        if (ctx) {
+          // Reached the server, which failed: not a connectivity problem.
+          console.warn('coach: upstream failed', ctx.status, code);
+          setError('unknown');
+          return;
         }
         setError('network');
         return;

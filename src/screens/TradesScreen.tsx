@@ -860,7 +860,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   colR: {
     width: 54,
     textAlign: 'right',
-    fontSize: theme.type.label,
+    fontSize: theme.type.body,
     fontFamily: theme.fonts.monoMedium,
     fontVariant: ['tabular-nums'],
   },
@@ -869,7 +869,16 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'flex-end',
   },
   pnl: {
-    fontSize: theme.type.metricSm,
+    /**
+     * Same size as the instrument and the R multiple beside it.
+     *
+     * P&L was metricSm (15) against body (12) and label (10), a five-point
+     * spread inside one row, which made the blotter look ragged rather than
+     * hierarchical. These three are scanned together, so they share a size
+     * and are separated by weight and colour -- P&L stays extra-bold and
+     * coloured, and still reads first.
+     */
+    fontSize: theme.type.body,
     fontFamily: theme.fonts.monoExtraBold,
     fontVariant: ['tabular-nums'],
   },

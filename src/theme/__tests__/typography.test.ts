@@ -73,6 +73,19 @@ describe('typography', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('never uses a fractional font size', () => {
+    // 9.5 and 8.5 are not design decisions, they are drift. The ramp in
+    // src/theme has eight steps; a size between two of them means someone
+    // nudged a number until it looked right on one screen.
+    const offenders: string[] = [];
+    for (const file of files) {
+      const source = fs.readFileSync(file, 'utf8');
+      const hits = source.match(/fontSize: \d+\.\d+/g);
+      if (hits) offenders.push(`${path.relative(SRC, file)} → ${hits.join(', ')}`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it('routes every family through the theme rather than hardcoding a name', () => {
     // ErrorBoundary is the one allowed exception: it renders when the theme
     // provider itself may have failed, so it cannot read from the theme.

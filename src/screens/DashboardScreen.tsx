@@ -268,6 +268,7 @@ export const DashboardScreen: React.FC = () => {
                 size="small"
                 align="center"
                 trend={trends.winRate}
+                trendBaseline={50}
               />
             </View>
             <View style={styles.vRule} />
@@ -282,6 +283,7 @@ export const DashboardScreen: React.FC = () => {
                 align="center"
                 tone="accent"
                 trend={trends.profitFactor}
+                trendBaseline={1}
               />
             </View>
           </View>
@@ -299,6 +301,7 @@ export const DashboardScreen: React.FC = () => {
                 tone="pnl"
                 pnlValue={expectancy}
                 trend={trends.expectancy}
+                trendBaseline={0}
               />
             </View>
             <View style={styles.vRule} />
@@ -312,6 +315,7 @@ export const DashboardScreen: React.FC = () => {
                 tone="pnl"
                 pnlValue={-m.maxDrawdown}
                 trend={trends.drawdown}
+                trendBaseline={0}
                 trendInverted
               />
             </View>

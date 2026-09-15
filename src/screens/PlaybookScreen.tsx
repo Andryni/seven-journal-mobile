@@ -1424,7 +1424,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   checkChipText: {
     color: theme.colors.textMuted,
-    fontSize: 9.5,
+    fontSize: theme.type.micro,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.4,
   },

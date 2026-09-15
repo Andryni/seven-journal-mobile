@@ -326,7 +326,7 @@ export const AccountsScreen: React.FC = () => {
             <View style={styles.targetProgressHeader}>
               <Text style={styles.targetProgressTitle}>{t('targetProgress')}</Text>
               <Text style={styles.targetProgressPercent}>
-                {Math.min(100, Math.max(0, (cumulativePnl / item.profit_target) * 100)).toFixed(1)}%
+                {Math.min(100, Math.max(0, (cumulativePnl / item.profit_target!) * 100) || 0).toFixed(1)}%
               </Text>
             </View>
             <View style={styles.progressBarTrack}>
