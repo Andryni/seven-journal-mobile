@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, PanResponder } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,6 +13,8 @@ import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { duration as motionDuration, easing as motionEasing } from '../../theme/motion';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { buildAxis, downsample, nearestIndex, smoothPath } from '../../utils/chartScale';
+import { hapticLight } from '../../utils/haptics';
 import Svg, {
   Path,
   Defs,
@@ -102,11 +104,51 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
     opacity: 0.6 * (1 - pulse.value),
   }));
 
+  // Hooks must run unconditionally, so the responder is created before the
+  // empty-data bail-out and reads its bounds from a ref.
+  const scrubBounds = React.useRef({ width: 1, count: 0 });
+  const scrubResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: evt => {
+          const { width, count } = scrubBounds.current;
+          const idx = nearestIndex(evt.nativeEvent.locationX, width, count);
+          if (idx >= 0) {
+            setSelectedIndex(idx);
+            hapticLight();
+          }
+        },
+        onPanResponderMove: evt => {
+          const { width, count } = scrubBounds.current;
+          const idx = nearestIndex(evt.nativeEvent.locationX, width, count);
+          setSelectedIndex(prev => {
+            // Only buzz when the selection actually changes, otherwise the
+            // phone vibrates continuously for the whole drag.
+            if (idx !== prev && idx >= 0) hapticLight();
+            return idx >= 0 ? idx : prev;
+          });
+        },
+        // Deliberately no reset on release: leaving the readout on the last
+        // inspected point is what lets someone read the number after lifting.
+      }),
+    []
+  );
+
   if (!data || data.length === 0) return null;
 
-  const values = data.map(d => d.value);
-  const minVal = Math.min(0, ...values);
-  const maxVal = Math.max(10, ...values);
+  // A 900-trade curve is three SVG nodes per pixel and renders as a slab; the
+  // shape survives far fewer points, and scrubbing stays responsive.
+  const plotted = downsample(data, 120);
+
+  const values = plotted.map(d => d.value);
+  // Round axis bounds, always including zero. The old code used
+  // `Math.max(10, ...)`, so an account that never cleared $10 got an axis
+  // three times taller than its own data and a curve pinned to the floor.
+  const axis = buildAxis(values, 4);
+  const minVal = axis.min;
+  const maxVal = axis.max;
   const range = maxVal - minVal || 1;
 
   const isOverallPositive =
@@ -114,30 +156,31 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
   const mainColor = isOverallPositive ? theme.colors.green : theme.colors.red;
   const mainColorLight = isOverallPositive ? theme.colors.greenLight : theme.colors.redLight;
 
-  const points = data.map((d, i) => {
-    const x = (i / Math.max(data.length - 1, 1)) * chartW;
+  const points = plotted.map((d, i) => {
+    const x = (i / Math.max(plotted.length - 1, 1)) * chartW;
     const y = paddingTop + chartH - ((d.value - minVal) / range) * chartH;
     return { x, y, value: d.value, date: d.date, index: i + 1 };
   });
 
-  // Smooth bezier path
-  const linePath = points.reduce((acc, p, i, arr) => {
-    if (i === 0) return `M ${p.x} ${p.y}`;
-    const prev = arr[i - 1];
-    const cx1 = prev.x + (p.x - prev.x) / 2;
-    const cy1 = prev.y;
-    const cx2 = prev.x + (p.x - prev.x) / 2;
-    const cy2 = p.y;
-    return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${p.x} ${p.y}`;
-  }, '');
+  // Catmull-Rom rather than midpoint handles: the old curve derived its
+  // control points from the segment alone, so a single spike made the line
+  // overshoot and dip below an axis the data never actually crossed.
+  const linePath = smoothPath(points, 0.5);
 
   const zeroY = paddingTop + chartH - ((0 - minVal) / range) * chartH;
   const bottomY = paddingTop + chartH;
   const fillPath = `${linePath} L ${points[points.length - 1].x} ${bottomY} L ${points[0].x} ${bottomY} Z`;
 
+  // Keep the responder's geometry in sync with what is actually drawn.
+  scrubBounds.current = { width: chartW, count: points.length };
+
   const lastPoint = points[points.length - 1];
-  const activePoint = selectedIndex !== null ? points[selectedIndex] : lastPoint;
-  const isCrosshairVisible = selectedIndex !== null;
+  // A stale index survives a data refresh (fewer points than before), which
+  // would index past the end and crash on activePoint.value.
+  const safeIndex =
+    selectedIndex !== null && selectedIndex < points.length ? selectedIndex : null;
+  const activePoint = safeIndex !== null ? points[safeIndex] : lastPoint;
+  const isCrosshairVisible = safeIndex !== null;
 
   // Pick well-spaced X labels
   const sampleIndices = new Set<number>();
@@ -182,19 +225,27 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
       <View style={[styles.container, { width, height }]}>
 
       <View style={styles.chartRow}>
-        {/* Y-Axis native labels */}
+        {/* Y-Axis: one label per round tick from the shared scale, instead of
+            the raw min/max which produced labels like "$1,247.33". */}
         <View style={[styles.yAxisContainer, { height }]}>
-          <Text style={[styles.yAxisLabel, styles.yAxisTop]}>
-            {formatCompact(maxVal)}
-          </Text>
-          <Text style={[styles.yAxisLabel, styles.yAxisZero, { top: zeroY - 7 }]}>
-            {symbol}0
-          </Text>
-          {minVal < 0 && (
-            <Text style={[styles.yAxisLabel, styles.yAxisBottom, styles.redText]}>
-              {formatCompact(minVal)}
-            </Text>
-          )}
+          {axis.ticks.map(tick => {
+            const y = paddingTop + chartH - axis.normalize(tick) * chartH;
+            const isZero = tick === 0;
+            return (
+              <Text
+                key={tick}
+                style={[
+                  styles.yAxisLabel,
+                  { position: 'absolute', right: 8, top: y - 7 },
+                  isZero && styles.yAxisZeroTick,
+                  tick < 0 && styles.redText,
+                ]}
+                numberOfLines={1}
+              >
+                {isZero ? `${symbol}0` : formatCompact(tick)}
+              </Text>
+            );
+          })}
         </View>
 
         <Animated.View style={[{ width: chartW + paddingRight, height }, revealStyle]}>
@@ -210,7 +261,24 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               </LinearGradient>
             </Defs>
 
-            {/* Grid */}
+            {/* Grid: a faint line per axis tick, so the eye can read a value
+                off the curve without a crosshair. */}
+            {axis.ticks.map(tick => {
+              const y = paddingTop + chartH - axis.normalize(tick) * chartH;
+              if (tick === 0) return null;
+              return (
+                <Line
+                  key={`grid-${tick}`}
+                  x1={0}
+                  y1={y}
+                  x2={chartW}
+                  y2={y}
+                  stroke={theme.colors.cardBorder}
+                  strokeWidth="1"
+                  strokeOpacity="0.5"
+                />
+              );
+            })}
             <Line x1={0} y1={paddingTop} x2={chartW} y2={paddingTop} stroke={theme.colors.cardBorder} strokeWidth="1" />
             <Line x1={0} y1={zeroY} x2={chartW} y2={zeroY} stroke={theme.colors.borderBright} strokeWidth="1" strokeDasharray="4 4" />
             <Line x1={0} y1={bottomY} x2={chartW} y2={bottomY} stroke={theme.colors.cardBorder} strokeWidth="1" />
@@ -312,17 +380,15 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
             })}
           </View>
 
-          {/* Touch zones */}
-          <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', width: chartW }]}>
-            {points.map((_, i) => (
-              <TouchableOpacity
-                key={i}
-                style={{ flex: 1, height: '100%' }}
-                onPress={() => setSelectedIndex(selectedIndex === i ? null : i)}
-                activeOpacity={1}
-              />
-            ))}
-          </View>
+          {/* Scrub layer.
+              This used to be one TouchableOpacity per point -- up to 120 views
+              stacked over the plot, each needing a discrete tap on a ~3px
+              target. Dragging did nothing, and tapping mostly missed. A single
+              responder tracks the finger and snaps to the nearest point. */}
+          <View
+            style={[StyleSheet.absoluteFill, { width: chartW }]}
+            {...scrubResponder.panHandlers}
+          />
         </Animated.View>
       </View>
       </View>
@@ -349,6 +415,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     paddingRight: 6,
     position: 'relative',
     justifyContent: 'space-between',
+  },
+  yAxisZeroTick: {
+    color: theme.colors.textSecondary,
   },
   yAxisLabel: {
     fontSize: 9,

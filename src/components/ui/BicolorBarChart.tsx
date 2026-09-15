@@ -11,6 +11,7 @@ import Svg, { Rect, Line, G } from 'react-native-svg';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { buildAxis } from '../../utils/chartScale';
 
 interface BicolorBarChartProps {
   data: { label: string; value: number }[];
@@ -58,7 +59,12 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const chartWidth = effectiveChartWidth - yAxisWidth - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
 
-  const maxVal = Math.max(...(data.length ? data.map(d => Math.abs(d.value)) : [0]), 100);
+  // Symmetric axis, rounded outwards to a readable number. The old floor of
+  // 100 meant a week whose best day was +18 was drawn against a +/-100 scale,
+  // flattening every bar to a stub; and an unrounded max produced labels like
+  // "+1,247.33". buildAxis is shared with the other charts so they agree.
+  const peak = data.length ? Math.max(...data.map(d => Math.abs(d.value))) : 0;
+  const maxVal = peak > 0 ? buildAxis([-peak, peak], 2).max : 1;
   const zeroY = paddingTop + chartHeight / 2;
   const barWidth = Math.min(22, chartWidth / Math.max(data.length, 1) - 6);
 
@@ -70,7 +76,10 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   if (!data || data.length === 0) return null;
 
-  const activeItem = selectedIdx !== null ? data[selectedIdx] : data[data.length - 1];
+  // A stale index survives a data refresh with fewer bars and would index
+  // past the end, crashing on activeItem.value.
+  const safeIdx = selectedIdx !== null && selectedIdx < data.length ? selectedIdx : null;
+  const activeItem = safeIdx !== null ? data[safeIdx] : data[data.length - 1];
 
   const formatCompact = (val: number) =>
     formatCurrency(val, { symbol: yAxisPrefix, compact: true, showPlus: false, decimals: 0 });
@@ -121,7 +130,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
               const isPositive = item.value >= 0;
               const barHeight = (Math.abs(item.value) / maxVal) * (chartHeight / 2);
               const y = isPositive ? zeroY - barHeight : zeroY;
-              const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
+              const isSelected = (safeIdx === null && index === data.length - 1) || safeIdx === index;
 
               return (
                 <G key={index}>
@@ -145,7 +154,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
           <View style={[styles.xAxisRow, { width: chartWidth, height: xLabelHeight }]}>
             {data.map((item, index) => {
               const segmentWidth = chartWidth / data.length;
-              const isSelected = (selectedIdx === null && index === data.length - 1) || selectedIdx === index;
+              const isSelected = (safeIdx === null && index === data.length - 1) || safeIdx === index;
               return (
                 <Text
                   key={index}
