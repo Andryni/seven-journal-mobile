@@ -1,3 +1,5 @@
+import { localDayKey } from './formatDate';
+
 interface CalculateRMultipleParams {
   direction: 'BUY' | 'SELL';
   entryPrice: number;
@@ -33,7 +35,11 @@ export function calculateConsistencyScore(trades: TradePnLEntry[]): ConsistencyR
   
   trades.forEach(t => {
     if (t.pnl && t.exit_time) {
-      const dateStr = t.exit_time.split('T')[0];
+      // Group by the LOCAL trading day, like every other day-bucketing in the
+      // app (and now the server-side lock). Slicing the ISO string groups by
+      // UTC, so an evening trade in a positive-offset zone landed on the next
+      // day and skewed the best-day ratio this score is built on.
+      const dateStr = localDayKey(new Date(t.exit_time));
       dailyPnL[dateStr] = (dailyPnL[dateStr] || 0) + t.pnl;
     }
   });

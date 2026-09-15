@@ -98,9 +98,9 @@ export const AccountsScreen: React.FC = () => {
     setMaxDailyLoss(acc.max_daily_loss_limit ? acc.max_daily_loss_limit.toString() : '');
     setProfitTarget(acc.profit_target ? acc.profit_target.toString() : '');
     setMaxDrawdownLimit(acc.max_drawdown_limit ? acc.max_drawdown_limit.toString() : '');
-    setDrawdownType((acc as any).drawdown_type || 'static');
-    setConsistencyRulePercent((acc as any).consistency_rule_percent ? (acc as any).consistency_rule_percent.toString() : '15');
-    setChallengeEndDate((acc as any).challenge_end_date || '');
+    setDrawdownType(acc.drawdown_type || 'static');
+    setConsistencyRulePercent(acc.consistency_rule_percent ? acc.consistency_rule_percent.toString() : '15');
+    setChallengeEndDate(acc.challenge_end_date || '');
     setInstrumentType(acc.instrument_type || 'CFD');
     setModalVisible(true);
   };
@@ -127,12 +127,20 @@ export const AccountsScreen: React.FC = () => {
       challenge_end_date: challengeEndDate || null,
     };
 
-    if (editingAcc) {
-      await updateAccount({ id: editingAcc.id, ...payload });
-    } else {
-      await createAccount(payload);
+    // mutateAsync rejects on failure. Without a catch the rejection is
+    // unhandled, the modal stays open with no explanation, and on Android an
+    // unhandled rejection can take the app down. The hook raises the toast.
+    try {
+      if (editingAcc) {
+        await updateAccount({ id: editingAcc.id, ...payload });
+      } else {
+        await createAccount(payload);
+      }
+      setModalVisible(false);
+    } catch {
+      // Reported by useAccounts' onError; keep the form open so the user's
+      // input is not lost.
     }
-    setModalVisible(false);
   };
 
   const onRefresh = async () => {
@@ -148,7 +156,17 @@ export const AccountsScreen: React.FC = () => {
       t('confirmDeleteAccount'),
       [
         { text: t('confirmNo'), style: 'cancel' },
-        { text: t('confirmYes'), style: 'destructive', onPress: async () => { await deleteAccount(id); } },
+        {
+          text: t('confirmYes'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount(id);
+            } catch {
+              /* reported by useAccounts' onError */
+            }
+          },
+        },
       ],
     );
   };

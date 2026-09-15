@@ -248,6 +248,18 @@ export const translations = {
     cap: 'Cap',
     targetProgress: "PROGRESSION DE L'OBJECTIF (TARGET)",
     editAccountA11y: (name: string) => `Modifier le compte ${name}`,
+    importTitle: 'Import',
+    importNoAccount: 'Cr\u00e9e d\u2019abord un compte pour y importer les trades.',
+    importFound: (n: number) => `${n} trade(s) trouv\u00e9(s). Importer ?`,
+    importNone: 'Aucun trade d\u00e9tect\u00e9 dans ce fichier.',
+    importConfirm: 'Importer',
+    importError: 'Erreur lors de l\u2019import du fichier.',
+    exportError: 'Erreur lors de l\u2019export.',
+    errorTitle: 'Erreur',
+    unlockA11y: 'D\u00e9verrouiller',
+    importDone: (n: number) => `${n} trade(s) import\u00e9(s).`,
+    importPartial: (ok: number, ko: number) =>
+      `${ok} trade(s) import\u00e9(s), ${ko} \u00e9chec(s).`,
     deleteAccountA11y: (name: string) => `Supprimer le compte ${name}`,
 
     // Data labels — sessions (ids stockés en DB : '', 'Asia', 'London', 'New York', 'Over Session')
@@ -673,6 +685,13 @@ export const translations = {
     toastErrorCreate: 'Erreur lors de la création du trade',
     toastErrorUpdate: 'Erreur lors de la mise à jour du trade',
     toastErrorDelete: 'Erreur lors de la suppression du trade',
+    toastErrorAccountSave: 'Impossible d\u2019enregistrer le compte',
+    toastErrorAccountDelete: 'Impossible de supprimer le compte',
+    toastErrorSetupSave: 'Impossible d\u2019enregistrer le setup',
+    toastErrorSetupDelete: 'Impossible de supprimer le setup',
+    toastErrorDebriefSave: 'Impossible d\u2019enregistrer le d\u00e9briefing',
+    toastErrorDebriefDelete: 'Impossible de supprimer le d\u00e9briefing',
+    toastErrorChecklist: 'Impossible de mettre \u00e0 jour la checklist',
   },
   en: {
     // Navigation
@@ -921,6 +940,18 @@ export const translations = {
     cap: 'Cap',
     targetProgress: 'TARGET PROGRESSION',
     editAccountA11y: (name: string) => `Edit account ${name}`,
+    importTitle: 'Import',
+    importNoAccount: 'Create an account first to import trades into it.',
+    importFound: (n: number) => `${n} trade(s) found. Import?`,
+    importNone: 'No trade detected in this file.',
+    importConfirm: 'Import',
+    importError: 'Error importing the file.',
+    exportError: 'Error exporting.',
+    errorTitle: 'Error',
+    unlockA11y: 'Unlock',
+    importDone: (n: number) => `${n} trade(s) imported.`,
+    importPartial: (ok: number, ko: number) =>
+      `${ok} trade(s) imported, ${ko} failed.`,
     deleteAccountA11y: (name: string) => `Delete account ${name}`,
 
     // Data labels — sessions
@@ -1346,6 +1377,13 @@ export const translations = {
     toastErrorCreate: 'Error creating trade',
     toastErrorUpdate: 'Error updating trade',
     toastErrorDelete: 'Error deleting trade',
+    toastErrorAccountSave: 'Could not save the account',
+    toastErrorAccountDelete: 'Could not delete the account',
+    toastErrorSetupSave: 'Could not save the setup',
+    toastErrorSetupDelete: 'Could not delete the setup',
+    toastErrorDebriefSave: 'Could not save the debrief',
+    toastErrorDebriefDelete: 'Could not delete the debrief',
+    toastErrorChecklist: 'Could not update the checklist',
   },
 } as const;
 

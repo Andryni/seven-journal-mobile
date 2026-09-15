@@ -109,7 +109,17 @@ export const TradesScreen: React.FC = () => {
       t('confirmDeleteTrade'),
       [
         { text: t('confirmNo'), style: 'cancel' },
-        { text: t('confirmYes'), style: 'destructive', onPress: async () => { await deleteTrade(id); } },
+        {
+          text: t('confirmYes'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTrade(id);
+            } catch {
+              /* reported by useTrades' onError */
+            }
+          },
+        },
       ],
     );
   };
@@ -143,59 +153,76 @@ export const TradesScreen: React.FC = () => {
 
       if (parsedTrades.length > 0) {
         Alert.alert(
-          "Import",
-          `${parsedTrades.length} trade(s) trouvé(s). Importer ?`,
+          t('importTitle'),
+          t('importFound', parsedTrades.length),
           [
-            { text: "Annuler", style: "cancel" },
+            { text: t('confirmNo'), style: "cancel" },
             {
-              text: "Importer",
+              text: t('importConfirm'),
               onPress: async () => {
-                for (const t of parsedTrades) {
-                  await createTrade({
-                    // Import into the account being viewed, not an arbitrary
-                    // first one: otherwise the rows land somewhere the trader
-                    // is not looking and appear to have been dropped.
-                    account_id: activeAccountId || accounts[0]?.id || "",
-                    pair: t.pair || "XAUUSD",
-                    direction: t.direction || "BUY",
-                    entry_price: Number(t.entry_price),
-                    exit_price: t.exit_price ? Number(t.exit_price) : null,
-                    stop_loss: Number(t.stop_loss),
-                    take_profit: Number(t.take_profit),
-                    size: Number(t.size),
-                    entry_time: t.entry_time || new Date().toISOString(),
-                    exit_time: t.exit_time || null,
-                    pnl: t.pnl != null ? Number(t.pnl) : null,
-                    r_multiple: t.r_multiple != null ? Number(t.r_multiple) : null,
-                    timeframe: t.timeframe || "M5",
-                    setup_structures: [],
-                    setup_fvg: false,
-                    setup_ob: false,
-                    setup_liquidity_sweep: false,
-                    bookmap_absorption: null,
-                    bookmap_passive_orders: null,
-                    bookmap_aggressive_orders: null,
-                    bookmap_vwap_position: null,
-                    mental_state: "focused",
-                    cookie_jar_ref: false,
-                    rule_40_percent: false,
-                    screenshot_before_url: null,
-                    screenshot_after_url: null,
-                    notes: t.notes || null,
-                    result: t.result || "OPEN",
-                    session: null,
-                  } as any);
+                const targetAccount = activeAccountId || accounts[0]?.id;
+                if (!targetAccount) {
+                  Alert.alert(t('importTitle'), t('importNoAccount'));
+                  return;
                 }
-                Alert.alert("Succes", `${parsedTrades.length} trade(s) importe(s).`);
+
+                // Import each row independently. A single malformed row used
+                // to reject the loop, skipping every remaining trade while
+                // still reporting success for the full count.
+                const results = await Promise.allSettled(
+                  parsedTrades.map(row =>
+                    createTrade({
+                      account_id: targetAccount,
+                      pair: row.pair || "XAUUSD",
+                      direction: row.direction || "BUY",
+                      entry_price: Number(row.entry_price),
+                      exit_price: row.exit_price ? Number(row.exit_price) : null,
+                      stop_loss: Number(row.stop_loss),
+                      take_profit: Number(row.take_profit),
+                      size: Number(row.size),
+                      entry_time: row.entry_time || new Date().toISOString(),
+                      exit_time: row.exit_time || null,
+                      pnl: row.pnl != null ? Number(row.pnl) : null,
+                      r_multiple: row.r_multiple != null ? Number(row.r_multiple) : null,
+                      timeframe: row.timeframe || "M5",
+                      setup_structures: [],
+                      setup_fvg: false,
+                      setup_ob: false,
+                      setup_liquidity_sweep: false,
+                      bookmap_absorption: null,
+                      bookmap_passive_orders: null,
+                      bookmap_aggressive_orders: null,
+                      bookmap_vwap_position: null,
+                      mental_state: "focused",
+                      cookie_jar_ref: false,
+                      rule_40_percent: false,
+                      screenshot_before_url: null,
+                      screenshot_after_url: null,
+                      notes: row.notes || null,
+                      result: row.result || "OPEN",
+                      session: null,
+                    } as any)
+                  )
+                );
+
+                const imported = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.length - imported;
+
+                Alert.alert(
+                  t('importTitle'),
+                  failed === 0
+                    ? t('importDone', imported)
+                    : t('importPartial', imported, failed)
+                );
               },
             },
           ],
         );
       } else {
-        Alert.alert("Import", "Aucun trade detecte dans ce fichier.");
+        Alert.alert(t('importTitle'), t('importNone'));
       }
     } catch {
-      Alert.alert("Erreur", "Erreur lors de l import du fichier.");
+      Alert.alert(t('errorTitle'), t('importError'));
     }
   };
 
@@ -208,7 +235,7 @@ export const TradesScreen: React.FC = () => {
       await FileSystem.writeAsStringAsync(fileUri, csv);
       await Sharing.shareAsync(fileUri);
     } catch {
-      Alert.alert("Erreur", "Erreur lors de l export.");
+      Alert.alert(t('errorTitle'), t('exportError'));
     }
   };
   // Filtered & Searched Trades

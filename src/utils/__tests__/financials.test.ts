@@ -175,3 +175,19 @@ describe('calculateConsistencyScore', () => {
     expect(result.score).toBe(100);
   });
 });
+
+describe('calculateConsistencyScore day bucketing', () => {
+  it('groups by the local trading day, not the UTC calendar day', () => {
+    // Two trades on the same LOCAL evening. If grouped by the UTC date they
+    // can fall on different days, halving the best-day ratio and silently
+    // turning a consistency breach into a pass.
+    const mk = (localHour: number, pnl: number) => {
+      const d = new Date(2026, 0, 15, localHour, 0, 0);
+      return { pnl, exit_time: d.toISOString() };
+    };
+    const r = calculateConsistencyScore([mk(20, 600), mk(22, 400)]);
+    // Both on Jan 15 local => one day holding 100% of the profit.
+    expect(r.score).toBe(100);
+    expect(r.alert).toBe(true);
+  });
+});

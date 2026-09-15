@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Fingerprint } from 'lucide-react-native';
 import { useTheme } from '../theme';
+import { useT } from '../i18n';
 import type { AppTheme } from '../theme';
 import { duration } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
@@ -18,6 +19,7 @@ interface LockScreenProps {
  */
 export const LockScreen: React.FC<LockScreenProps> = ({ onAuthenticate, isAuthenticating }) => {
   const { theme } = useTheme();
+  const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onAuthenticate, isAuthen
           style={styles.button}
           onPress={onAuthenticate}
           disabled={isAuthenticating}
-          accessibilityLabel="Déverrouiller"
+          accessibilityLabel={t('unlockA11y')}
         >
           {isAuthenticating ? (
             <ActivityIndicator size="small" color={theme.colors.background} />

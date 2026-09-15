@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
+import { useToast } from '../../store/toastStore';
+import { useT } from '../../i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface DailyDebrief {
@@ -94,6 +96,8 @@ async function currentUserId(): Promise<string | null> {
 
 export function usePlaybook() {
   const queryClient = useQueryClient();
+  const { showError } = useToast();
+  const { t } = useT();
 
   const { data: debriefs = [], isLoading } = useQuery<DailyDebrief[]>({
     queryKey: ['daily_debriefs'],
@@ -141,6 +145,9 @@ export function usePlaybook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily_debriefs'] });
     },
+    onError: () => {
+      showError(t('toastErrorDebriefSave'));
+    },
   });
 
   const { mutateAsync: deleteDebrief } = useMutation({
@@ -151,6 +158,9 @@ export function usePlaybook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily_debriefs'] });
     },
+    onError: () => {
+      showError(t('toastErrorDebriefDelete'));
+    },
   });
 
   return { debriefs, isLoading, saveDebrief, isSaving, deleteDebrief };
@@ -158,6 +168,8 @@ export function usePlaybook() {
 
 export function usePlaybookSetups() {
   const queryClient = useQueryClient();
+  const { showError } = useToast();
+  const { t } = useT();
 
   const { data: setups = [], isLoading } = useQuery<PlaybookSetup[]>({
     queryKey: ['playbook_setups'],
@@ -200,6 +212,9 @@ export function usePlaybookSetups() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playbook_setups'] });
     },
+    onError: () => {
+      showError(t('toastErrorSetupSave'));
+    },
   });
 
   const { mutateAsync: deleteSetup } = useMutation({
@@ -209,6 +224,9 @@ export function usePlaybookSetups() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playbook_setups'] });
+    },
+    onError: () => {
+      showError(t('toastErrorSetupDelete'));
     },
   });
 

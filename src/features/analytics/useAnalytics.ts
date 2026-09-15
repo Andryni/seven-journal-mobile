@@ -442,7 +442,7 @@ export function useAnalytics({
 
   // 14. CHALLENGE COUNTDOWN
   const challengeCountdown = useMemo(() => {
-    const endDateStr = (selectedAccount as any)?.challenge_end_date;
+    const endDateStr = selectedAccount?.challenge_end_date;
     if (!endDateStr) return null;
     const endDate = new Date(endDateStr);
     if (isNaN(endDate.getTime())) return null;

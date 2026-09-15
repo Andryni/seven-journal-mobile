@@ -3,9 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
 import type { TradingAccount } from '../../types/domain';
 import { deviceTimezone } from '../../utils/formatDate';
+import { useToast } from '../../store/toastStore';
+import { useT } from '../../i18n';
 
 export function useAccounts() {
   const queryClient = useQueryClient();
+  const { showError } = useToast();
+  const { t } = useT();
 
   const { data: accounts = [], isLoading } = useQuery<TradingAccount[]>({
     queryKey: ['trading_accounts'],
@@ -87,8 +91,8 @@ export function useAccounts() {
       if (newAccount.instrument_type) {
         payload.instrument_type = newAccount.instrument_type;
       }
-      if ((newAccount as any).challenge_end_date) {
-        payload.challenge_end_date = (newAccount as any).challenge_end_date;
+      if (newAccount.challenge_end_date) {
+        payload.challenge_end_date = newAccount.challenge_end_date;
       }
 
       const { data, error } = await supabase
@@ -102,6 +106,9 @@ export function useAccounts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+    },
+    onError: () => {
+      showError(t('toastErrorAccountSave'));
     },
   });
 
@@ -120,6 +127,9 @@ export function useAccounts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
     },
+    onError: () => {
+      showError(t('toastErrorAccountSave'));
+    },
   });
 
   const deleteAccountMutation = useMutation({
@@ -133,6 +143,9 @@ export function useAccounts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
+    },
+    onError: () => {
+      showError(t('toastErrorAccountDelete'));
     },
   });
 
