@@ -665,6 +665,21 @@ export const translations = {
     weeklyVsPrev: 'vs semaine précédente',
     noWeekData: 'Aucun trade cette semaine',
     recurringMistake: 'ERREUR RÉCURRENTE',
+    personalRulesSection: 'RÈGLES PERSONNELLES',
+    personalRulesIntro: "Vos propres garde-fous, quel que soit le type de compte. Laissez vide pour ne pas fixer de limite.",
+    optionalBadge: 'FACULTATIF',
+    noLimitPlaceholder: 'Aucune limite',
+    maxTradesPerDayLabel: 'MAX TRADES / JOUR',
+    maxConsecutiveLossesLabel: 'MAX PERTES D\'AFFILÉE',
+    maxRiskPerTradeLabel: 'RISQUE MAX PAR TRADE (%)',
+    personalRulesHint: "Le plafond de trades et la série de pertes verrouillent la session automatiquement, comme la limite de perte quotidienne. Le risque max, lui, bloque la saisie d'un trade trop gros avant qu'il ne parte.",
+    guardRuleMaxTrades: 'Votre plafond de {limit} trades/jour est atteint ({count}). Le trade suivant n\'est plus un plan, c\'est une réaction.',
+    guardRuleMaxLosses: '{count} pertes d\'affilée, votre limite est {limit}. Coupez la journée : la prochaine entrée sera émotionnelle.',
+    guardRuleMaxRisk: 'Ce trade risque {count}% du compte, votre règle est {limit}%. Réduisez la taille ou éloignez le stop.',
+    lockReasonMaxTrades: (acc: string, count: number, limit: number) =>
+      `Plafond de ${limit} trades/jour atteint sur ${acc} (${count}). Session verrouillée : au-delà, vous ne suivez plus un plan, vous cherchez à vous refaire.`,
+    lockReasonMaxLosses: (acc: string, count: number, limit: number) =>
+      `${count} pertes consécutives sur ${acc} (limite ${limit}). Session verrouillée : c'est le moment exact où le trading devient émotionnel.`,
     lockReasonDailyLoss: (acc: string, loss: string, limit: string) =>
       `Limite de perte quotidienne atteinte sur ${acc} (${loss} / max ${limit}). Session verrouillée.`,
     tabPerf: 'PERFORMANCE',
@@ -1486,6 +1501,21 @@ export const translations = {
     weeklyVsPrev: 'vs previous week',
     noWeekData: 'No trades this week',
     recurringMistake: 'RECURRING MISTAKE',
+    personalRulesSection: 'PERSONAL RULES',
+    personalRulesIntro: 'Your own guardrails, whatever the account type. Leave blank to set no limit.',
+    optionalBadge: 'OPTIONAL',
+    noLimitPlaceholder: 'No limit',
+    maxTradesPerDayLabel: 'MAX TRADES / DAY',
+    maxConsecutiveLossesLabel: 'MAX LOSSES IN A ROW',
+    maxRiskPerTradeLabel: 'MAX RISK PER TRADE (%)',
+    personalRulesHint: 'The trade cap and the losing streak lock the session automatically, just like the daily loss limit. Max risk instead blocks an oversized trade before it is placed.',
+    guardRuleMaxTrades: 'Your cap of {limit} trades a day is reached ({count}). The next trade is not a plan, it is a reaction.',
+    guardRuleMaxLosses: '{count} losses in a row, your limit is {limit}. Call it a day: the next entry will be emotional.',
+    guardRuleMaxRisk: 'This trade risks {count}% of the account, your rule is {limit}%. Cut the size or widen the stop.',
+    lockReasonMaxTrades: (acc: string, count: number, limit: number) =>
+      `Daily cap of ${limit} trades reached on ${acc} (${count}). Session locked: past this point you are not following a plan, you are chasing.`,
+    lockReasonMaxLosses: (acc: string, count: number, limit: number) =>
+      `${count} consecutive losses on ${acc} (limit ${limit}). Session locked: this is the exact point where trading turns emotional.`,
     lockReasonDailyLoss: (acc: string, loss: string, limit: string) =>
       `Daily loss limit reached on ${acc} (${loss} / max ${limit}). Session locked.`,
     tabPerf: 'PERFORMANCE',

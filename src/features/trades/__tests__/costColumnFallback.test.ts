@@ -46,6 +46,17 @@ describe('withoutPostReleaseColumns', () => {
     expect(payload.commission).toBe(7);
   });
 
+  it('covers the account rule columns too', () => {
+    // These live on trading_accounts, not trades, but share the fallback.
+    const payload = {
+      name: 'Perso',
+      max_trades_per_day: 3,
+      max_consecutive_losses: 2,
+      max_risk_per_trade_pct: 1,
+    };
+    expect(withoutPostReleaseColumns(payload)).toEqual({ name: 'Perso' });
+  });
+
   it('covers every declared post-release column', () => {
     const payload = Object.fromEntries(POST_RELEASE_COLUMNS.map(c => [c, 1]));
     expect(withoutPostReleaseColumns(payload)).toEqual({});

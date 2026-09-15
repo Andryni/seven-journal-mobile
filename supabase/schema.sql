@@ -55,6 +55,13 @@ create table if not exists public.trading_accounts (
   -- while the client groups them locally puts the lock on the wrong date.
   timezone                 text not null default 'UTC',
   challenge_end_date       date,
+  -- Personal discipline rules. Prop-firm accounts get their limits imposed by
+  -- the firm; every other account had nothing, so the Lock Guard -- the app's
+  -- best idea -- only ever protected challenge traders. These apply to any
+  -- account type, and NULL means "rule not set" rather than a limit of zero.
+  max_trades_per_day       int check (max_trades_per_day is null or max_trades_per_day > 0),
+  max_risk_per_trade_pct   numeric check (max_risk_per_trade_pct is null or max_risk_per_trade_pct > 0),
+  max_consecutive_losses   int check (max_consecutive_losses is null or max_consecutive_losses > 0),
   created_at               timestamptz not null default now()
 );
 
@@ -66,7 +73,10 @@ alter table public.trading_accounts
   add column if not exists consistency_rule_percent numeric,
   add column if not exists instrument_type          text,
   add column if not exists timezone                 text,
-  add column if not exists challenge_end_date       date;
+  add column if not exists challenge_end_date       date,
+  add column if not exists max_trades_per_day       int,
+  add column if not exists max_risk_per_trade_pct   numeric,
+  add column if not exists max_consecutive_losses   int;
 
 -- Backfill before tightening, or the NOT NULL below fails on existing rows.
 update public.trading_accounts
@@ -333,8 +343,9 @@ as $$
   select (p_ts at time zone coalesce(nullif(p_timezone, ''), 'UTC'))::date;
 $$;
 
--- Evaluate one account for one trading day and lock it if the realised loss
--- reached the limit.
+-- Evaluate one account for one trading day and lock it when ANY rule is
+-- breached: the daily loss limit, or one of the personal discipline rules.
+-- The name is kept for backwards compatibility with existing deployments.
 create or replace function public.enforce_daily_loss_limit(
   p_user_id uuid,
   p_account_id uuid,
@@ -350,6 +361,11 @@ declare
   v_limit numeric;
   v_today_pnl numeric;
   v_sl_count int;
+  v_trade_count int;
+  v_streak int;
+  v_pnl numeric;
+  v_code text := null;
+  v_params jsonb;
 begin
   select * into v_account
   from public.trading_accounts
@@ -362,14 +378,64 @@ begin
   v_limit := public.effective_daily_loss_limit(v_account);
 
   select coalesce(sum(pnl), 0),
-         count(*) filter (where pnl < 0)
-    into v_today_pnl, v_sl_count
+         count(*) filter (where pnl < 0),
+         count(*)
+    into v_today_pnl, v_sl_count, v_trade_count
   from public.trades
   where user_id = p_user_id
     and account_id = p_account_id
     and public.account_trading_day(entry_time, v_account.timezone) = p_day;
 
-  if v_today_pnl < 0 and abs(v_today_pnl) >= v_limit then
+  -- Personal rules are evaluated first: hitting the trade cap or a losing
+  -- streak should stop the session even when the money lost is still small.
+  -- That is the whole point -- the damage from tilt is behavioural before it
+  -- is financial.
+  --
+  -- Consecutive losses, counted backwards from the most recent closed trade
+  -- of the day. A win anywhere in the run resets it.
+  v_streak := 0;
+  for v_pnl in
+    select pnl
+    from public.trades
+    where user_id = p_user_id
+      and account_id = p_account_id
+      and pnl is not null
+      and public.account_trading_day(entry_time, v_account.timezone) = p_day
+    order by entry_time desc, created_at desc
+  loop
+    if v_pnl < 0 then
+      v_streak := v_streak + 1;
+    else
+      exit;
+    end if;
+  end loop;
+
+  if v_account.max_trades_per_day is not null
+     and v_trade_count >= v_account.max_trades_per_day then
+    v_code := 'MAX_TRADES_PER_DAY';
+    v_params := jsonb_build_object(
+      'account', v_account.name,
+      'count', v_trade_count,
+      'limit', v_account.max_trades_per_day
+    );
+  elsif v_account.max_consecutive_losses is not null
+        and v_streak >= v_account.max_consecutive_losses then
+    v_code := 'MAX_CONSECUTIVE_LOSSES';
+    v_params := jsonb_build_object(
+      'account', v_account.name,
+      'count', v_streak,
+      'limit', v_account.max_consecutive_losses
+    );
+  elsif v_today_pnl < 0 and abs(v_today_pnl) >= v_limit then
+    v_code := 'DAILY_LOSS_LIMIT';
+    v_params := jsonb_build_object(
+      'account', v_account.name,
+      'loss', abs(v_today_pnl),
+      'limit', v_limit
+    );
+  end if;
+
+  if v_code is not null then
     insert into public.daily_session_locks (
       user_id, date, sl_count, is_locked, locked_at, lock_code, lock_params, lock_reason
     )
@@ -379,14 +445,9 @@ begin
       v_sl_count,
       true,
       now(),
-      'DAILY_LOSS_LIMIT',
-      jsonb_build_object(
-        'account', v_account.name,
-        'loss', abs(v_today_pnl),
-        'limit', v_limit
-      ),
-      format('Daily loss limit reached on %s (%s / max %s).',
-             v_account.name, abs(v_today_pnl), v_limit)
+      v_code,
+      v_params,
+      format('%s on %s.', v_code, v_account.name)
     )
     on conflict (user_id, date) do update
       set is_locked   = true,

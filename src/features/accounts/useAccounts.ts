@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
+import {
+  isMissingColumnError,
+  withoutPostReleaseColumns,
+} from '../trades/postReleaseColumns';
 import type { TradingAccount } from '../../types/domain';
 import { deviceTimezone } from '../../utils/formatDate';
 import { useToast } from '../../store/toastStore';
@@ -94,12 +98,33 @@ export function useAccounts() {
       if (newAccount.challenge_end_date) {
         payload.challenge_end_date = newAccount.challenge_end_date;
       }
+      // Personal discipline rules. Sent only when set, so an unset rule stays
+      // NULL ("no rule") rather than becoming 0, which the schema rejects.
+      if (newAccount.max_trades_per_day) {
+        payload.max_trades_per_day = newAccount.max_trades_per_day;
+      }
+      if (newAccount.max_consecutive_losses) {
+        payload.max_consecutive_losses = newAccount.max_consecutive_losses;
+      }
+      if (newAccount.max_risk_per_trade_pct) {
+        payload.max_risk_per_trade_pct = newAccount.max_risk_per_trade_pct;
+      }
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('trading_accounts')
         .insert(payload)
         .select()
         .single();
+
+      // An instance that has not run the latest schema.sql rejects the whole
+      // statement; retry without the new columns so the account still saves.
+      if (isMissingColumnError(error)) {
+        ({ data, error } = await supabase
+          .from('trading_accounts')
+          .insert(withoutPostReleaseColumns(payload))
+          .select()
+          .single());
+      }
 
       if (error) throw error;
       return data;
@@ -114,12 +139,21 @@ export function useAccounts() {
 
   const updateAccountMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<TradingAccount> & { id: string }) => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('trading_accounts')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
+
+      if (isMissingColumnError(error)) {
+        ({ data, error } = await supabase
+          .from('trading_accounts')
+          .update(withoutPostReleaseColumns(updates))
+          .eq('id', id)
+          .select()
+          .single());
+      }
 
       if (error) throw error;
       return data;

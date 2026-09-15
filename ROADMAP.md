@@ -67,10 +67,18 @@ Playbook fouillait dedans avec `includes()`.
 
 ### 2.1 Aucun objectif ni règle personnelle
 
-L'app suit les règles **prop firm** (daily loss, drawdown), mais un trader
-personnel n'a rien : pas de « max 3 trades/jour », pas de « risque max 1% », pas
-d'objectif mensuel. Le Lock Guard est votre meilleure idée et il ne sert
-aujourd'hui qu'aux comptes challenge.
+**Livré.** Correction d'un diagnostic erroné de cette ROADMAP au passage : la
+limite de perte quotidienne s'appliquait déjà à **tous** les types de compte
+(`effective_daily_loss_limit` retombe sur 1 % du solde initial), elle n'était pas
+réservée aux comptes challenge. Le vrai manque était ailleurs : l'argent est un
+indicateur **retardé** du tilt. Quand la limite de perte saute, le surtrading et
+les entrées de revanche ont déjà eu lieu.
+
+Trois règles personnelles ont donc été ajoutées, applicables à n'importe quel
+type de compte : `max_trades_per_day`, `max_consecutive_losses` (les deux
+verrouillent la session côté serveur, comme la limite de perte) et
+`max_risk_per_trade_pct` (bloque la saisie d'un trade surdimensionné avant
+l'envoi).
 
 ### 2.2 Le débriefing n'est pas relié aux trades du jour
 
@@ -116,7 +124,7 @@ façon dont on entraîne sa reconnaissance de patterns.
 |---|---|---|
 | ~~1~~ ✅ | ~~**Frais (commission/swap)**~~ — livré (`6a1b6bd`) | Fausse toutes les statistiques d'un trader actif. Plus on attend, plus il y a de trades à recalculer. |
 | ~~2~~ ✅ | ~~**MAE / MFE**~~ — livré | Deux champs, et le Playbook gagne les seules analyses qui font progresser. |
-| 3 | **Objectifs personnels + Lock Guard pour tous** | Étend votre meilleur différenciateur aux comptes non-prop. |
+| ~~3~~ ✅ | ~~**Objectifs personnels + Lock Guard pour tous**~~ — livré | Étend votre meilleur différenciateur aux comptes non-prop. |
 | 4 | **Tags libres + filtrage croisé** | Rend le journal interrogeable. |
 | 5 | **Sorties partielles** | Le plus lourd ; à faire une fois les trois premiers en place. |
 

@@ -63,6 +63,9 @@ export const AccountsScreen: React.FC = () => {
   const [initialBalance, setInitialBalance] = useState('100000');
   const [balance, setBalance] = useState('100000');
   const [maxDailyLoss, setMaxDailyLoss] = useState('1000');
+  const [maxTradesPerDay, setMaxTradesPerDay] = useState('');
+  const [maxConsecutiveLosses, setMaxConsecutiveLosses] = useState('');
+  const [maxRiskPerTradePct, setMaxRiskPerTradePct] = useState('');
 
   // Section 3: Prop Firm Parameters
   const [profitTarget, setProfitTarget] = useState('10000');
@@ -85,6 +88,9 @@ export const AccountsScreen: React.FC = () => {
     setDrawdownType('static');
     setConsistencyRulePercent('15');
     setChallengeEndDate('');
+    setMaxTradesPerDay('');
+    setMaxConsecutiveLosses('');
+    setMaxRiskPerTradePct('');
     setModalVisible(true);
   };
 
@@ -102,6 +108,13 @@ export const AccountsScreen: React.FC = () => {
     setConsistencyRulePercent(acc.consistency_rule_percent ? acc.consistency_rule_percent.toString() : '15');
     setChallengeEndDate(acc.challenge_end_date || '');
     setInstrumentType(acc.instrument_type || 'CFD');
+    setMaxTradesPerDay(acc.max_trades_per_day ? String(acc.max_trades_per_day) : '');
+    setMaxConsecutiveLosses(
+      acc.max_consecutive_losses ? String(acc.max_consecutive_losses) : ''
+    );
+    setMaxRiskPerTradePct(
+      acc.max_risk_per_trade_pct ? String(acc.max_risk_per_trade_pct) : ''
+    );
     setModalVisible(true);
   };
 
@@ -125,6 +138,11 @@ export const AccountsScreen: React.FC = () => {
       consistency_rule_percent: consistencyRulePercent ? Number(consistencyRulePercent) : null,
       instrument_type: instrumentType,
       challenge_end_date: challengeEndDate || null,
+      // Blank means "no rule". Number('') is 0, which the schema rejects and
+      // which would otherwise lock the session permanently.
+      max_trades_per_day: maxTradesPerDay ? Number(maxTradesPerDay) : null,
+      max_consecutive_losses: maxConsecutiveLosses ? Number(maxConsecutiveLosses) : null,
+      max_risk_per_trade_pct: maxRiskPerTradePct ? Number(maxRiskPerTradePct) : null,
     };
 
     // mutateAsync rejects on failure. Without a catch the rejection is
@@ -503,6 +521,51 @@ export const AccountsScreen: React.FC = () => {
                   keyboardType="numeric"
                 />
                 <Text style={styles.fieldHint}>{t('maxDailyLossHint')}</Text>
+              </View>
+
+              {/* ── RÈGLES PERSONNELLES — tous types de comptes ── */}
+              <View style={styles.formSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeader}>{t('personalRulesSection')}</Text>
+                  <Text style={styles.fieldHint}>{t('optionalBadge')}</Text>
+                </View>
+                <Text style={styles.fieldHint}>{t('personalRulesIntro')}</Text>
+
+                <View style={styles.row2}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>{t('maxTradesPerDayLabel')}</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t('noLimitPlaceholder')}
+                      placeholderTextColor={theme.colors.textMuted}
+                      value={maxTradesPerDay}
+                      onChangeText={setMaxTradesPerDay}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>{t('maxConsecutiveLossesLabel')}</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t('noLimitPlaceholder')}
+                      placeholderTextColor={theme.colors.textMuted}
+                      value={maxConsecutiveLosses}
+                      onChangeText={setMaxConsecutiveLosses}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+
+                <Text style={styles.fieldLabel}>{t('maxRiskPerTradeLabel')}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('noLimitPlaceholder')}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={maxRiskPerTradePct}
+                  onChangeText={setMaxRiskPerTradePct}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.fieldHint}>{t('personalRulesHint')}</Text>
               </View>
 
               {/* ── SECTION 3 : PARAMÈTRES PROP FIRM TRACKER (SI CHALLENGE OU FUNDED) ── */}

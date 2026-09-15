@@ -182,12 +182,34 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   const GuardIcon =
     guard.status === 'blocked' ? ShieldX : guard.status === 'warning' ? ShieldAlert : ShieldCheck;
 
-  const guardMessage =
-    guard.status === 'blocked'
+  /**
+   * A breached personal rule names itself. "Session blocked" alone invites the
+   * trader to wonder whether the app is broken; "3/3 trades taken today" is a
+   * decision they recognise as their own.
+   */
+  const guardMessage = (() => {
+    const b = guard.ruleBreach;
+    if (b?.code === 'MAX_TRADES_PER_DAY') {
+      return t('guardRuleMaxTrades')
+        .replace('{count}', String(b.count))
+        .replace('{limit}', String(b.limit));
+    }
+    if (b?.code === 'MAX_CONSECUTIVE_LOSSES') {
+      return t('guardRuleMaxLosses')
+        .replace('{count}', String(b.count))
+        .replace('{limit}', String(b.limit));
+    }
+    if (b?.code === 'MAX_RISK_PER_TRADE') {
+      return t('guardRuleMaxRisk')
+        .replace('{count}', String(b.count))
+        .replace('{limit}', String(b.limit));
+    }
+    return guard.status === 'blocked'
       ? t('guardBlocked')
       : guard.status === 'warning'
       ? t('guardWarning')
       : t('guardOk');
+  })();
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

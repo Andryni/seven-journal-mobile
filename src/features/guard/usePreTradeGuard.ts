@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import type { Trade, TradingAccount } from '../../types/domain';
 import { isSameLocalDay } from '../../utils/formatDate';
+import { evaluatePersonalRules } from './personalRules';
+import type { RuleBreach } from './personalRules';
 
 export type GuardStatus = 'ok' | 'warning' | 'blocked';
 
@@ -14,6 +16,12 @@ export interface PreTradeGuardResult {
   todayPnL: number;
   /** Fraction of the allowance already consumed, 0..1. */
   consumed: number;
+  /**
+   * The personal discipline rule breached today, if any. Present even when the
+   * money limit is untouched: overtrading and revenge entries do damage long
+   * before the loss limit notices.
+   */
+  ruleBreach: RuleBreach | null;
 }
 
 /**
@@ -48,13 +56,24 @@ export function usePreTradeGuard(
     const remaining = Math.max(0, limit - used);
     const consumed = limit > 0 ? Math.min(1, used / limit) : 0;
 
+    // Express the candidate trade's risk as a percentage of the balance, which
+    // is the unit the personal rule is configured in.
+    const balance = account?.balance ?? 0;
+    const plannedRiskPct =
+      plannedRisk !== null && balance > 0 ? (plannedRisk / balance) * 100 : null;
+    const rules = evaluatePersonalRules(trades, account, plannedRiskPct);
+
     let status: GuardStatus = 'ok';
     if (isLocked || (limit > 0 && remaining <= 0)) {
+      status = 'blocked';
+    } else if (rules.breach) {
+      // A breached personal rule blocks too. A rule the trader set for
+      // themselves that merely shows a warning is not a rule, it is a label.
       status = 'blocked';
     } else if (plannedRisk !== null && limit > 0 && plannedRisk > remaining) {
       status = 'warning';
     }
 
-    return { status, remaining, limit, todayPnL, consumed };
+    return { status, remaining, limit, todayPnL, consumed, ruleBreach: rules.breach };
   }, [trades, account, isLocked, plannedRisk]);
 }

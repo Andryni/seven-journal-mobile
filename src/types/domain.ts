@@ -84,6 +84,14 @@ export interface TradingAccount {
   /** IANA timezone used server-side to bucket trades into trading days. */
   timezone?: string;
   challenge_end_date?: string | null;
+  /**
+   * Personal discipline rules, applicable to any account type. Null means the
+   * rule is not set — distinct from a limit of zero, which would lock the
+   * session permanently.
+   */
+  max_trades_per_day?: number | null;
+  max_risk_per_trade_pct?: number | null;
+  max_consecutive_losses?: number | null;
   created_at: string;
 }
 
@@ -99,7 +107,13 @@ export interface DailySessionLock {
   /** Machine-readable reason set by the Postgres rule engine. */
   lock_code?: string | null;
   /** Interpolation values for the localized lock message. */
-  lock_params?: { account?: string; loss?: number; limit?: number } | null;
+  lock_params?: {
+    account?: string;
+    loss?: number;
+    limit?: number;
+    /** Trades taken / losses in a row, for the personal-rule lock codes. */
+    count?: number;
+  } | null;
 }
 
 

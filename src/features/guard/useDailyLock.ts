@@ -76,6 +76,16 @@ export function useDailyLock() {
    */
   const lockReason = (() => {
     if (!lock) return null;
+    // Personal-rule locks carry a count rather than a currency amount, so they
+    // need no account currency lookup.
+    if (lock.lock_code === 'MAX_TRADES_PER_DAY' && lock.lock_params) {
+      const { account, count, limit } = lock.lock_params;
+      return t('lockReasonMaxTrades', account ?? '', count ?? 0, limit ?? 0);
+    }
+    if (lock.lock_code === 'MAX_CONSECUTIVE_LOSSES' && lock.lock_params) {
+      const { account, count, limit } = lock.lock_params;
+      return t('lockReasonMaxLosses', account ?? '', count ?? 0, limit ?? 0);
+    }
     if (lock.lock_code === 'DAILY_LOSS_LIMIT' && lock.lock_params) {
       const { account, loss, limit } = lock.lock_params;
       // The engine locks a specific account, so the amounts are in that
