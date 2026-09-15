@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { RootTabParamList } from '../types/navigation';
@@ -20,6 +20,7 @@ import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
+import { useRefresh } from '../features/data/useRefresh';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { PressableScale } from '../components/ui/PressableScale';
@@ -86,6 +87,8 @@ export const DashboardScreen: React.FC = () => {
     [trades, accounts, activeAccountId]
   );
 
+  const { refreshing, onRefresh } = useRefresh();
+
   const m = usePerformanceMetrics(scopedTrades, lang);
 
   const todayPnL = useMemo(
@@ -142,6 +145,15 @@ export const DashboardScreen: React.FC = () => {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+          progressBackgroundColor={theme.colors.card}
+        />
+      }
     >
       {/* A combined total across currencies is not a quantity. Say so rather
           than stamping one symbol on a sum of euros and dollars. */}

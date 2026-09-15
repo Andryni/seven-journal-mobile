@@ -20,6 +20,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
+import { useRefresh } from '../features/data/useRefresh';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 import { collectTags, filterTrades } from '../utils/tradeTags';
@@ -83,7 +84,7 @@ export const TradesScreen: React.FC = () => {
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const { refreshing, onRefresh } = useRefresh();
   const [quickSheetVisible, setQuickSheetVisible] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,11 +97,6 @@ export const TradesScreen: React.FC = () => {
     );
   }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['trades'] });
-    setRefreshing(false);
-  };
 
   const handleAddTrade = () => {
     setSelectedTrade(null);

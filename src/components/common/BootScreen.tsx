@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Path, Line, Rect, G } from 'react-native-svg';
 import { SevenMark } from '../brand/SevenMark';
+import { CandleLoader } from '../ui/CandleLoader';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -43,7 +44,6 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
 
   const draw = useSharedValue(0);
   const fade = useSharedValue(0);
-  const sweep = useSharedValue(0);
 
   useEffect(() => {
     fade.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.quad) });
@@ -60,19 +60,13 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
         -1,
       ),
     );
-    sweep.value = withRepeat(
-      withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      true,
-    );
-  }, [draw, fade, sweep]);
+  }, [draw, fade]);
 
   const curveProps = useAnimatedProps(() => ({
     strokeDashoffset: CURVE_LENGTH * (1 - draw.value),
   }));
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
-  const barStyle = useAnimatedStyle(() => ({ opacity: 0.35 + sweep.value * 0.5 }));
 
   return (
     <View style={styles.container}>
@@ -130,7 +124,11 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
         <Text style={styles.wordmark}>SEVEN JOURNAL</Text>
         <Text style={styles.tagline}>{caption ?? 'FINTECH TERMINAL'}</Text>
 
-        <Animated.View style={[styles.bar, barStyle]} />
+        {/* Candles printing left to right: the same loader the rest of the
+            app uses, so waiting always looks like the same thing. */}
+        <View style={styles.loaderSlot}>
+          <CandleLoader size={30} />
+        </View>
       </Animated.View>
     </View>
   );
@@ -138,6 +136,7 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
+    loaderSlot: { marginTop: 22 },
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -158,12 +157,5 @@ const createStyles = (theme: AppTheme) =>
       fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 2.2,
-    },
-    bar: {
-      marginTop: theme.spacing.lg,
-      width: 92,
-      height: 2,
-      borderRadius: 1,
-      backgroundColor: theme.colors.primary,
     },
   });

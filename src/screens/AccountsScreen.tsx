@@ -15,6 +15,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useTrades } from '../features/trades/useTrades';
+import { useRefresh } from '../features/data/useRefresh';
 import { formatCurrency, currencySymbol, CURRENCIES } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
@@ -46,7 +47,7 @@ export const AccountsScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
   const { trades } = useTrades();
-  const [refreshing, setRefreshing] = useState(false);
+  const { refreshing, onRefresh } = useRefresh();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
   const setActiveAccountId = useUIStore((state: { setActiveAccountId: (id: string | null) => void }) => state.setActiveAccountId);
 
@@ -162,12 +163,6 @@ export const AccountsScreen: React.FC = () => {
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['trading_accounts'] });
-    await queryClient.invalidateQueries({ queryKey: ['trades'] });
-    setRefreshing(false);
-  };
 
   const handleDelete = (id: string) => {
     Alert.alert(

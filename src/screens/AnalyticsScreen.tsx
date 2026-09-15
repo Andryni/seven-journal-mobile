@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
   Dimensions,
 } from 'react-native';
 import Animated, {
@@ -20,6 +21,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { useTrades } from '../features/trades/useTrades';
+import { useRefresh } from '../features/data/useRefresh';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { useAnalytics } from '../features/analytics/useAnalytics';
@@ -251,6 +253,7 @@ export const AnalyticsScreen: React.FC = () => {
   const { t } = useT();
   const lang = useI18nStore(s => s.lang);
   const { trades, isLoading: tradesLoading } = useTrades();
+  const { refreshing, onRefresh } = useRefresh();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -371,7 +374,19 @@ export const AnalyticsScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+          progressBackgroundColor={theme.colors.card}
+        />
+      }
+    >
       {/* HEADER */}
       <Animated.View entering={FadeInDown.duration(350)} style={s.header}>
         <View style={{ flex: 1 }}>

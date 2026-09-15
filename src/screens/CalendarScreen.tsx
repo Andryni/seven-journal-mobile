@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTrades } from '../features/trades/useTrades';
+import { useRefresh } from '../features/data/useRefresh';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
@@ -38,6 +40,7 @@ export const CalendarScreen: React.FC = () => {
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { trades: allTrades, isLoading } = useTrades();
+  const { refreshing, onRefresh } = useRefresh();
   const { accounts } = useAccounts();
   const activeAccountId = useUIStore(s => s.activeAccountId);
 
@@ -129,7 +132,19 @@ export const CalendarScreen: React.FC = () => {
   const selectedTrades = selectedDateStr ? (tradesByDate[selectedDateStr]?.trades || []) : [];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+          progressBackgroundColor={theme.colors.card}
+        />
+      }
+    >
       {/* ── HEADER ── */}
       <View style={styles.header}>
         <Text style={styles.screenTitle}>{t('screenTitleCalendar')}</Text>

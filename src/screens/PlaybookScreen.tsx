@@ -8,12 +8,15 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  RefreshControl,
   Alert,
 } from 'react-native';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { useMoney } from '../features/accounts/useMoney';
 import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
+import { CandleLoader } from '../components/ui/CandleLoader';
+import { useRefresh } from '../features/data/useRefresh';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
@@ -119,6 +122,7 @@ export const PlaybookScreen: React.FC = () => {
   const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
   const { setups, isLoading: setupsLoading, saveSetup, deleteSetup } = usePlaybookSetups();
   const { trades: allTrades } = useTrades();
+  const { refreshing, onRefresh } = useRefresh();
   const activeAccountId = useUIStore(s => s.activeAccountId);
 
   /**
@@ -325,13 +329,25 @@ export const PlaybookScreen: React.FC = () => {
   if (debriefsLoading || setupsLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.primary} size="large" />
+        <CandleLoader size={62} label={t('loading')} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+          progressBackgroundColor={theme.colors.card}
+        />
+      }
+    >
       {/* HEADER */}
       <View style={styles.header}>
         <View>
