@@ -39,6 +39,7 @@ import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
+import { InsightsCard } from '../components/analytics/InsightsCard';
 import { RDistributionChart } from '../components/ui/RDistributionChart';
 import { HourlyPerformanceChart } from '../components/ui/HourlyPerformanceChart';
 import {
@@ -701,6 +702,10 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 5 : TIMING ── */}
       {activeTab === 'behavior' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          {/* Statistical findings first: they say what to change, whereas the
+              charts below only say what happened. */}
+          <InsightsCard trades={closed} />
+
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             {/* 24h diverging columns replace the aggregated bar chart:
                 bleed usually concentrates in one or two specific hours. */}

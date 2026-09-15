@@ -248,6 +248,30 @@ export const translations = {
     cap: 'Cap',
     targetProgress: "PROGRESSION DE L'OBJECTIF (TARGET)",
     editAccountA11y: (name: string) => `Modifier le compte ${name}`,
+    insightsTitle: 'ANALYSE DU JOURNAL',
+    insightsSubtitle: (n: number) => `${n} trades analys\u00e9s`,
+    insightsNotEnough: (n: number, need: number) =>
+      `${n}/${need} trades cl\u00f4tur\u00e9s. L\u2019analyse d\u00e9marre \u00e0 ${need} \u2014 en dessous, tout motif est du bruit.`,
+    insightsAllClear: 'Aucun probl\u00e8me d\u00e9tect\u00e9 sur la p\u00e9riode.',
+    insightSampleNote: (n: number) => `sur ${n} trades`,
+    insightRevenge: (p: any) =>
+      `${p.count} entr\u00e9es dans les 30 min apr\u00e8s une perte. Moyenne ${p.avg}$ contre ${p.normal}$ le reste du temps.`,
+    insightSizeEscalation: (p: any) =>
+      `Tes positions sont ${p.pct}% plus grosses apr\u00e8s une perte qu\u2019apr\u00e8s un gain.`,
+    insightLosingHour: (p: any) =>
+      `${p.hour}h : ${p.total}$ sur ${p.count} trades. C\u2019est ton heure la plus co\u00fbteuse.`,
+    insightLosingWeekday: (p: any) =>
+      `Jour ${p.day} : ${p.total}$ sur ${p.count} trades.`,
+    insightOffPlan: (p: any) =>
+      `${p.pct}% de tes trades (${p.count}) n\u2019ont aucun setup d\u00e9clar\u00e9 : ${p.total}$.`,
+    insightNoStop: (p: any) =>
+      `${p.count} trade(s) sans stop loss (${p.pct}%).`,
+    insightTilt: (p: any) =>
+      `${p.count} trades en tilt : ${p.avg}$ de moyenne contre ${p.calm}$ \u00e0 froid.`,
+    insightOvertrading: (p: any) =>
+      `${p.days} journ\u00e9es de surtrading (>2x ta moyenne de ${p.avg}/jour) : ${p.total}$.`,
+    insightBestSetup: (p: any) =>
+      `${p.setup} est ton meilleur setup : +${p.total}$, ${p.wr}% de r\u00e9ussite sur ${p.count} trades.`,
     importTitle: 'Import',
     importNoAccount: 'Cr\u00e9e d\u2019abord un compte pour y importer les trades.',
     importFound: (n: number) => `${n} trade(s) trouv\u00e9(s). Importer ?`,
@@ -940,6 +964,30 @@ export const translations = {
     cap: 'Cap',
     targetProgress: 'TARGET PROGRESSION',
     editAccountA11y: (name: string) => `Edit account ${name}`,
+    insightsTitle: 'JOURNAL ANALYSIS',
+    insightsSubtitle: (n: number) => `${n} trades analysed`,
+    insightsNotEnough: (n: number, need: number) =>
+      `${n}/${need} closed trades. Analysis starts at ${need} \u2014 below that, any pattern is noise.`,
+    insightsAllClear: 'No issue detected over the period.',
+    insightSampleNote: (n: number) => `over ${n} trades`,
+    insightRevenge: (p: any) =>
+      `${p.count} entries within 30 min of a loss. Averaging $${p.avg} versus $${p.normal} otherwise.`,
+    insightSizeEscalation: (p: any) =>
+      `Your positions are ${p.pct}% larger after a loss than after a win.`,
+    insightLosingHour: (p: any) =>
+      `${p.hour}:00 \u2014 $${p.total} over ${p.count} trades. Your most expensive hour.`,
+    insightLosingWeekday: (p: any) =>
+      `Day ${p.day}: $${p.total} over ${p.count} trades.`,
+    insightOffPlan: (p: any) =>
+      `${p.pct}% of your trades (${p.count}) have no setup tagged: $${p.total}.`,
+    insightNoStop: (p: any) =>
+      `${p.count} trade(s) with no stop loss (${p.pct}%).`,
+    insightTilt: (p: any) =>
+      `${p.count} tilted trades averaging $${p.avg} versus $${p.calm} when calm.`,
+    insightOvertrading: (p: any) =>
+      `${p.days} overtrading days (>2x your ${p.avg}/day average): $${p.total}.`,
+    insightBestSetup: (p: any) =>
+      `${p.setup} is your best setup: +$${p.total}, ${p.wr}% win rate over ${p.count} trades.`,
     importTitle: 'Import',
     importNoAccount: 'Create an account first to import trades into it.',
     importFound: (n: number) => `${n} trade(s) found. Import?`,

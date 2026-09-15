@@ -1,0 +1,155 @@
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { AlertTriangle, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react-native';
+import { useTheme } from '../../theme';
+import type { AppTheme } from '../../theme';
+import { useT, localeFor } from '../../i18n';
+import { Panel, Hairline } from '../ui/Panel';
+import { duration, stagger } from '../../theme/motion';
+import { computeInsights, MIN_TRADES_FOR_INSIGHTS } from '../../features/insights/computeInsights';
+import type { Insight, InsightSeverity } from '../../features/insights/computeInsights';
+import type { Trade } from '../../types/domain';
+
+interface InsightsCardProps {
+  /** Already account-scoped, like every other figure in the app. */
+  trades: Trade[];
+}
+
+const ICONS: Record<InsightSeverity, React.FC<{ color: string; size: number }>> = {
+  critical: AlertTriangle,
+  warning: AlertCircle,
+  good: CheckCircle2,
+};
+
+/**
+ * Journal analysis — statistical findings over the trader's own history.
+ *
+ * Shows nothing until there is enough history to be honest about, and says so
+ * explicitly rather than rendering an empty card: "not enough data yet" is
+ * information, a blank panel is a bug.
+ */
+export const InsightsCard: React.FC<InsightsCardProps> = ({ trades }) => {
+  const { theme } = useTheme();
+  const { t, lang } = useT();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const result = useMemo(() => computeInsights(trades), [trades]);
+
+  const severityColor: Record<InsightSeverity, string> = {
+    critical: theme.colors.red,
+    warning: theme.colors.gold,
+    good: theme.colors.green,
+  };
+
+  /** Weekday index -> localized name, so the UI never prints "Day 2". */
+  const weekdayName = (index: number) => {
+    const ref = new Date(2026, 0, 4 + index); // 2026-01-04 is a Sunday
+    return ref.toLocaleDateString(localeFor(lang), { weekday: 'long' });
+  };
+
+  const describe = (i: Insight): string => {
+    const params =
+      i.id === 'losing-weekday'
+        ? { ...i.params, day: weekdayName(Number(i.params.day)) }
+        : i.params;
+    return t(i.titleKey as never, params as never);
+  };
+
+  return (
+    <Panel>
+      <View style={styles.header}>
+        <Sparkles color={theme.colors.primary} size={14} strokeWidth={2} />
+        <Text style={styles.title}>{t('insightsTitle')}</Text>
+        {result.hasEnoughData ? (
+          <Text style={styles.subtitle}>{t('insightsSubtitle', result.tradesAnalysed)}</Text>
+        ) : null}
+      </View>
+
+      <Hairline />
+
+      {!result.hasEnoughData ? (
+        <Text style={styles.empty}>
+          {t('insightsNotEnough', result.tradesAnalysed, MIN_TRADES_FOR_INSIGHTS)}
+        </Text>
+      ) : result.insights.length === 0 ? (
+        <Text style={styles.empty}>{t('insightsAllClear')}</Text>
+      ) : (
+        result.insights.map((insight, index) => {
+          const Icon = ICONS[insight.severity];
+          const color = severityColor[insight.severity];
+          return (
+            <Animated.View
+              key={insight.id}
+              entering={FadeInDown.delay(stagger(index)).duration(duration.fast)}
+              style={styles.row}
+            >
+              <View style={[styles.rail, { backgroundColor: color }]} />
+              <Icon color={color} size={14} />
+              <View style={styles.body}>
+                <Text style={styles.text}>{describe(insight)}</Text>
+                <Text style={styles.note}>{t('insightSampleNote', insight.sampleSize)}</Text>
+              </View>
+            </Animated.View>
+          );
+        })
+      )}
+    </Panel>
+  );
+};
+
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      marginBottom: theme.spacing.sm,
+    },
+    title: {
+      color: theme.colors.textPrimary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 1.1,
+    },
+    subtitle: {
+      marginLeft: 'auto',
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
+      fontVariant: ['tabular-nums'],
+    },
+    empty: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+      lineHeight: 18,
+      paddingTop: theme.spacing.sm,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 9,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: 2,
+    },
+    rail: {
+      width: 2,
+      alignSelf: 'stretch',
+      marginRight: 2,
+    },
+    body: { flex: 1 },
+    text: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+      lineHeight: 18,
+    },
+    note: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
+      marginTop: 2,
+      fontVariant: ['tabular-nums'],
+    },
+  });
