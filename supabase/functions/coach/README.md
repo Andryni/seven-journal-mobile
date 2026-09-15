@@ -1,5 +1,8 @@
 # AI coach — Edge Function
 
+> **Deploying this for the first time?** Follow `supabase/DEPLOY.md`, which
+> is a step-by-step walkthrough in French. This file is the reference.
+
 Turns the findings computed on-device by `computeInsights` into a short written
 briefing. It is the **only** part of the app that talks to a model.
 
