@@ -37,13 +37,25 @@ export const ExcursionBar: React.FC<{ trade: Trade }> = ({ trade }) => {
   // Symmetric scale so 1R left and 1R right are the same width: an asymmetric
   // axis would make a small adverse move look as dramatic as a large gain.
   const span = Math.max(1, Math.abs(mae ?? 0), Math.abs(mfe ?? 0), Math.abs(realised ?? 0));
-  const pct = (r: number) => (Math.abs(r) / span) * 50;
+
+  /**
+   * Percentages are computed HERE, on the JS thread, and captured as plain
+   * numbers by the worklets below.
+   *
+   * A worklet runs on the UI runtime and can only call functions that were
+   * themselves workletised. Calling a normal JS closure from inside one throws
+   * "[Worklets] Tried to synchronously call a Remote Function" at the first
+   * frame -- which is exactly what a helper like `pct(mae)` did here.
+   */
+  const adversePct = (Math.abs(mae ?? 0) / span) * 50;
+  const favourablePct = (Math.abs(mfe ?? 0) / span) * 50;
+  const realisedPct = (Math.abs(realised ?? 0) / span) * 50;
 
   const adverseStyle = useAnimatedStyle(() => ({
-    width: `${pct(mae ?? 0) * grow.value}%`,
+    width: `${adversePct * grow.value}%`,
   }));
   const favourableStyle = useAnimatedStyle(() => ({
-    width: `${pct(mfe ?? 0) * grow.value}%`,
+    width: `${favourablePct * grow.value}%`,
   }));
   const markerStyle = useAnimatedStyle(() => ({
     opacity: grow.value,
@@ -52,7 +64,7 @@ export const ExcursionBar: React.FC<{ trade: Trade }> = ({ trade }) => {
   if (mae === null && mfe === null) return null;
 
   const realisedOffset =
-    realised === null ? null : 50 + (realised >= 0 ? pct(realised) : -pct(realised));
+    realised === null ? null : 50 + (realised >= 0 ? realisedPct : -realisedPct);
 
   return (
     <View style={styles.wrap}>

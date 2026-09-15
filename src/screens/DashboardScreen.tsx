@@ -20,7 +20,6 @@ import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
-import { MarketSessionsBar } from '../components/dashboard/MarketSessionsBar';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
 import { CostImpactCard } from '../components/dashboard/CostImpactCard';
@@ -226,12 +225,6 @@ export const DashboardScreen: React.FC = () => {
           ) : null}
         </View>
       </Animated.View>
-
-      {/* ── 2. SESSIONS ──
-          Which session is open decides whether to trade at all, so it belongs
-          above the numbers, not buried under the charts at the bottom of the
-          scroll where it was never seen before the decision was made. */}
-      <MarketSessionsBar />
 
       {/* ── 3. LOCK GUARD — highest-priority interrupt ── */}
       {isLocked ? (
