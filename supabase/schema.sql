@@ -143,22 +143,22 @@ create table if not exists public.daily_debriefs (
 );
 
 -- ---------------------------------------------------------------------------
--- checklist_items
+-- user_checklists
 -- ---------------------------------------------------------------------------
-create table if not exists public.checklist_items (
+-- Column names verified against src/features/dashboard/useChecklist.ts:
+-- the table is user_checklists(text, is_done, sort_order), not
+-- checklist_items(label, is_checked, position) as first written here.
+create table if not exists public.user_checklists (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users(id) on delete cascade,
-  label      text not null,
-  position   int not null default 0,
-  is_checked boolean not null default false,
+  text       text not null,
+  is_done    boolean not null default false,
+  sort_order int not null default 0,
   created_at timestamptz not null default now()
 );
 
-comment on table public.checklist_items is
-  'Pre-session checklist. Verify column names against useChecklist.ts before applying.';
-
-create index if not exists checklist_items_user_idx
-  on public.checklist_items (user_id, position);
+create index if not exists user_checklists_user_idx
+  on public.user_checklists (user_id, sort_order, created_at);
 
 -- ============================================================================
 -- Row Level Security — every table is strictly owner-scoped.
@@ -168,7 +168,7 @@ alter table public.trades              enable row level security;
 alter table public.daily_session_locks enable row level security;
 alter table public.playbook_setups     enable row level security;
 alter table public.daily_debriefs      enable row level security;
-alter table public.checklist_items     enable row level security;
+alter table public.user_checklists     enable row level security;
 
 do $$
 declare
@@ -176,7 +176,7 @@ declare
 begin
   foreach tbl in array array[
     'trading_accounts','trades','daily_session_locks',
-    'playbook_setups','daily_debriefs','checklist_items'
+    'playbook_setups','daily_debriefs','user_checklists'
   ]
   loop
     execute format('drop policy if exists %I_owner on public.%I', tbl, tbl);

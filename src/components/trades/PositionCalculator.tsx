@@ -9,19 +9,18 @@ import { useT } from '../../i18n';
 import { Card } from '../ui/Card';
 import { PickerModal } from '../ui/PickerModal';
 import { Calculator, Info } from 'lucide-react-native';
-
-const INSTRUMENTS: Record<string, { pip: number; contractSize: number; label: string }> = {
-  XAUUSD: { pip: 0.01, contractSize: 100, label: 'Or (XAUUSD)' },
-  EURUSD: { pip: 0.0001, contractSize: 100000, label: 'EUR/USD' },
-  GBPUSD: { pip: 0.0001, contractSize: 100000, label: 'GBP/USD' },
-  USDJPY: { pip: 0.01, contractSize: 100000, label: 'USD/JPY' },
-  GBPJPY: { pip: 0.01, contractSize: 100000, label: 'GBP/JPY' },
-  US30: { pip: 1, contractSize: 1, label: 'US30 (Dow Jones)' },
-  NAS100: { pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)' },
-  BTCUSD: { pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)' },
-};
-
-const INSTRUMENT_KEYS = Object.keys(INSTRUMENTS);
+/**
+ * Instrument specs and sizing math come from the shared engine.
+ * This file used to carry its own copy of the table, and the two had already
+ * drifted: XAUUSD was pip 0.01 here vs 0.1 in utils/positionSizing, so the
+ * calculator and the quick-entry sheet returned lot sizes differing by 10x
+ * for the same trade.
+ */
+import {
+  INSTRUMENTS,
+  INSTRUMENT_KEYS,
+  calculatePositionSize,
+} from '../../utils/positionSizing';
 
 export const PositionCalculator: React.FC = () => {
   const { theme } = useTheme();
@@ -50,31 +49,20 @@ export const PositionCalculator: React.FC = () => {
   }, [activeAccountId, accountId]);
 
   useEffect(() => {
-    const entry = Number(entryPrice);
-    const sl = Number(stopLossPrice);
-    const risk = Number(riskValue);
     const acc = accounts.find((a) => a.id === accountId);
-    const balance = acc ? acc.balance : 0;
-    const inst = INSTRUMENTS[instrument];
+    const result = calculatePositionSize({
+      instrument,
+      balance: acc ? acc.balance : 0,
+      riskType,
+      riskValue: Number(riskValue),
+      entryPrice: Number(entryPrice),
+      stopLoss: Number(stopLossPrice),
+    });
 
-    if (!inst || entry <= 0 || sl <= 0 || entry === sl || risk <= 0 || balance <= 0) {
-      setLotSize(null);
-      setRiskUsd(null);
-      setPipValue(null);
-      setSlPips(null);
-      return;
-    }
-
-    const computedRiskUsd = riskType === 'percent' ? balance * (risk / 100) : risk;
-    const slDistance = Math.abs(entry - sl);
-    const slInPips = slDistance / inst.pip;
-    const pipValuePerLot = inst.pip * inst.contractSize;
-    const computedLotSize = computedRiskUsd / (slInPips * pipValuePerLot);
-
-    setRiskUsd(computedRiskUsd);
-    setSlPips(Math.round(slInPips * 10) / 10);
-    setPipValue(pipValuePerLot);
-    setLotSize(Math.round(computedLotSize * 100) / 100);
+    setLotSize(result.lotSize);
+    setRiskUsd(result.riskAmount);
+    setPipValue(result.pipValue);
+    setSlPips(result.stopPips);
   }, [entryPrice, stopLossPrice, riskValue, riskType, instrument, accountId, accounts]);
 
   const activeAccount = accounts.find((a) => a.id === accountId);

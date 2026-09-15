@@ -20,6 +20,7 @@ export const INSTRUMENTS: Record<string, InstrumentSpec> = {
   EURUSD: { pip: 0.0001, contractSize: 100000, label: 'EURUSD' },
   GBPUSD: { pip: 0.0001, contractSize: 100000, label: 'GBPUSD' },
   USDJPY: { pip: 0.01, contractSize: 100000, label: 'USDJPY' },
+  GBPJPY: { pip: 0.01, contractSize: 100000, label: 'GBPJPY' },
   US30: { pip: 1, contractSize: 1, label: 'US30 (Dow)' },
   NAS100: { pip: 0.25, contractSize: 20, label: 'NAS100 (Nasdaq)' },
   BTCUSD: { pip: 1, contractSize: 1, label: 'Bitcoin (BTC/USD)' },

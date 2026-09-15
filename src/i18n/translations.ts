@@ -9,6 +9,10 @@ export const translations = {
     tabAnalytics: 'ANALYTICS',
     tabPlaybook: 'PLAYBOOK',
     tabAccounts: 'COMPTES',
+    tabMore: 'PLUS',
+    morePlaybookSub: 'Setups et débriefings quotidiens',
+    moreAccountsSub: 'Comptes prop firm et personnels',
+    moreSettingsSub: 'Notifications, sécurité, langue',
 
     // Top bar
     allAccounts: 'TOUS COMPTES',
@@ -565,6 +569,7 @@ export const translations = {
     password: 'MOT DE PASSE',
     // Position Calculator
     posCalcTitle: "TAILLE DE POSITION",
+    posCalcSubtitle: 'Calculer les lots depuis le risque',
     posCalcAccount: "COMPTE",
     posCalcInstrument: "INSTRUMENT",
     posCalcRiskType: "TYPE DE RISQUE",
@@ -662,6 +667,10 @@ export const translations = {
     tabAnalytics: 'ANALYTICS',
     tabPlaybook: 'PLAYBOOK',
     tabAccounts: 'ACCOUNTS',
+    tabMore: 'MORE',
+    morePlaybookSub: 'Setups and daily debriefs',
+    moreAccountsSub: 'Prop firm and personal accounts',
+    moreSettingsSub: 'Notifications, security, language',
 
     // Top bar
     allAccounts: 'ALL ACCOUNTS',
@@ -1218,6 +1227,7 @@ export const translations = {
     password: 'PASSWORD',
     // Position Calculator
     posCalcTitle: "POSITION SIZE CALCULATOR",
+    posCalcSubtitle: 'Size lots from risk',
     posCalcAccount: "ACCOUNT",
     posCalcInstrument: "INSTRUMENT",
     posCalcRiskType: "RISK TYPE",

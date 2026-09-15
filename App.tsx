@@ -20,14 +20,13 @@ import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TradesScreen } from './src/screens/TradesScreen';
-import { AccountsScreen } from './src/screens/AccountsScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
-import { PlaybookScreen } from './src/screens/PlaybookScreen';
+import { MoreScreen } from './src/screens/MoreScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { LockScreen } from './src/screens/LockScreen';
 import { useAppLock } from './src/features/security/useAppLock';
-import { LayoutGrid, BookOpen, Wallet, Calendar, BarChart2, BookMarked } from 'lucide-react-native';
+import { LayoutGrid, BookOpen, Calendar, BarChart2, MoreHorizontal } from 'lucide-react-native';
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
 import type { Session } from '@supabase/supabase-js';
@@ -219,19 +218,11 @@ export default function App() {
                   }}
                 />
                 <Tab.Screen
-                  name="Playbook"
-                  component={PlaybookScreen}
+                  name="More"
+                  component={MoreScreen}
                   options={{
-                    tabBarLabel: t('tabPlaybook'),
-                    tabBarIcon: ({ color }) => <BookMarked color={color} size={19} strokeWidth={1.75} />,
-                  }}
-                />
-                <Tab.Screen
-                  name="Accounts"
-                  component={AccountsScreen}
-                  options={{
-                    tabBarLabel: t('tabAccounts'),
-                    tabBarIcon: ({ color }) => <Wallet color={color} size={19} strokeWidth={1.75} />,
+                    tabBarLabel: t('tabMore'),
+                    tabBarIcon: ({ color }) => <MoreHorizontal color={color} size={19} strokeWidth={1.75} />,
                   }}
                 />
               </Tab.Navigator>

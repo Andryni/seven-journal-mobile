@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
-import { X, Bell, Fingerprint, Languages, Clock } from 'lucide-react-native';
+import { X, Bell, Fingerprint, Languages, Clock, Calculator } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -10,6 +10,7 @@ import { PressableScale } from '../ui/PressableScale';
 import { duration } from '../../theme/motion';
 import { useNotifications } from '../../features/notifications/useNotifications';
 import { useAppLock } from '../../features/security/useAppLock';
+import { PositionCalculator } from '../trades/PositionCalculator';
 
 /**
  * Settings — surfaces the capabilities that previously had no entry point
@@ -27,6 +28,7 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
   const notifications = useNotifications();
   const appLock = useAppLock();
   const [busy, setBusy] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   const onToggleNotifications = async (next: boolean) => {
     setBusy(true);
@@ -170,6 +172,24 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                 />
               }
             />
+
+            <View style={styles.sectionGap} />
+
+            {/* Position calculator — pre-trade tool. It used to live on the
+                dashboard, which is a post-session recap; it belongs with the
+                other utilities instead. */}
+            <PressableScale
+              onPress={() => setCalcOpen(v => !v)}
+              accessibilityLabel={t('posCalcTitle')}
+            >
+              <Row
+                icon={<Calculator size={15} color={theme.colors.primary} strokeWidth={1.75} />}
+                title={t('posCalcTitle')}
+                sub={t('posCalcSubtitle')}
+                theme={theme}
+              />
+            </PressableScale>
+            {calcOpen ? <PositionCalculator /> : null}
 
             <View style={styles.sectionGap} />
 
