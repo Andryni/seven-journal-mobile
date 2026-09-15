@@ -145,12 +145,45 @@ Deno.serve(async (req: Request) => {
   const auth = req.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return json({ error: 'unauthorized' }, 401);
 
-  let payload: Record<string, unknown> | null;
+  let body: unknown;
   try {
-    payload = sanitize(await req.json());
+    body = await req.json();
   } catch {
     return json({ error: 'bad_request' }, 400);
   }
+
+  /**
+   * Diagnostic mode: `{"diagnose": true}` asks Google which models this key
+   * can actually use, instead of guessing an id and getting a 404.
+   *
+   * Model ids are retired on a schedule and availability varies by key and by
+   * region, so no id hardcoded in this repo stays correct. Only the names are
+   * returned -- no key material, no payload, and the model is never called.
+   */
+  if (useGemini && (body as { diagnose?: unknown })?.diagnose === true) {
+    try {
+      const listed = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models',
+        { headers: { 'x-goog-api-key': apiKey } }
+      );
+      if (!listed.ok) {
+        return json({ error: 'diagnose_failed', upstreamStatus: listed.status }, 502);
+      }
+      const data = await listed.json();
+      const models = (data.models ?? [])
+        .filter((m: { supportedGenerationMethods?: string[] }) =>
+          m.supportedGenerationMethods?.includes('generateContent')
+        )
+        .map((m: { name?: string }) => String(m.name ?? '').replace(/^models\//, ''))
+        .filter(Boolean);
+      return json({ configuredModel: GEMINI_MODEL, availableModels: models });
+    } catch (e) {
+      console.error('coach: diagnose failed', e);
+      return json({ error: 'diagnose_failed' }, 502);
+    }
+  }
+
+  const payload = sanitize(body);
   if (!payload) return json({ error: 'bad_request' }, 400);
 
   try {
@@ -233,10 +266,42 @@ Deno.serve(async (req: Request) => {
         return json({ error: 'not_configured', upstreamReason }, 503);
       }
       if (res.status === 404) {
-        // The model id no longer exists. Google retires them on a schedule,
-        // and this is fixed with a secret, not a code change -- so say which
-        // id was tried.
-        return json({ error: 'model_not_found', model: GEMINI_MODEL }, 502);
+        /**
+         * The model id no longer exists. Rather than making the user guess a
+         * replacement, ask Google what this key can use and name one.
+         *
+         * Not retried automatically: silently switching model would hide the
+         * fact that the configured id is dead, and it would come back every
+         * single call. The user sets the secret once and the problem is gone.
+         */
+        let suggestion = '';
+        try {
+          const listed = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models',
+            { headers: { 'x-goog-api-key': apiKey } }
+          );
+          if (listed.ok) {
+            const data = await listed.json();
+            const usable: string[] = (data.models ?? [])
+              .filter((m: { supportedGenerationMethods?: string[] }) =>
+                m.supportedGenerationMethods?.includes('generateContent')
+              )
+              .map((m: { name?: string }) => String(m.name ?? '').replace(/^models\//, ''))
+              .filter(Boolean);
+            // Prefer a Flash model: this task is short-form rewriting, and
+            // Pro carries a much smaller free allowance.
+            suggestion =
+              usable.find((m) => m.includes('flash') && !m.includes('image')) ??
+              usable[0] ??
+              '';
+          }
+        } catch {
+          // Suggestion is a convenience; the error stands without it.
+        }
+        return json(
+          { error: 'model_not_found', model: GEMINI_MODEL, suggestion },
+          502
+        );
       }
       return json(
         { error: 'upstream_error', upstreamStatus: res.status, upstreamReason },

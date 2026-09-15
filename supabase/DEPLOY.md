@@ -140,9 +140,31 @@ d'erreur : c'est la réponse de Google elle-même. (La commande
 `supabase functions logs` n'existe pas dans le CLI ; les logs se consultent
 sur le site, dans **Edge Functions → coach → Logs**.)
 
-Si le message dit « Modèle IA introuvable », le détail affiché est
-l'identifiant qui a été essayé. Google retire les anciens régulièrement.
-Choisissez-en un autre, sans toucher au code :
+### « Modèle IA introuvable »
+
+Google a retiré l'identifiant configuré. Le détail affiché sous le message
+propose maintenant un remplaçant valide pour **votre** clé, sous la forme
+`ancien → nouveau`. Appliquez-le :
+
+```
+npx supabase secrets set GEMINI_MODEL=le-modele-propose
+npx supabase functions deploy coach
+```
+
+Pour voir la liste complète des modèles autorisés par votre clé, sans passer
+par l'app (remplacez `VOTRE_REF` et `VOTRE_ANON_KEY`, tous deux dans `.env`) :
+
+```
+curl -X POST "https://VOTRE_REF.supabase.co/functions/v1/coach" ^
+  -H "Authorization: Bearer VOTRE_ANON_KEY" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"diagnose\":true}"
+```
+
+La réponse liste `availableModels`. Aucune donnée de trading n'est envoyée et
+le modèle n'est pas appelé : c'est une simple interrogation de catalogue.
+
+Ancienne méthode, si besoin :
 
 ```
 npx supabase secrets set GEMINI_MODEL=gemini-2.5-flash

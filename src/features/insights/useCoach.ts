@@ -76,7 +76,12 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
               setDetail(body.upstreamReason);
             }
             if (body?.error === 'model_not_found') {
-              setDetail(String(body.model ?? ''));
+              // Name a model that works, not the one that does not.
+              setDetail(
+                body.suggestion
+                  ? `${body.model} → ${body.suggestion}`
+                  : String(body.model ?? '')
+              );
             }
           } catch {
             // Non-JSON body; fall back to the status code below.
