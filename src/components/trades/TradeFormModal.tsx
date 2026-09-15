@@ -22,6 +22,17 @@ import { usePlaybookSetups } from '../../features/playbook/usePlaybook';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
+import {
+  INSTRUMENTS,
+  instrumentsForMarket,
+  defaultInstrumentFor,
+  unitForMarket,
+  formatSize,
+  calculatePositionSize,
+  estimateRiskAtStop,
+} from '../../utils/positionSizing';
+import type { MarketType } from '../../utils/positionSizing';
+import { detectTradingStyle } from '../../utils/tradingStyle';
 import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -37,6 +48,9 @@ import {
   Clock,
   Wallet,
   Calendar,
+  Timer,
+  Calculator,
+  TriangleAlert,
 } from 'lucide-react-native';
 import { estimatePnl } from '../../utils/positionSizing';
 
@@ -82,6 +96,12 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [takeProfit, setTakeProfit] = useState('');
   const [exitPrice, setExitPrice] = useState('');
   const [result, setResult] = useState<'TP' | 'SL' | 'BE' | 'OPEN'>('OPEN');
+  const [instrumentPickerVisible, setInstrumentPickerVisible] = useState(false);
+  // Exit timestamp: without it the journal cannot measure hold time, so it
+  // cannot tell scalps from swings or detect revenge re-entries accurately.
+  const [exitDateObj, setExitDateObj] = useState<Date | null>(null);
+  const [showExitDatePicker, setShowExitDatePicker] = useState(false);
+  const [showExitTimePicker, setShowExitTimePicker] = useState(false);
 
   // Risk Parameters
   const [riskType, setRiskType] = useState<'percent' | 'usd'>('percent');
@@ -124,6 +144,12 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setStopLoss(editingTrade.stop_loss.toString());
       setTakeProfit(editingTrade.take_profit.toString());
       setExitPrice(editingTrade.exit_price ? editingTrade.exit_price.toString() : '');
+      if (editingTrade.exit_time) {
+        const xt = new Date(editingTrade.exit_time);
+        setExitDateObj(isNaN(xt.getTime()) ? null : xt);
+      } else {
+        setExitDateObj(null);
+      }
       setResult(editingTrade.result);
       setManualPnl(editingTrade.pnl !== null ? editingTrade.pnl.toString() : '');
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
@@ -145,7 +171,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setAccountId(activeAccountId || (accounts[0]?.id ?? ''));
     setAccountPickerVisible(false);
     setSessionPickerVisible(false);
-    setPair('XAUUSD');
+    setPair(defaultInstrumentFor(accountMarket));
     setEntryDateObj(new Date());
     setShowDatePicker(false);
     setShowTimePicker(false);
@@ -157,6 +183,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setStopLoss('');
     setTakeProfit('');
     setExitPrice('');
+    setExitDateObj(null);
+    setShowExitDatePicker(false);
+    setShowExitTimePicker(false);
     setResult('OPEN');
     setRiskType('percent');
     setRiskValue('1');
@@ -169,6 +198,81 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setNotes('');
     setErrorMsg('');
   };
+
+  // ── Market-aware instrument list ──
+  // The instrument used to be a free-text field, so a CFD account happily
+  // accepted "MNQ" and then priced it with futures tick values. The list is
+  // now scoped to the account's own market.
+  const selectedAccountObj = accounts.find(acc => acc.id === accountId);
+  const accountMarket = (selectedAccountObj?.instrument_type ?? 'CFD') as MarketType;
+  const allowedInstruments = useMemo(
+    () => instrumentsForMarket(accountMarket),
+    [accountMarket],
+  );
+  const sizeUnit = unitForMarket(accountMarket);
+
+  // Switching to an account of another market leaves the old symbol selected,
+  // which would be saved against a spec that does not apply to it.
+  useEffect(() => {
+    if (!allowedInstruments.includes(pair)) {
+      setPair(defaultInstrumentFor(accountMarket));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountMarket]);
+
+  // ── Position sizing + risk breach ──
+  const sizing = useMemo(() => {
+    const entry = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const balance = selectedAccountObj?.balance ?? 0;
+    const rVal = Number(riskValue);
+    if (!entry || !sl || entry === sl || !balance || !rVal) return null;
+    return calculatePositionSize({
+      instrument: pair,
+      balance,
+      riskType,
+      riskValue: rVal,
+      entryPrice: entry,
+      stopLoss: sl,
+    });
+  }, [pair, selectedAccountObj?.balance, riskType, riskValue, entryPrice, stopLoss]);
+
+  /**
+   * Risk carried by the size actually typed, versus the risk budget.
+   * The form previously suggested a size and then let the user save any other
+   * one without comment, which is precisely the mistake a journal exists to
+   * catch.
+   */
+  const riskCheck = useMemo(() => {
+    const entry = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const qty = Number(size);
+    const balance = selectedAccountObj?.balance ?? 0;
+    const rVal = Number(riskValue);
+    if (!entry || !sl || entry === sl || !qty || !balance || !rVal) return null;
+
+    const actualRisk = estimateRiskAtStop(pair, qty, entry, sl);
+    const budget = riskType === 'percent' ? balance * (rVal / 100) : rVal;
+    if (actualRisk === null || budget <= 0) return null;
+
+    return {
+      actualRisk,
+      budget,
+      pct: (actualRisk / balance) * 100,
+      // 2% tolerance absorbs rounding to the instrument's size step.
+      exceeds: actualRisk > budget * 1.02,
+    };
+  }, [pair, size, entryPrice, stopLoss, selectedAccountObj?.balance, riskType, riskValue]);
+
+  // ── Hold time & trading style ──
+  const durationInfo = useMemo(
+    () =>
+      detectTradingStyle(
+        entryDateObj.toISOString(),
+        exitDateObj ? exitDateObj.toISOString() : null,
+      ),
+    [entryDateObj, exitDateObj],
+  );
 
   // Live Auto-Calculation Effect
   useEffect(() => {
@@ -277,7 +381,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       take_profit: tp,
       size: lotSize,
       entry_time: entryDateObj.toISOString(),
-      exit_time: exit ? new Date().toISOString() : null,
+      // The exit timestamp the trader entered, not the moment they filled in
+      // the form: stamping "now" made every imported-or-late-logged trade look
+      // like it closed at data-entry time, which broke hold-time analysis.
+      exit_time: exitDateObj
+        ? exitDateObj.toISOString()
+        : exit
+          ? new Date().toISOString()
+          : null,
       pnl: finalPnl,
       r_multiple: finalR,
       timeframe,
@@ -386,14 +497,21 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>{t('tfPairLabel')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('tfPairPlaceholder')}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={pair}
-                    onChangeText={t => setPair(t.toUpperCase())}
-                    autoCapitalize="characters"
-                  />
+                  {/* Picker, not free text: the account's market decides which
+                      symbols are even valid, and a typo used to be saved and
+                      then priced with the wrong contract spec. */}
+                  <TouchableOpacity
+                    style={styles.dropdownSelector}
+                    onPress={() => setInstrumentPickerVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dropdownSelectedContent}>
+                      <Text style={styles.dropdownSelectedText} numberOfLines={1}>
+                        {pair}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color={theme.colors.textMuted} />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -479,6 +597,49 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 />
               )}
 
+              {/* Exit date / time pickers. Default to now on first open so
+                  the trader adjusts a sane value instead of building one. */}
+              {showExitDatePicker && (
+                <DateTimePicker
+                  value={exitDateObj ?? new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  themeVariant="dark"
+                  onDismiss={() => setShowExitDatePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowExitDatePicker(false);
+                    if (selectedDate) {
+                      const updated = new Date(exitDateObj ?? new Date());
+                      updated.setFullYear(
+                        selectedDate.getFullYear(),
+                        selectedDate.getMonth(),
+                        selectedDate.getDate(),
+                      );
+                      setExitDateObj(updated);
+                    }
+                  }}
+                />
+              )}
+
+              {showExitTimePicker && (
+                <DateTimePicker
+                  value={exitDateObj ?? new Date()}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={true}
+                  themeVariant="dark"
+                  onDismiss={() => setShowExitTimePicker(false)}
+                  onValueChange={(_event: any, selectedDate?: Date) => {
+                    setShowExitTimePicker(false);
+                    if (selectedDate) {
+                      const updated = new Date(exitDateObj ?? new Date());
+                      updated.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+                      setExitDateObj(updated);
+                    }
+                  }}
+                />
+              )}
+
               {/* Direction BUY / SELL */}
               <Text style={styles.fieldLabel}>{t('tfDirection')}</Text>
               <View style={styles.directionRow}>
@@ -538,10 +699,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               {/* Volume & Prix d'entrée */}
               <View style={styles.row2}>
                 <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfVolume')}</Text>
+                  {/* Unit follows the account's market: lots for CFD, whole
+                      contracts for futures, coins for crypto. */}
+                  <Text style={styles.fieldLabel}>
+                    {t('tfVolume')} ({t(`unit_${sizeUnit}` as never)})
+                  </Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="1.0"
+                    placeholder={sizeUnit === 'contract' ? '1' : '1.0'}
                     placeholderTextColor={theme.colors.textMuted}
                     value={size}
                     onChangeText={setSize}
@@ -614,6 +779,69 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 return null;
               })()}
 
+              {/* Suggested size + risk check.
+                  The form used to compute a size and then silently accept any
+                  other one. Catching an oversized position before it is logged
+                  is the whole point of a risk field. */}
+              {sizing?.size ? (
+                <View style={styles.sizingBox}>
+                  <View style={styles.sizingHeader}>
+                    <Calculator size={12} color={theme.colors.primary} />
+                    <Text style={styles.sizingTitle}>{t('tfSuggestedSize')}</Text>
+                    <TouchableOpacity
+                      onPress={() => setSize(String(sizing.size))}
+                      style={styles.applyBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.applyBtnText}>
+                        {formatSize(sizing.size, sizing.unit)} · {t('tfApply')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {riskCheck ? (
+                    <Text style={styles.sizingDetail}>
+                      {t('tfYourRisk')}:{' '}
+                      {formatCurrency(riskCheck.actualRisk, {
+                        symbol: sym,
+                        showPlus: false,
+                        decimals: 0,
+                        thousandsSeparator: true,
+                      })}{' '}
+                      ({riskCheck.pct.toFixed(2)}%) · {t('tfBudget')}:{' '}
+                      {formatCurrency(riskCheck.budget, {
+                        symbol: sym,
+                        showPlus: false,
+                        decimals: 0,
+                        thousandsSeparator: true,
+                      })}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {riskCheck?.exceeds ? (
+                <View style={styles.riskAlert}>
+                  <TriangleAlert size={14} color={theme.colors.red} />
+                  <Text style={styles.riskAlertText}>
+                    {t(
+                      'tfRiskExceeded',
+                      formatCurrency(riskCheck.actualRisk, {
+                        symbol: sym,
+                        showPlus: false,
+                        decimals: 0,
+                        thousandsSeparator: true,
+                      }),
+                      formatCurrency(riskCheck.budget, {
+                        symbol: sym,
+                        showPlus: false,
+                        decimals: 0,
+                        thousandsSeparator: true,
+                      }),
+                    )}
+                  </Text>
+                </View>
+              ) : null}
+
               {/* Résultat & Prix de Sortie */}
               <View style={styles.row2}>
                 <View style={styles.col}>
@@ -642,6 +870,60 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   />
                 </View>
               </View>
+
+              {/* Exit timestamp — only meaningful once the trade is closed. */}
+              {result !== 'OPEN' ? (
+                <View style={styles.dateRow}>
+                  <Text style={styles.fieldLabel}>{t('tfExitDateTime')}</Text>
+                  <View style={styles.row2}>
+                    <TouchableOpacity
+                      style={[styles.dropdownSelector, { flex: 1.2 }]}
+                      onPress={() => setShowExitDatePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.dropdownSelectedContent}>
+                        <Calendar size={13} color={theme.colors.textMuted} />
+                        <Text style={styles.dropdownSelectedText}>
+                          {exitDateObj
+                            ? exitDateObj.toLocaleDateString(localeFor(lang))
+                            : t('tfNotSet')}
+                        </Text>
+                      </View>
+                      <ChevronDown size={14} color={theme.colors.textMuted} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.dropdownSelector, { flex: 1 }]}
+                      onPress={() => setShowExitTimePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.dropdownSelectedContent}>
+                        <Clock size={13} color={theme.colors.textMuted} />
+                        <Text style={styles.dropdownSelectedText}>
+                          {exitDateObj
+                            ? exitDateObj.toLocaleTimeString(localeFor(lang), {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '--:--'}
+                        </Text>
+                      </View>
+                      <ChevronDown size={14} color={theme.colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Hold time and the style it implies, derived not asked:
+                      self-reported style rarely matches the clock. */}
+                  {durationInfo.style ? (
+                    <View style={styles.durationRow}>
+                      <Timer size={12} color={theme.colors.primary} />
+                      <Text style={styles.durationText}>
+                        {durationInfo.label} · {t(`style_${durationInfo.style}` as never)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
 
               {/* Risque % ou $ & Calcul live */}
               <View style={styles.row2}>
@@ -910,6 +1192,22 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         }}
         onClose={() => setSessionPickerVisible(false)}
         maxHeight={250}
+      />
+
+      <PickerModal
+        visible={instrumentPickerVisible}
+        title={t('tfPickInstrument')}
+        items={allowedInstruments.map(key => ({
+          id: key,
+          label: key,
+          sub: INSTRUMENTS[key]?.label,
+        }))}
+        selectedId={pair}
+        onSelect={id => {
+          setPair(id);
+          setInstrumentPickerVisible(false);
+        }}
+        onClose={() => setInstrumentPickerVisible(false)}
       />
     </Modal>
   );
@@ -1181,6 +1479,74 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   toggleText: {
     color: theme.colors.textPrimary,
     fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+  },
+  sizingBox: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    gap: 6,
+  },
+  sizingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sizingTitle: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.8,
+  },
+  applyBtn: {
+    backgroundColor: theme.colors.primary + '22',
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '66',
+    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  applyBtnText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+  },
+  sizingDetail: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontFamily: theme.fonts.mono,
+  },
+  riskAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 77, 77, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 77, 77, 0.45)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  riskAlertText: {
+    flex: 1,
+    color: theme.colors.redLight,
+    fontSize: 11,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 15,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  durationText: {
+    color: theme.colors.primary,
+    fontSize: 11,
     fontFamily: theme.fonts.monoBold,
   },
   rrCalcBox: {

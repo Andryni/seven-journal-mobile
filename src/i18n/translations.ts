@@ -387,6 +387,21 @@ export const translations = {
     tfSubmitNew: 'ENREGISTRER LA POSITION DANS LE JOURNAL',
     tfPickAccount: 'CHOISIR LE COMPTE',
     tfPickSession: 'CHOISIR LA SESSION',
+    tfPickInstrument: "CHOISIR L'INSTRUMENT",
+    tfExitDateTime: 'DATE & HEURE DE SORTIE',
+    tfNotSet: 'Non d\u00e9fini',
+    tfSuggestedSize: 'TAILLE CALCUL\u00c9E',
+    tfApply: 'APPLIQUER',
+    tfYourRisk: 'Votre risque',
+    tfBudget: 'Budget',
+    tfRiskExceeded: (actual: string, budget: string) =>
+      `Cette taille risque ${actual}, au-dessus de votre budget de ${budget}. R\u00e9duisez la position ou rapprochez le stop.`,
+    unit_lot: 'lots',
+    unit_contract: 'contrats',
+    unit_unit: 'unit\u00e9s',
+    style_scalping: 'Scalping',
+    style_day: 'Day trading',
+    style_swing: 'Swing',
 
     // TradeDetailModal
     tdExecutionParams: "PARAMÈTRES D'EXÉCUTION",
@@ -1114,6 +1129,21 @@ export const translations = {
     tfSubmitNew: 'REGISTER POSITION IN THE JOURNAL',
     tfPickAccount: 'CHOOSE ACCOUNT',
     tfPickSession: 'CHOOSE SESSION',
+    tfPickInstrument: 'CHOOSE INSTRUMENT',
+    tfExitDateTime: 'EXIT DATE & TIME',
+    tfNotSet: 'Not set',
+    tfSuggestedSize: 'CALCULATED SIZE',
+    tfApply: 'APPLY',
+    tfYourRisk: 'Your risk',
+    tfBudget: 'Budget',
+    tfRiskExceeded: (actual: string, budget: string) =>
+      `This size risks ${actual}, above your ${budget} budget. Reduce the position or tighten the stop.`,
+    unit_lot: 'lots',
+    unit_contract: 'contracts',
+    unit_unit: 'units',
+    style_scalping: 'Scalping',
+    style_day: 'Day trading',
+    style_swing: 'Swing',
 
     // TradeDetailModal
     tdExecutionParams: 'EXECUTION PARAMETERS',
