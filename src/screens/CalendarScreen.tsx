@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTrades } from '../features/trades/useTrades';
+import { useAccounts } from '../features/accounts/useAccounts';
+import { useUIStore } from '../store/uiStore';
+import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
 import { useMoney } from '../features/accounts/useMoney';
 import { useTheme } from '../theme';
@@ -17,7 +20,7 @@ import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Info } from 'lucide-react-native';
 
 const screenWidth = Dimensions.get('window').width;
 const CALENDAR_PADDING = 16; // horizontal padding inside the calendar frame
@@ -32,7 +35,27 @@ export const CalendarScreen: React.FC = () => {
   const money = useMoney();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { trades, isLoading } = useTrades();
+  const { trades: allTrades, isLoading } = useTrades();
+  const { accounts } = useAccounts();
+  const activeAccountId = useUIStore(s => s.activeAccountId);
+
+  /**
+   * The calendar shows the selected account's days.
+   *
+   * It previously mapped every account's trades onto the grid while useMoney()
+   * labelled the totals with the active account's currency, so selecting one
+   * account changed the symbol but not the numbers.
+   */
+  const trades = useMemo(
+    () => scopeTrades(allTrades, activeAccountId),
+    [allTrades, activeAccountId]
+  );
+
+  const mixedCurrencies = useMemo(
+    () => hasMixedCurrencies(allTrades, accounts, activeAccountId),
+    [allTrades, accounts, activeAccountId]
+  );
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
@@ -109,6 +132,17 @@ export const CalendarScreen: React.FC = () => {
         <Text style={styles.screenTitle}>{t('screenTitleCalendar')}</Text>
         <Text style={styles.screenSubtitle}>{t('screenSubtitleCalendar')}</Text>
       </View>
+
+      {mixedCurrencies ? (
+        <View style={styles.warnBanner}>
+          <Info color={theme.colors.red} size={14} strokeWidth={2} />
+          <Text style={styles.warnBannerText}>
+            <Text style={styles.warnBannerStrong}>{t('mixedCurrencies')}</Text>
+            {'  '}
+            {t('mixedCurrenciesHint')}
+          </Text>
+        </View>
+      ) : null}
 
       {/* ── MONTHLY HERO METRICS ── */}
       <View style={styles.heroMonthCard}>
@@ -294,6 +328,28 @@ export const CalendarScreen: React.FC = () => {
 };
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
+  warnBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.red,
+  },
+  warnBannerText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 17,
+  },
+  warnBannerStrong: {
+    color: theme.colors.red,
+    fontFamily: theme.fonts.monoBold,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,

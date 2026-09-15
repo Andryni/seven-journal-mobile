@@ -17,6 +17,8 @@ import { PressableScale } from '../components/ui/PressableScale';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrades } from '../features/trades/useTrades';
+import { useUIStore } from '../store/uiStore';
+import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../utils/positionSizing';
 import { useMoney } from '../features/accounts/useMoney';
@@ -28,7 +30,7 @@ import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
 import { QuickTradeSheet } from '../components/trades/QuickTradeSheet';
-import { Plus, Search, TrendingUp, Download, Upload, Zap } from 'lucide-react-native';
+import { Plus, Search, TrendingUp, Download, Upload, Zap, Info } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -42,8 +44,25 @@ export const TradesScreen: React.FC = () => {
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
-  const { trades, createTrade, deleteTrade, isLoading } = useTrades();
+  const { trades: allTrades, createTrade, deleteTrade, isLoading } = useTrades();
   const { accounts } = useAccounts();
+  const activeAccountId = useUIStore(s => s.activeAccountId);
+
+  /**
+   * The blotter lists the selected account's trades.
+   *
+   * It listed every account's while the footer stats and useMoney() spoke for
+   * the active one, so the counts and the currency disagreed with each other.
+   */
+  const trades = useMemo(
+    () => scopeTrades(allTrades, activeAccountId),
+    [allTrades, activeAccountId]
+  );
+
+  const mixedCurrencies = useMemo(
+    () => hasMixedCurrencies(allTrades, accounts, activeAccountId),
+    [allTrades, accounts, activeAccountId]
+  );
 
   /** Blotter sizes carry the unit of the account that traded them. */
   const unitFor = React.useCallback(
@@ -133,7 +152,10 @@ export const TradesScreen: React.FC = () => {
               onPress: async () => {
                 for (const t of parsedTrades) {
                   await createTrade({
-                    account_id: accounts[0]?.id || "",
+                    // Import into the account being viewed, not an arbitrary
+                    // first one: otherwise the rows land somewhere the trader
+                    // is not looking and appear to have been dropped.
+                    account_id: activeAccountId || accounts[0]?.id || "",
                     pair: t.pair || "XAUUSD",
                     direction: t.direction || "BUY",
                     entry_price: Number(t.entry_price),
@@ -405,6 +427,17 @@ export const TradesScreen: React.FC = () => {
         />
       </View>
 
+      {mixedCurrencies ? (
+        <View style={styles.warnBanner}>
+          <Info color={theme.colors.red} size={14} strokeWidth={2} />
+          <Text style={styles.warnBannerText}>
+            <Text style={styles.warnBannerStrong}>{t('mixedCurrencies')}</Text>
+            {'  '}
+            {t('mixedCurrenciesHint')}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.filterRow}>
         {(['ALL', 'WIN', 'LOSS', 'OPEN'] as FilterType[]).map(f => {
           const isActive = activeFilter === f;
@@ -590,6 +623,28 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: theme.type.body,
     fontFamily: theme.fonts.sans,
     padding: 0,
+  },
+  warnBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.red,
+  },
+  warnBannerText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 17,
+  },
+  warnBannerStrong: {
+    color: theme.colors.red,
+    fontFamily: theme.fonts.monoBold,
   },
   filterRow: {
     flexDirection: 'row',

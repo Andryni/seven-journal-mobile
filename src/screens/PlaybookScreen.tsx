@@ -14,6 +14,8 @@ import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook
 import { useMoney } from '../features/accounts/useMoney';
 import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
+import { useUIStore } from '../store/uiStore';
+import { scopeTrades } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
 import { localDayKey } from '../utils/formatDate';
@@ -96,7 +98,18 @@ export const PlaybookScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { debriefs, isLoading: debriefsLoading, saveDebrief, isSaving, deleteDebrief } = usePlaybook();
   const { setups, isLoading: setupsLoading, saveSetup, deleteSetup } = usePlaybookSetups();
-  const { trades } = useTrades();
+  const { trades: allTrades } = useTrades();
+  const activeAccountId = useUIStore(s => s.activeAccountId);
+
+  /**
+   * Setup performance is per account, like every other P&L in the app: a
+   * setup's edge on a funded account says nothing about a demo account, and
+   * money() here is bound to the active account's currency.
+   */
+  const trades = useMemo(
+    () => scopeTrades(allTrades, activeAccountId),
+    [allTrades, activeAccountId]
+  );
 
   const [activeTab, setActiveTab] = useState<'setups' | 'debrief' | 'discipline'>('setups');
 
