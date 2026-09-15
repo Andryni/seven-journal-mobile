@@ -93,12 +93,78 @@ npx expo start
 
 ## ⚙️ Configuration
 
-Créer un fichier `.env` :
+### 1. Variables d'environnement
+
+Créer un fichier `.env` à la racine :
 
 ```env
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EXPO_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 ```
+
+Les deux valeurs se trouvent dans Supabase → Settings → API (`Project URL` et
+la clé `anon` / `public`). Sans elles l'app démarre mais chaque écran reste
+vide : le client Supabase le signale dans la console au lancement.
+
+`.env` est gitignoré. Les variables `EXPO_PUBLIC_*` sont lues au démarrage de
+Metro : après toute modification, relancer avec `npx expo start -c`, sinon
+l'ancienne valeur reste dans le cache.
+
+### 2. Base de données
+
+**À faire aussi sur une base existante**, pas seulement à la première
+installation : Supabase Dashboard → SQL Editor → coller `supabase/schema.sql` →
+Run.
+
+Ce fichier est idempotent et se re-joue sans risque. Il ajoute les colonnes
+introduites depuis (`instrument_type`, `timezone`, `challenge_end_date`,
+`lock_code`…) via `add column if not exists`. Si la base n'est pas à jour,
+l'app se charge mais échoue sur les écrans qui lisent ces colonnes.
+
+### 3. Synthèse IA (optionnel)
+
+L'app fonctionne entièrement sans. Voir `supabase/functions/coach/README.md`
+pour l'activer.
+
+## 🧪 Tester sur Expo Go
+
+```bash
+npm install
+npx expo start
+```
+
+Scanner le QR code avec Expo Go (Android) ou l'app Appareil photo (iOS).
+Le téléphone et l'ordinateur doivent être sur le **même réseau Wi-Fi**.
+
+Ce projet est en **SDK 57** : il faut une version d'Expo Go compatible SDK 57.
+Expo Go ne conserve qu'un seul SDK à la fois, donc une version installée pour
+un projet plus ancien affichera une erreur de version incompatible — il suffit
+de la mettre à jour depuis le store.
+
+Si le QR code ne passe pas (Wi-Fi d'entreprise, isolation des clients, VPN) :
+
+```bash
+npx expo start --tunnel
+```
+
+Fonctionnalités indisponibles dans Expo Go, et seulement celles-là — le reste
+de l'app est testable normalement :
+
+| Fonctionnalité | Comportement dans Expo Go |
+|---|---|
+| Face ID / déverrouillage biométrique | Indisponible, l'écran se contourne |
+| Notifications push distantes | Les rappels programmés localement fonctionnent |
+
+Pour les tester, il faut un development build (`npx expo run:android`).
+
+### En cas de problème
+
+| Symptôme | Cause habituelle |
+|---|---|
+| Écrans vides, aucune donnée | `.env` absent ou Metro non relancé avec `-c` |
+| Erreur SQL sur une colonne | `supabase/schema.sql` pas re-joué |
+| « incompatible SDK version » | Expo Go à mettre à jour (SDK 57) |
+| QR code sans effet | Réseaux différents → `npx expo start --tunnel` |
 
 ## 📱 Scripts
 
