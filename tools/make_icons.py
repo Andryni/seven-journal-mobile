@@ -28,12 +28,18 @@ SRC_ASSETS = os.path.join(ROOT, "src", "assets")
 
 def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22):
     """
-    The mark: a seven built from a market advance.
+    The mark: a bold '7' with an ascending step motif in its counter.
 
-    A '7' whose horizontal bar is the resistance level and whose diagonal is
-    the breakout leg through it. It reads as both the brand initial and a
-    price making a higher high — flat geometry, hard edges, no gradient or
-    glow, consistent with the rest of the UI.
+    The previous version speared a candlestick straight through the horizontal
+    bar of the 7. At icon scale that reads as two shapes colliding -- a
+    misalignment rather than a symbol -- and the thin wick vanished entirely
+    below ~48px, leaving an orange smudge on the numeral.
+
+    This one keeps the shapes separate and legible: a heavy seven, and beneath
+    its diagonal three rising bars that sit in the empty triangle the numeral
+    already creates. Nothing overlaps, the negative space does the work, and
+    the silhouette survives being shrunk to a favicon or flattened to a
+    single-colour themed icon.
     """
     S = size * SS
     img = Image.new("RGBA", (S, S), bg if bg else (0, 0, 0, 0))
@@ -42,51 +48,49 @@ def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22):
     if accent is None:
         accent = fg
 
-    m = S * inset               # margin
-    w = S - 2 * m               # drawing box
-    stroke = int(w * 0.135)     # bar weight
+    m = S * inset
+    w = S - 2 * m
+    stroke = int(w * 0.155)
 
-    # Horizontal bar of the 7 — the level being broken.
-    bar_y = m + w * 0.16
-    d.rectangle([m, bar_y - stroke / 2, m + w, bar_y + stroke / 2], fill=fg)
+    # Top bar of the 7.
+    bar_y = m + w * 0.085
+    d.rounded_rectangle(
+        [m, bar_y, m + w, bar_y + stroke],
+        radius=stroke * 0.16,
+        fill=fg,
+    )
 
-    # Diagonal leg — the impulse leg. Drawn as a filled quad so the join with
-    # the bar stays sharp instead of round-capped.
-    top_x = m + w * 0.93
-    bot_x = m + w * 0.34
+    # Diagonal leg, as a filled quad so the corner with the bar stays crisp.
+    top_x = m + w
+    bot_x = m + w * 0.52
     bot_y = m + w
-    half = stroke / 2
     d.polygon(
         [
-            (top_x - half, bar_y - half),
-            (top_x + half, bar_y - half),
-            (bot_x + half, bot_y),
-            (bot_x - half, bot_y),
+            (top_x - stroke, bar_y + stroke),
+            (top_x, bar_y + stroke),
+            (bot_x, bot_y),
+            (bot_x - stroke, bot_y),
         ],
         fill=fg,
     )
 
-    # Breakout candle: pierces the level rather than floating above it.
-    # A mark that merely sits near the bar reads as a stray dash; one that
-    # crosses it reads as price closing through resistance, which is the whole
-    # idea of the glyph.
-    body_w = stroke * 0.66
-    body_x = m + w * 0.085
-    d.rectangle(
-        [body_x, bar_y - stroke * 2.05, body_x + body_w, bar_y + stroke * 1.15],
-        fill=accent,
-    )
-    # Wick, centred on the body.
-    wick_w = max(1, body_w * 0.26)
-    wick_x = body_x + (body_w - wick_w) / 2
-    d.rectangle(
-        [wick_x, bar_y - stroke * 2.95, wick_x + wick_w, bar_y + stroke * 1.75],
-        fill=accent,
-    )
+    # Ascending bars in the counter of the 7 -- the journal's own subject.
+    # Sized and placed to clear the diagonal with real breathing room, so the
+    # mark never looks like two overlapping glyphs.
+    bar_w = w * 0.085
+    gap = w * 0.048
+    base_y = m + w * 0.97
+    heights = [w * 0.15, w * 0.23, w * 0.31]
+    x = m + w * 0.0
+    for i, h in enumerate(heights):
+        d.rounded_rectangle(
+            [x, base_y - h, x + bar_w, base_y],
+            radius=bar_w * 0.22,
+            fill=accent if i == len(heights) - 1 else fg,
+        )
+        x += bar_w + gap
 
-    # Optically centre on the drawn ink. The candle's upper wick extends the
-    # glyph past the nominal drawing box, so a mathematically centred layout
-    # sits visibly high in the launcher mask.
+    # Optically centre on the drawn ink rather than the nominal box.
     bbox = img.getbbox()
     if bbox:
         cx = (bbox[0] + bbox[2]) / 2
