@@ -1,159 +1,277 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import * as Sharing from 'expo-sharing';
-import { X, Share2, Award, Check } from 'lucide-react-native';
+import { X, Share2, Download, Check, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
+import type { TranslationKey } from '../../i18n/translations';
 import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
+import { PressableScale } from '../ui/PressableScale';
+import { Sparkline } from '../ui/Sparkline';
+import { SevenMark } from '../brand/SevenMark';
+import { useShareCard } from '../../features/share/useShareCard';
+import {
+  selectTrades,
+  computeShareStats,
+  periodLabel,
+  type SharePeriod,
+} from '../../utils/shareScope';
 
 interface ShareCardModalProps {
   visible: boolean;
   onClose: () => void;
   accountName?: string;
   trades: Trade[];
+  /**
+   * When opened from a single trade, that trade becomes the default subject
+   * and the "this trade" option is offered.
+   */
+  trade?: Trade | null;
 }
+
+const PERIODS: { id: SharePeriod; labelKey: TranslationKey }[] = [
+  { id: 'trade', labelKey: 'shareScopeTrade' },
+  { id: 'day', labelKey: 'shareScopeDay' },
+  { id: 'week', labelKey: 'shareScopeWeek' },
+  { id: 'month', labelKey: 'shareScopeMonth' },
+  { id: 'all', labelKey: 'shareScopeAll' },
+];
 
 export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   visible,
   onClose,
-  accountName = 'Compte Principal',
+  accountName = 'Seven Journal',
   trades,
+  trade = null,
 }) => {
   const { theme } = useTheme();
   const money = useMoney();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { cardRef, busy, savedAt, share, saveToGallery } = useShareCard();
 
-  const closed = trades.filter((t) => t.pnl !== null);
-  const totalPnL = closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const wins = closed.filter((t) => (t.pnl || 0) > 0);
-  const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
-  const totalR = closed.reduce((sum, t) => sum + (t.r_multiple || 0), 0);
-  const bestTrade = closed.reduce((max, t) => ((t.pnl || 0) > max ? (t.pnl || 0) : max), 0);
-  const isPositive = totalPnL >= 0;
+  // A card opened from one trade defaults to that trade; otherwise to the day.
+  const [period, setPeriod] = useState<SharePeriod>(trade ? 'trade' : 'day');
 
-  const handleShare = async () => {
-    try {
-      const text = [
-        'SEVEN JOURNAL — PERFORMANCE',
-        '━━━━━━━━━━━━━━━━━━',
-        `Net P&L: ${money(totalPnL, { thousandsSeparator: true })}`,
-        `Win Rate: ${winRate.toFixed(1)}%`,
-        `Positions: ${closed.length}`,
-        `Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
-        `Best trade: ${money(bestTrade, { decimals: 0 })}`,
-        '━━━━━━━━━━━━━━━━━━',
-        'Verified by Seven Journal',
-      ].join('\n');
+  const options = useMemo(
+    () => (trade ? PERIODS : PERIODS.filter(p => p.id !== 'trade')),
+    [trade]
+  );
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(text);
-      }
-    } catch (err) {
-      console.error('Share error:', err);
-    }
-  };
+  const scoped = useMemo(
+    () => selectTrades(trades, period, { tradeId: trade?.id ?? null }),
+    [trades, period, trade]
+  );
 
-  if (!visible) return null;
+  const stats = useMemo(() => computeShareStats(scoped), [scoped]);
+
+  const subtitle = useMemo(
+    () => periodLabel(period, localeFor(lang), new Date(), trade),
+    [period, lang, trade]
+  );
+
+  const isPositive = stats.netPnl >= 0;
+  const accent = isPositive ? theme.colors.green : theme.colors.red;
+  const isEmpty = stats.trades.length === 0;
+  const single = period === 'trade' && stats.trades.length === 1 ? stats.trades[0] : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <View style={styles.titleRow}>
-              <Award color={theme.colors.goldLight} size={18} />
-              <Text style={styles.modalTitle}>{t('scSharePerformance')}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t('cancel')}
-            >
-              <X color={theme.colors.textPrimary} size={18} />
-            </TouchableOpacity>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{t('scSharePerformance')}</Text>
+            <PressableScale onPress={onClose} hitSlop={12} accessibilityLabel={t('cancel')}>
+              <X color={theme.colors.textSecondary} size={18} />
+            </PressableScale>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-            <View style={styles.cardFrame}>
-              <View style={styles.brandHeader}>
-                <View style={styles.logoBadge}>
-                  <Text style={styles.logoText}>SEVEN JOURNAL</Text>
-                  <View style={styles.dot} />
-                  <Text style={styles.subLogo}>FINTECH TERMINAL</Text>
+          {/* Scope selector — what the card covers. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scopeRow}
+          >
+            {options.map(opt => {
+              const active = period === opt.id;
+              return (
+                <PressableScale
+                  key={opt.id}
+                  onPress={() => setPeriod(opt.id)}
+                  style={[styles.scopeChip, active && styles.scopeChipActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(opt.labelKey)}
+                >
+                  <Text style={[styles.scopeText, active && styles.scopeTextActive]}>
+                    {t(opt.labelKey)}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
+            {/* ── The card itself. Everything inside this View is captured. ── */}
+            <View ref={cardRef} collapsable={false} style={styles.card}>
+              <View style={[styles.cardGlow, { backgroundColor: accent }]} />
+
+              <View style={styles.cardHead}>
+                <View style={styles.brandRow}>
+                  <SevenMark size={22} />
+                  <View>
+                    <Text style={styles.brandName}>SEVEN JOURNAL</Text>
+                    <Text style={styles.brandAccount} numberOfLines={1}>
+                      {accountName.toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.dateLabel}>
-                  {new Date().toLocaleDateString(localeFor(lang), {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </Text>
+                {subtitle ? <Text style={styles.cardDate}>{subtitle}</Text> : null}
               </View>
 
-              <Text style={styles.accountLabel}>{accountName.toUpperCase()}</Text>
+              {isEmpty ? (
+                <View style={styles.emptyBlock}>
+                  <Text style={styles.emptyText}>{t('shareNoTrades')}</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.pnlBlock}>
+                    <Text style={styles.pnlLabel}>
+                      {single ? single.pair : t('scNetPnl')}
+                    </Text>
+                    <Text
+                      style={[styles.pnlValue, { color: accent }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.5}
+                    >
+                      {money(stats.netPnl, { thousandsSeparator: true })}
+                    </Text>
+                    {stats.equity.length > 1 ? (
+                      <Sparkline
+                        data={stats.equity}
+                        baseline={0}
+                        width={220}
+                        height={44}
+                        strokeWidth={2}
+                      />
+                    ) : null}
+                  </View>
 
-              <View style={styles.pnlShowcase}>
-                <Text style={styles.pnlTitle}>{t('scNetPnl')}</Text>
-                <Text style={[styles.pnlAmount, isPositive ? styles.greenText : styles.redText]}>
-                  {money(totalPnL, { thousandsSeparator: true })}
-                </Text>
-              </View>
+                  {/* A single trade and a period tell different stories, so
+                      they get different figures rather than one generic grid
+                      padded with blanks. */}
+                  <View style={styles.statGrid}>
+                    {single ? (
+                      <>
+                        <Stat
+                          styles={styles}
+                          label={t('scSide')}
+                          value={single.direction}
+                          color={theme.colors.textPrimary}
+                        />
+                        <Stat
+                          styles={styles}
+                          label="R"
+                          value={`${(single.r_multiple ?? 0) >= 0 ? '+' : ''}${(
+                            single.r_multiple ?? 0
+                          ).toFixed(2)}`}
+                          color={(single.r_multiple ?? 0) >= 0 ? theme.colors.green : theme.colors.red}
+                        />
+                        <Stat
+                          styles={styles}
+                          label={t('scTimeframe')}
+                          value={single.timeframe || '—'}
+                          color={theme.colors.textPrimary}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Stat
+                          styles={styles}
+                          label={t('scWinRate')}
+                          value={`${stats.winRate.toFixed(0)}%`}
+                          color={stats.winRate >= 50 ? theme.colors.green : theme.colors.red}
+                        />
+                        <Stat
+                          styles={styles}
+                          label={t('scPositions')}
+                          value={String(stats.trades.length)}
+                          color={theme.colors.textPrimary}
+                        />
+                        <Stat
+                          styles={styles}
+                          label={t('scCumulR')}
+                          value={`${stats.totalR >= 0 ? '+' : ''}${stats.totalR.toFixed(1)}R`}
+                          color={stats.totalR >= 0 ? theme.colors.cyan : theme.colors.red}
+                        />
+                      </>
+                    )}
+                  </View>
 
-              <View style={styles.metricsGrid}>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>{t('scWinRate')}</Text>
-                  <Text style={[styles.metricValue, winRate >= 50 ? styles.greenText : styles.redText]}>
-                    {winRate.toFixed(0)}%
-                  </Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>{t('scPositions')}</Text>
-                  <Text style={styles.metricValue}>{closed.length}</Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>{t('scCumulR')}</Text>
-                  <Text style={[styles.metricValue, totalR >= 0 ? styles.cyanText : styles.redText]}>
-                    {totalR >= 0 ? '+' : ''}{totalR.toFixed(1)}R
-                  </Text>
-                </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>{t('scBestTrade')}</Text>
-                  <Text style={[styles.metricValue, styles.greenText]}>
-                    {money(bestTrade, { decimals: 0 })}
-                  </Text>
-                </View>
-              </View>
+                  {!single && stats.bestStreak > 1 ? (
+                    <View style={styles.streakRow}>
+                      <TrendingUp size={11} color={theme.colors.green} strokeWidth={2} />
+                      <Text style={styles.streakText}>
+                        {t('shareStreak').replace('{n}', String(stats.bestStreak))}
+                      </Text>
+                    </View>
+                  ) : null}
+                </>
+              )}
 
-              <View style={styles.cardFooter}>
-                <View style={styles.verifiedBadge}>
-                  <Check size={10} color={theme.colors.green} />
+              <View style={styles.cardFoot}>
+                <View style={styles.verified}>
+                  <Check size={9} color={theme.colors.green} strokeWidth={2.5} />
                   <Text style={styles.verifiedText}>{t('scVerified')}</Text>
                 </View>
                 <Text style={styles.watermark}>seventracking.app</Text>
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.shareBtn}
-              onPress={handleShare}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={t('scExportShare')}
-            >
-              <Share2 size={16} color={theme.colors.textPrimary} />
-              <Text style={styles.shareBtnText}>{t('scExportShare')}</Text>
-            </TouchableOpacity>
+            {/* ── Actions ── */}
+            <View style={styles.actions}>
+              <PressableScale
+                style={[styles.action, styles.actionGhost, isEmpty && styles.actionDisabled]}
+                onPress={() => !isEmpty && saveToGallery(period)}
+                disabled={isEmpty || busy !== null}
+                accessibilityRole="button"
+                accessibilityLabel={t('shareSaveImage')}
+              >
+                {busy === 'saving' ? (
+                  <ActivityIndicator size="small" color={theme.colors.textPrimary} />
+                ) : savedAt ? (
+                  <Check size={15} color={theme.colors.green} strokeWidth={2.5} />
+                ) : (
+                  <Download size={15} color={theme.colors.textSecondary} strokeWidth={1.9} />
+                )}
+                <Text style={styles.actionGhostText}>
+                  {savedAt ? t('shareSaved') : t('shareSaveImage')}
+                </Text>
+              </PressableScale>
+
+              <PressableScale
+                style={[styles.action, styles.actionPrimary, isEmpty && styles.actionDisabled]}
+                onPress={() => !isEmpty && share(period)}
+                disabled={isEmpty || busy !== null}
+                accessibilityRole="button"
+                accessibilityLabel={t('scExportShare')}
+              >
+                {busy === 'sharing' ? (
+                  <ActivityIndicator size="small" color={theme.colors.background} />
+                ) : (
+                  <Share2 size={15} color={theme.colors.background} strokeWidth={2} />
+                )}
+                <Text style={styles.actionPrimaryText}>{t('scExportShare')}</Text>
+              </PressableScale>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -161,198 +279,222 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   );
 };
 
+const Stat: React.FC<{
+  styles: ReturnType<typeof createStyles>;
+  label: string;
+  value: string;
+  color: string;
+}> = ({ styles, label, value, color }) => (
+  <View style={styles.stat}>
+    <Text style={styles.statLabel}>{label}</Text>
+    <Text style={[styles.statValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>
+      {value}
+    </Text>
+  </View>
+);
+
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      backgroundColor: 'rgba(0,0,0,0.86)',
       justifyContent: 'center',
-      alignItems: 'center',
       padding: 16,
     },
-    modalContent: {
-      width: '100%',
-      maxHeight: '90%',
+    sheet: {
       backgroundColor: theme.colors.backgroundElevated,
-      borderColor: theme.colors.cardBorderGlow,
+      borderColor: theme.colors.cardBorder,
       borderWidth: 1,
-      borderRadius: 20,
-      padding: 16,
+      borderRadius: 18,
+      maxHeight: '92%',
+      overflow: 'hidden',
     },
-    modalHeader: {
+    header: {
       flexDirection: 'row',
+      alignItems: 'center',
       justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.cardBorder,
-      paddingBottom: 10,
+      paddingHorizontal: 16,
+      paddingTop: 15,
+      paddingBottom: 11,
     },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    modalTitle: {
+    title: {
       color: theme.colors.textPrimary,
-      fontSize: 12,
-      fontFamily: theme.fonts.sansBold,
-      letterSpacing: 1,
-    },
-    closeBtn: {
-      padding: 4,
-      borderRadius: 8,
-      backgroundColor: theme.colors.surface,
-    },
-    scrollBody: {
-      alignItems: 'center',
-      paddingBottom: 10,
-    },
-    cardFrame: {
-      width: '100%',
-      backgroundColor: theme.colors.card,
-      borderColor: theme.colors.borderStrong,
-      borderWidth: 1,
-      borderRadius: 16,
-      padding: 20,
-    },
-    brandHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    logoBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    logoText: {
-      color: theme.colors.primaryLight,
       fontSize: 11,
-      fontFamily: theme.fonts.sansExtraBold,
-      letterSpacing: 1.2,
-    },
-    dot: {
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: theme.colors.goldLight,
-    },
-    subLogo: {
-      color: theme.colors.textMuted,
-      fontSize: 9,
-      fontFamily: theme.fonts.monoMedium,
+      fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
     },
-    dateLabel: {
-      color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: theme.fonts.monoBold,
-    },
-    accountLabel: {
-      color: theme.colors.goldLight,
-      fontSize: 10,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 1,
-      marginBottom: 12,
-    },
-    pnlShowcase: {
-      backgroundColor: theme.colors.inputBg,
-      borderColor: theme.colors.cardBorder,
+
+    scopeRow: { paddingHorizontal: 14, paddingBottom: 12, gap: 7 },
+    scopeChip: {
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+      borderRadius: 7,
       borderWidth: 1,
-      borderRadius: 12,
-      padding: 16,
-      alignItems: 'center',
-      marginBottom: 16,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
     },
-    pnlTitle: {
+    scopeChipActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primary + '1A',
+    },
+    scopeText: {
       color: theme.colors.textMuted,
-      fontSize: 9,
+      fontSize: 9.5,
       fontFamily: theme.fonts.monoBold,
-      letterSpacing: 1,
-      marginBottom: 4,
+      letterSpacing: 0.5,
     },
-    pnlAmount: {
-      fontSize: 28,
-      fontFamily: theme.fonts.monoExtraBold,
-      fontVariant: ['tabular-nums'],
-      letterSpacing: -0.5,
+    scopeTextActive: { color: theme.colors.primary },
+
+    body: { paddingHorizontal: 14, paddingBottom: 16 },
+
+    // ── The exported card ──
+    card: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      padding: 18,
+      overflow: 'hidden',
     },
-    metricsGrid: {
+    cardGlow: {
+      position: 'absolute',
+      top: -70,
+      right: -50,
+      width: 180,
+      height: 180,
+      borderRadius: 90,
+      opacity: 0.1,
+    },
+    cardHead: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      marginBottom: 16,
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      marginBottom: 20,
     },
-    metricItem: {
-      width: '48%',
-      backgroundColor: theme.colors.inputBg,
-      borderColor: theme.colors.cardBorder,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 10,
-      alignItems: 'center',
-    },
-    metricLabel: {
-      color: theme.colors.textMuted,
-      fontSize: 9,
+    brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1 },
+    brandName: {
+      color: theme.colors.textPrimary,
+      fontSize: 10,
       fontFamily: theme.fonts.monoBold,
+      letterSpacing: 1.1,
+    },
+    brandAccount: {
+      color: theme.colors.textMuted,
+      fontSize: 8,
+      fontFamily: theme.fonts.mono,
+      letterSpacing: 0.6,
+      marginTop: 2,
+    },
+    cardDate: {
+      color: theme.colors.textSecondary,
+      fontSize: 8.5,
+      fontFamily: theme.fonts.mono,
       letterSpacing: 0.6,
     },
-    metricValue: {
-      color: theme.colors.textPrimary,
-      fontSize: 15,
-      fontFamily: theme.fonts.monoExtraBold,
-      marginTop: 2,
-      fontVariant: ['tabular-nums'],
+
+    pnlBlock: { alignItems: 'center', marginBottom: 20 },
+    pnlLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 9,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 1,
+      marginBottom: 6,
     },
-    cardFooter: {
+    pnlValue: {
+      fontSize: 42,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: -1,
+      marginBottom: 6,
+    },
+
+    statGrid: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       borderTopWidth: 1,
       borderTopColor: theme.colors.cardBorder,
-      paddingTop: 12,
+      paddingTop: 14,
     },
-    verifiedBadge: {
+    stat: { flex: 1, alignItems: 'center' },
+    statLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 8,
+      fontFamily: theme.fonts.mono,
+      letterSpacing: 0.7,
+      marginBottom: 4,
+    },
+    statValue: { fontSize: 15, fontFamily: theme.fonts.monoBold },
+
+    streakRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      backgroundColor: 'rgba(43, 213, 118, 0.1)',
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 6,
+      justifyContent: 'center',
+      gap: 5,
+      marginTop: 13,
     },
-    verifiedText: {
+    streakText: {
       color: theme.colors.green,
       fontSize: 9,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+    },
+
+    emptyBlock: { paddingVertical: 34, alignItems: 'center' },
+    emptyText: {
+      color: theme.colors.textMuted,
+      fontSize: 10,
+      fontFamily: theme.fonts.mono,
+      textAlign: 'center',
+    },
+
+    cardFoot: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 18,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.cardBorder,
+    },
+    verified: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    verifiedText: {
+      color: theme.colors.green,
+      fontSize: 7.5,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.6,
     },
     watermark: {
-      color: theme.colors.textDark,
-      fontSize: 9,
-      fontFamily: theme.fonts.monoMedium,
+      color: theme.colors.textMuted,
+      fontSize: 7.5,
+      fontFamily: theme.fonts.mono,
+      letterSpacing: 0.6,
     },
-    shareBtn: {
-      marginTop: 16,
-      width: '100%',
-      height: 48,
-      backgroundColor: theme.colors.primary,
-      borderRadius: 12,
+
+    actions: { flexDirection: 'row', gap: 9, marginTop: 14 },
+    action: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: 7,
+      paddingVertical: 13,
+      borderRadius: 10,
     },
-    shareBtnText: {
-      color: theme.colors.textPrimary,
-      fontSize: 11,
+    actionGhost: {
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
+    },
+    actionGhostText: {
+      color: theme.colors.textSecondary,
+      fontSize: 9.5,
       fontFamily: theme.fonts.monoBold,
-      letterSpacing: 0.8,
+      letterSpacing: 0.6,
     },
-    greenText: { color: theme.colors.green },
-    redText: { color: theme.colors.red },
-    cyanText: { color: theme.colors.cyan },
+    actionPrimary: { backgroundColor: theme.colors.primary },
+    actionPrimaryText: {
+      color: theme.colors.background,
+      fontSize: 9.5,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.6,
+    },
+    actionDisabled: { opacity: 0.4 },
   });

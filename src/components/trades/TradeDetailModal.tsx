@@ -27,7 +27,8 @@ import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { Badge } from '../ui/Badge';
 import { AssetGlyph } from '../ui/AssetGlyph';
-import { X, Edit3, Trash2, ExternalLink } from 'lucide-react-native';
+import { X, Edit3, Trash2, ExternalLink, Share2 } from 'lucide-react-native';
+import { ShareCardModal } from '../share/ShareCardModal';
 
 interface TradeDetailModalProps {
   visible: boolean;
@@ -66,6 +67,9 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   );
   // Which screenshot is open in the full-screen zoomable viewer.
   const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
+  // Sharing a single execution is the most common case, so it is offered here
+  // rather than only from the dashboard's account-wide card.
+  const [sharing, setSharing] = useState(false);
 
   /**
    * One actionable sentence, only when the excursion actually says something.
@@ -353,6 +357,15 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => setSharing(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('scSharePerformance')}
+            >
+              <Share2 size={16} color={theme.colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.editBtn}
               onPress={() => {
                 onClose();
@@ -365,6 +378,12 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           </View>
         </View>
       </View>
+      <ShareCardModal
+        visible={sharing}
+        onClose={() => setSharing(false)}
+        trades={[trade]}
+        trade={trade}
+      />
       <ScreenshotViewer
         visible={viewer !== null}
         uri={viewer?.uri ?? null}
@@ -624,6 +643,15 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     gap: theme.spacing.md,
+  },
+  shareBtn: {
+    width: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
   },
   deleteBtn: {
     flex: 1,

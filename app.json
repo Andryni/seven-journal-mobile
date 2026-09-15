@@ -52,6 +52,14 @@
         {
           "faceIDPermission": "Autoriser Seven Journal à utiliser Face ID pour déverrouiller vos données de trading."
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Autoriser Seven Journal à enregistrer vos cartes de performance dans vos photos.",
+          "savePhotosPermission": "Autoriser Seven Journal à enregistrer vos cartes de performance dans vos photos.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "extra": {
