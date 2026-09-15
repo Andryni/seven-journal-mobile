@@ -26,20 +26,25 @@ ASSETS = os.path.join(ROOT, "assets")
 SRC_ASSETS = os.path.join(ROOT, "src", "assets")
 
 
-def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22):
+def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22, baseline=True):
     """
-    The mark: a bold '7' with an ascending step motif in its counter.
+    The mark: a bold '7' standing on a chart baseline.
 
-    The previous version speared a candlestick straight through the horizontal
-    bar of the 7. At icon scale that reads as two shapes colliding -- a
-    misalignment rather than a symbol -- and the thin wick vanished entirely
-    below ~48px, leaving an orange smudge on the numeral.
+    Two earlier attempts failed for the same reason -- they put a second
+    picture next to the numeral and hoped the two would read as one symbol.
+    First a candlestick speared through the horizontal bar. Then three
+    ascending bars in the counter, which at launcher size stopped reading as
+    bars at all and turned the icon into "a wifi glyph next to a 7".
 
-    This one keeps the shapes separate and legible: a heavy seven, and beneath
-    its diagonal three rising bars that sit in the empty triangle the numeral
-    already creates. Nothing overlaps, the negative space does the work, and
-    the silhouette survives being shrunk to a favicon or flattened to a
-    single-colour themed icon.
+    This version stops adding objects. The numeral is drawn as one continuous
+    stroke with round joins, heavy enough to hold the whole plate, and the only
+    other element is a green rule beneath it. That rule is not decoration: it
+    is the axis the figure stands on, so the seven becomes a value on a chart
+    rather than a digit with an ornament. It also never touches the glyph, so
+    there is nothing to collide at any size.
+
+    Drawn amber-on-dark or dark-on-amber depending on `fg`/`bg`; the silhouette
+    is identical either way, which is what the Android monochrome slot needs.
     """
     S = size * SS
     img = Image.new("RGBA", (S, S), bg if bg else (0, 0, 0, 0))
@@ -50,45 +55,31 @@ def draw_mark(size, fg=AMBER, accent=None, bg=None, inset=0.22):
 
     m = S * inset
     w = S - 2 * m
-    stroke = int(w * 0.155)
+    stroke = int(w * 0.175)
+    r = stroke / 2
 
-    # Top bar of the 7.
-    bar_y = m + w * 0.085
-    d.rounded_rectangle(
-        [m, bar_y, m + w, bar_y + stroke],
-        radius=stroke * 0.16,
-        fill=fg,
-    )
+    # Geometry in fractions of the inner box. The foot stops short of the
+    # bottom to leave the baseline its own air.
+    x0, x1 = m, m + w
+    y_top = m + w * 0.04
+    x_foot = m + w * 0.40
+    y_foot = m + w * 0.78
 
-    # Diagonal leg, as a filled quad so the corner with the bar stays crisp.
-    top_x = m + w
-    bot_x = m + w * 0.52
-    bot_y = m + w
-    d.polygon(
-        [
-            (top_x - stroke, bar_y + stroke),
-            (top_x, bar_y + stroke),
-            (bot_x, bot_y),
-            (bot_x - stroke, bot_y),
-        ],
-        fill=fg,
-    )
+    def dot(x, y):
+        d.ellipse([x - r, y - r, x + r, y + r], fill=fg)
 
-    # Ascending bars in the counter of the 7 -- the journal's own subject.
-    # Sized and placed to clear the diagonal with real breathing room, so the
-    # mark never looks like two overlapping glyphs.
-    bar_w = w * 0.085
-    gap = w * 0.048
-    base_y = m + w * 0.97
-    heights = [w * 0.15, w * 0.23, w * 0.31]
-    x = m + w * 0.0
-    for i, h in enumerate(heights):
-        d.rounded_rectangle(
-            [x, base_y - h, x + bar_w, base_y],
-            radius=bar_w * 0.22,
-            fill=accent if i == len(heights) - 1 else fg,
-        )
-        x += bar_w + gap
+    # Top bar and diagonal, as round-capped strokes: one gesture, no seams.
+    d.line([(x0, y_top), (x1, y_top)], fill=fg, width=stroke)
+    d.line([(x1, y_top), (x_foot, y_foot)], fill=fg, width=stroke, joint="curve")
+    dot(x0, y_top)
+    dot(x1, y_top)
+    dot(x_foot, y_foot)
+
+    # The baseline the numeral stands on.
+    if baseline:
+        bh = w * 0.075
+        by = m + w * 0.93
+        d.rounded_rectangle([x0, by, x1, by + bh], radius=bh / 2, fill=accent)
 
     # Optically centre on the drawn ink rather than the nominal box.
     bbox = img.getbbox()

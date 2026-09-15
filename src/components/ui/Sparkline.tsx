@@ -17,6 +17,19 @@ interface SparklineProps {
   height?: number;
   /** Colour override; defaults to green/red based on net direction. */
   color?: string;
+  /**
+   * Value the series is judged against when picking green or red.
+   *
+   * Defaults to the first data point, which is right for a series of levels
+   * (a balance, a running win rate): "up from where it started".
+   *
+   * It is WRONG for a cumulative P&L curve, whose first point is already the
+   * result of trade one. A book that won 100 then gave back 5 starts at 100
+   * and ends at 105 -- up 105 overall, but only +5 against its own first
+   * point, and outright red if trade one was the best of the run. Pass 0 for
+   * those so the colour matches the total the user is reading next to it.
+   */
+  baseline?: number;
   /** Fill the area under the line. */
   filled?: boolean;
   strokeWidth?: number;
@@ -34,13 +47,16 @@ export const Sparkline: React.FC<SparklineProps> = ({
   width = 72,
   height = 24,
   color,
+  baseline,
   filled = true,
   strokeWidth = 1.5,
 }) => {
   const { theme } = useTheme();
   const progress = useSharedValue(0);
 
-  const net = data.length ? data[data.length - 1] - data[0] : 0;
+  const net = data.length
+    ? data[data.length - 1] - (baseline ?? data[0])
+    : 0;
   const stroke = color ?? (net >= 0 ? theme.colors.green : theme.colors.red);
 
   const { linePath, areaPath, lastPoint, length } = useMemo(() => {

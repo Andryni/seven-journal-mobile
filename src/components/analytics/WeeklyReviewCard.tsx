@@ -77,7 +77,7 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
             <Text style={styles.deltaLabel}>{t('weeklyVsPrev')}</Text>
           </View>
         </View>
-        <Sparkline data={cumulative} width={86} height={34} />
+        <Sparkline data={cumulative} baseline={0} width={86} height={34} />
       </Animated.View>
 
       <Hairline style={{ marginVertical: theme.spacing.md }} />

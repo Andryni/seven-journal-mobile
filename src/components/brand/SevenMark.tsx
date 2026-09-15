@@ -24,9 +24,11 @@ interface SevenMarkProps {
  * colours, it needs a separate file per density, it blurs when a screen wants
  * it larger than it was exported, and it cannot be animated per-element.
  *
- * The shapes here are the same ones make_icons.py draws, expressed on a 100x100
- * viewBox: a heavy 7, and three rising bars sitting in the empty triangle the
- * numeral creates. Nothing overlaps, so the silhouette still reads at 16px.
+ * Same geometry as make_icons.py's draw_mark(), on a 100x100 viewBox: a heavy
+ * seven drawn as one round-capped stroke, standing on a green baseline. The
+ * rule is the axis the figure stands on, which is what makes the numeral read
+ * as a value on a chart instead of a digit with an ornament — and, unlike the
+ * ascending bars it replaces, it never collides with the glyph at small sizes.
  */
 export const SevenMark: React.FC<SevenMarkProps> = ({
   size = 40,
@@ -38,23 +40,20 @@ export const SevenMark: React.FC<SevenMarkProps> = ({
 }) => {
   const { theme } = useTheme();
   const ink = color ?? theme.colors.primary;
-  const tip = monochrome ? ink : (accent ?? theme.colors.green);
+  const rule = monochrome ? ink : (accent ?? theme.colors.green);
   const plateBg = plateColor ?? theme.colors.card;
 
-  // Geometry, in viewBox units. Mirrors draw_mark(): inset 0.22 of the box,
-  // stroke 0.155 of the inner width.
-  const m = 14;
-  const w = 72;
-  const stroke = w * 0.155;
-  const barY = m + w * 0.085;
-  const topX = m + w;
-  const botX = m + w * 0.52;
-  const botY = m + w;
+  // Geometry in viewBox units, mirroring draw_mark() at inset 0.22.
+  const m = 22;
+  const w = 100 - m * 2;
+  const stroke = w * 0.175;
 
-  const barW = w * 0.085;
-  const gap = w * 0.048;
-  const baseY = m + w * 0.97;
-  const heights = [w * 0.15, w * 0.23, w * 0.31];
+  const yTop = m + w * 0.04;
+  const xFoot = m + w * 0.4;
+  const yFoot = m + w * 0.78;
+
+  const baseH = w * 0.075;
+  const baseY = m + w * 0.93;
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
@@ -68,32 +67,24 @@ export const SevenMark: React.FC<SevenMarkProps> = ({
       {plate ? <Rect x="0" y="0" width="100" height="100" rx="22" fill={plateBg} /> : null}
 
       <G>
-        {/* Top bar of the 7 */}
+        {/* The seven: one continuous stroke, round joins, no seams. */}
+        <Path
+          d={`M ${m} ${yTop} L ${m + w} ${yTop} L ${xFoot} ${yFoot}`}
+          stroke="url(#sevenInk)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        {/* The baseline it stands on. */}
         <Rect
           x={m}
-          y={barY}
+          y={baseY}
           width={w}
-          height={stroke}
-          rx={stroke * 0.16}
-          fill="url(#sevenInk)"
+          height={baseH}
+          rx={baseH / 2}
+          fill={rule}
         />
-        {/* Diagonal leg, as a quad so its junction with the bar stays crisp */}
-        <Path
-          d={`M ${topX - stroke} ${barY + stroke} L ${topX} ${barY + stroke} L ${botX} ${botY} L ${botX - stroke} ${botY} Z`}
-          fill="url(#sevenInk)"
-        />
-        {/* Ascending bars — the journal's own subject, in the numeral's counter */}
-        {heights.map((h, i) => (
-          <Rect
-            key={i}
-            x={m + i * (barW + gap)}
-            y={baseY - h}
-            width={barW}
-            height={h}
-            rx={barW * 0.22}
-            fill={i === heights.length - 1 ? tip : ink}
-          />
-        ))}
       </G>
     </Svg>
   );

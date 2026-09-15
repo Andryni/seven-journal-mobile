@@ -185,7 +185,7 @@ export const DashboardScreen: React.FC = () => {
             minimumFontScale={0.6}
           />
           {equitySeries.length > 1 ? (
-            <Sparkline data={equitySeries} width={80} height={32} />
+            <Sparkline data={equitySeries} baseline={0} width={80} height={32} />
           ) : null}
         </View>
 

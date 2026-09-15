@@ -543,7 +543,7 @@ export const PlaybookScreen: React.FC = () => {
                             </Text>
                           </View>
                           {edge.equity.length >= 2 && (
-                            <Sparkline data={edge.equity} width={92} height={36} />
+                            <Sparkline data={edge.equity} baseline={0} width={92} height={36} />
                           )}
                         </View>
 
