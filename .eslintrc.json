@@ -9,10 +9,12 @@
     }
   },
   "plugins": [
-    "react-hooks"
+    "react-hooks",
+    "local-rules"
   ],
   "rules": {
-    "react-hooks/rules-of-hooks": "error"
+    "react-hooks/rules-of-hooks": "error",
+    "local-rules/no-js-call-in-animated-style": "error"
   },
   "ignorePatterns": [
     "node_modules",
