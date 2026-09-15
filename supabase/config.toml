@@ -1,0 +1,20 @@
+# Supabase CLI project config.
+#
+# Without this file the CLI does not recognise the directory as a project, so
+# `supabase functions deploy coach` never finds supabase/functions/coach and
+# nothing is published -- which is why the app got a 404 from a function whose
+# source was sitting right here.
+#
+# project_id is only the local label. The deployment target is chosen by
+# `supabase link --project-ref <ref>`, which writes .supabase/ (gitignored).
+project_id = "seven-journal-mobile"
+
+[functions.coach]
+# Left at the default (true) deliberately.
+#
+# The function's own guard only checks that an Authorization header is
+# PRESENT -- it never validates the token. On its own that is not a real
+# check: any caller can send `Authorization: Bearer x` and reach the model.
+# The gateway's verify_jwt is what actually rejects an unauthenticated
+# caller, so turning it off here would leave a public proxy to a paid API.
+verify_jwt = true

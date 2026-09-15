@@ -133,8 +133,15 @@ Deno.serve(async (req: Request) => {
   const apiKey = geminiKey || openaiKey;
   if (!apiKey) return json({ error: 'not_configured' }, 503);
 
-  // Require the caller's Supabase JWT. Without this the endpoint is an open
-  // proxy to a paid model API.
+  /**
+   * Second line of defence only.
+   *
+   * This checks that a bearer token was SENT, not that it is valid -- the
+   * gateway does the real verification, because supabase/config.toml leaves
+   * verify_jwt at its default of true for this function. Do not turn that off
+   * on the assumption that this check covers it: any caller can send
+   * `Authorization: Bearer x` and would then reach the model.
+   */
   const auth = req.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return json({ error: 'unauthorized' }, 401);
 

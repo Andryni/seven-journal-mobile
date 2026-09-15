@@ -12,7 +12,19 @@ only in this function's environment.
 
 ## Deploy
 
-Pick one provider. Gemini is preferred when both keys are present.
+First time only — link the CLI to your project. Without this the CLI does not
+treat the repo as a Supabase project and `deploy` silently finds nothing to
+publish, which shows up in the app as "Analysis service is not deployed":
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+```
+
+`YOUR_PROJECT_REF` is the subdomain of your Supabase URL: for
+`https://abcdefgh.supabase.co` it is `abcdefgh`.
+
+Then pick one provider. Gemini is preferred when both keys are present.
 
 ### Gemini (free tier, no credit card)
 
@@ -64,6 +76,15 @@ acceptable, use the paid option below.
 supabase functions deploy coach
 supabase secrets set OPENAI_API_KEY=sk-...
 ```
+
+Check it actually published — `deploy` can succeed while listing nothing:
+
+```bash
+supabase functions list
+```
+
+`coach` must appear with status ACTIVE. If the list is empty, the link step
+above did not happen.
 
 No client change is needed for either. Until a secret is set the function
 returns `503 not_configured`, and the app shows "AI summary is not configured"
