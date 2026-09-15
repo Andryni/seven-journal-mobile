@@ -15,7 +15,9 @@ import { supabase } from './src/api/supabaseClient';
 import { useTheme } from './src/theme';
 import { useT } from './src/i18n';
 import { TopAccountBar } from './src/components/common/TopAccountBar';
+import { GlobalAddTradeFab } from './src/components/trades/GlobalAddTradeFab';
 import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
+import { BootScreen } from './src/components/common/BootScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -104,11 +106,12 @@ export default function App() {
   }
 
   if (loading) {
+    // Was a bare spinner on an empty background, which read as a white flash
+    // between the splash and the first screen. Same wait, but it now looks
+    // like the product instead of a stall.
     return (
       <SafeAreaProvider>
-        <View style={[styles.centerScreen, { backgroundColor: theme.colors.background }]}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <BootScreen />
       </SafeAreaProvider>
     );
   }
@@ -229,6 +232,9 @@ export default function App() {
             )}
             </ErrorBoundary>
           </NavigationContainer>
+          {/* Logging lives above the navigator so it is reachable from every
+              tab, not only from Trades. */}
+          {session ? <GlobalAddTradeFab /> : null}
         </SafeAreaView>
       </SafeAreaProvider>
     </PersistQueryClientProvider>

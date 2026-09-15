@@ -44,15 +44,15 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   const handleShare = async () => {
     try {
       const text = [
-        '📊 Seven Journal — Performance',
+        'SEVEN JOURNAL — PERFORMANCE',
         '━━━━━━━━━━━━━━━━━━',
-        `💰 Net P&L: ${money(totalPnL, { thousandsSeparator: true })}`,
-        `🎯 Win Rate: ${winRate.toFixed(1)}%`,
-        `📈 Positions: ${closed.length}`,
-        `⚡ Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
-        `🏆 Best Trade: ${money(bestTrade, { decimals: 0 })}`,
+        `Net P&L: ${money(totalPnL, { thousandsSeparator: true })}`,
+        `Win Rate: ${winRate.toFixed(1)}%`,
+        `Positions: ${closed.length}`,
+        `Cumul R: ${totalR >= 0 ? '+' : ''}${totalR.toFixed(1)}R`,
+        `Best trade: ${money(bestTrade, { decimals: 0 })}`,
         '━━━━━━━━━━━━━━━━━━',
-        '✅ Verified by Seven Journal',
+        'Verified by Seven Journal',
       ].join('\n');
 
       if (await Sharing.isAvailableAsync()) {

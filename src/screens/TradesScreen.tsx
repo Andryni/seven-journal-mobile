@@ -413,8 +413,8 @@ export const TradesScreen: React.FC = () => {
           >
             <Download color={theme.colors.textSecondary} size={15} strokeWidth={1.75} />
           </TouchableOpacity>
-          {/* Full form stays available, but quick entry is the primary path:
-              a journal only survives if logging takes seconds. */}
+          {/* Logging moved to the global FAB: here the label was clipped by
+              the icon buttons and the target was under 44px. */}
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={handleAddTrade}
@@ -423,15 +423,6 @@ export const TradesScreen: React.FC = () => {
             hitSlop={8}
           >
             <Plus color={theme.colors.textSecondary} size={16} strokeWidth={2} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setQuickSheetVisible(true)}
-            activeOpacity={0.8}
-            accessibilityLabel={t('quickEntry')}
-          >
-            <Zap color={theme.colors.background} size={14} strokeWidth={2.5} />
-            <Text style={styles.addBtnText}>{t('quickEntry')}</Text>
           </TouchableOpacity>
         </View>
       </View>

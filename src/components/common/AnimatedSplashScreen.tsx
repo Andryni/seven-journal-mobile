@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
+import { BootScreen } from './BootScreen';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
@@ -25,21 +26,19 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
   useEffect(() => {
     Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      Animated.delay(260),
+      // Long enough for the equity curve to finish drawing itself; cutting at
+      // 260ms showed a half-drawn line and looked like a glitch.
+      Animated.delay(900),
       Animated.timing(opacity, { toValue: 0, duration: 280, useNativeDriver: true }),
     ]).start(() => onAnimationFinish());
   }, [opacity, onAnimationFinish]);
 
   return (
     <View style={styles.container}>
-      <Animated.View style={{ opacity, alignItems: 'center' }}>
-        <Image
-          source={require('../../assets/seven_tracking_logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.wordmark}>SEVEN JOURNAL</Text>
-        <View style={styles.rule} />
+      <Animated.View style={{ opacity, flex: 1, alignSelf: 'stretch' }}>
+        {/* Vector, not the PNG: a bitmap has to be decoded before it can be
+            shown, which is exactly the moment the user saw a blank frame. */}
+        <BootScreen />
       </Animated.View>
     </View>
   );

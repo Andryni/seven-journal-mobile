@@ -606,7 +606,7 @@ export const AnalyticsScreen: React.FC = () => {
                   <Animated.View key={ht.label} entering={FadeIn.delay(i * 60).duration(300)}>
                     <View style={s.rowBetween}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.boldWhite}>⏱️ {ht.label}</Text>
+                        <Text style={s.boldWhite}>{ht.label}</Text>
                         <Text style={s.subMuted}>{ht.count} trades</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
@@ -635,7 +635,7 @@ export const AnalyticsScreen: React.FC = () => {
                 <Animated.View key={st.name} entering={FadeIn.delay(i * 60).duration(300)}>
                   <View style={s.rowBetween}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.boldWhite}>🎯 {st.name}</Text>
+                      <Text style={s.boldWhite}>{st.name}</Text>
                       <Text style={s.subMuted}>{st.count} trades</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -891,10 +891,10 @@ export const AnalyticsScreen: React.FC = () => {
           {/* Progress Bars */}
           <Animated.View entering={FadeIn.delay(160).duration(350)}>
             <Card title={t('meters')}>
-              <AnimatedProgressBar label={'📈 ' + t('target')} current={totalPnL} limit={profitTarget} color={theme.colors.green} theme={theme} />
-              <AnimatedProgressBar label={'📉 ' + t('maxDrawdownLabel')} current={maxDrawdown} limit={maxDrawdownLimit} color={theme.colors.red} invert theme={theme} />
+              <AnimatedProgressBar label={t('target')} current={totalPnL} limit={profitTarget} color={theme.colors.green} theme={theme} />
+              <AnimatedProgressBar label={t('maxDrawdownLabel')} current={maxDrawdown} limit={maxDrawdownLimit} color={theme.colors.red} invert theme={theme} />
               {propFirmData.dailyLossLimit > 0 && (
-                <AnimatedProgressBar label={'⚡ ' + t('maxLossPerDay')} current={propFirmData.worstDay < 0 ? Math.abs(propFirmData.worstDay) : 0} limit={propFirmData.dailyLossLimit} color={theme.colors.gold} invert theme={theme} />
+                <AnimatedProgressBar label={t('maxLossPerDay')} current={propFirmData.worstDay < 0 ? Math.abs(propFirmData.worstDay) : 0} limit={propFirmData.dailyLossLimit} color={theme.colors.gold} invert theme={theme} />
               )}
             </Card>
           </Animated.View>
@@ -915,11 +915,11 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxWinStreak')}</Text>
-                  <Text style={[s.kpiVal, s.greenText]}>🔥 {propFirmData.maxConsecWins}</Text>
+                  <Text style={[s.kpiVal, s.greenText]}>{propFirmData.maxConsecWins}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxLossStreak')}</Text>
-                  <Text style={[s.kpiVal, s.redText]}>💀 {propFirmData.maxConsecLosses}</Text>
+                  <Text style={[s.kpiVal, s.redText]}>{propFirmData.maxConsecLosses}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
