@@ -152,8 +152,14 @@ de l'app est testable normalement :
 
 | Fonctionnalité | Comportement dans Expo Go |
 |---|---|
+| Notifications | Entièrement désactivées, l'interrupteur explique pourquoi |
 | Face ID / déverrouillage biométrique | Indisponible, l'écran se contourne |
-| Notifications push distantes | Les rappels programmés localement fonctionnent |
+
+Depuis le SDK 53, `expo-notifications` lève une exception **au moment de son
+import** dans Expo Go. L'app charge donc le module via
+`src/features/notifications/notificationsModule.ts`, qui ne l'évalue pas du
+tout dans Expo Go. Sans cette précaution l'app entière crashe au démarrage sur
+`[runtime not ready]`.
 
 Pour les tester, il faut un development build (`npx expo run:android`).
 

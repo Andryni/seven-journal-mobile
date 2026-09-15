@@ -77,13 +77,17 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
             <Row
               icon={<Bell size={15} color={theme.colors.primary} strokeWidth={1.75} />}
               title={t('notifications')}
-              sub={t('notificationsDesc')}
+              sub={
+                // Say why the switch is inert instead of letting the user
+                // toggle something that silently cannot work.
+                notifications.available ? t('notificationsDesc') : t('notificationsExpoGo')
+              }
               theme={theme}
               right={
                 <Switch
-                  value={notifications.prefs.enabled}
+                  value={notifications.prefs.enabled && notifications.available}
                   onValueChange={onToggleNotifications}
-                  disabled={busy}
+                  disabled={busy || !notifications.available}
                   trackColor={trackColor}
                   thumbColor={
                     notifications.prefs.enabled ? theme.colors.primary : theme.colors.textMuted
@@ -92,7 +96,7 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
               }
             />
 
-            {notifications.prefs.enabled ? (
+            {notifications.prefs.enabled && notifications.available ? (
               <>
                 <Hairline inset={38} />
                 <Row

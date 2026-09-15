@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { Notifications, notificationsAvailable, isExpoGo } from './notificationsModule';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,6 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  *   3. Weekly review prompt on Sunday evening.
  *
  * All of it is opt-in and individually switchable.
+ *
+ * The expo-notifications module is loaded through ./notificationsModule, which
+ * returns null in Expo Go: importing it there throws at module scope and takes
+ * the whole app down. Every call below is therefore guarded, and the UI can
+ * read `available` to explain why the switches are inert.
  */
 
 export interface NotificationPrefs {
@@ -48,7 +53,7 @@ export const useNotificationPrefs = create<NotificationState>()(
   )
 );
 
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -66,6 +71,7 @@ export function useNotifications() {
   const prefs = useNotificationPrefs();
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
+    if (!Notifications) return false;
     const { status: existing } = await Notifications.getPermissionsAsync();
     let status = existing;
     if (existing !== 'granted') {
@@ -86,6 +92,7 @@ export function useNotifications() {
 
   /** Rebuild all scheduled notifications from the current preferences. */
   const sync = useCallback(async () => {
+    if (!Notifications) return;
     await Notifications.cancelAllScheduledNotificationsAsync();
     if (!prefs.enabled) return;
 
@@ -131,7 +138,7 @@ export function useNotifications() {
    */
   const notifyRiskThreshold = useCallback(
     async (consumedPct: number, remaining: string) => {
-      if (!prefs.enabled || !prefs.riskAlerts) return;
+      if (!Notifications || !prefs.enabled || !prefs.riskAlerts) return;
       await Notifications.scheduleNotificationAsync({
         content: {
           title: `Risque quotidien à ${Math.round(consumedPct)}%`,
@@ -144,6 +151,7 @@ export function useNotifications() {
   );
 
   const enable = useCallback(async () => {
+    if (!Notifications) return false;
     const granted = await requestPermission();
     prefs.set({ enabled: granted });
     return granted;
@@ -151,8 +159,18 @@ export function useNotifications() {
 
   const disable = useCallback(async () => {
     prefs.set({ enabled: false });
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await Notifications?.cancelAllScheduledNotificationsAsync();
   }, [prefs]);
 
-  return { prefs, enable, disable, sync, notifyRiskThreshold, requestPermission };
+  return {
+    prefs,
+    enable,
+    disable,
+    sync,
+    notifyRiskThreshold,
+    requestPermission,
+    /** False in Expo Go: the UI should say so instead of offering dead switches. */
+    available: notificationsAvailable,
+    isExpoGo,
+  };
 }
