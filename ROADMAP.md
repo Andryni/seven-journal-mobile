@@ -109,7 +109,9 @@ façon dont on entraîne sa reconnaissance de patterns.
 2. **`LivePanel` n'est utilisé qu'une fois.** La bordure qui porte un état
    mériterait d'être étendue : positions ouvertes, risque quotidien, règle prop
    firm proche de la limite.
-3. **Accessibilité** : 104 `TouchableOpacity` pour 53 `accessibilityLabel`.
+3. ~~**Accessibilité**~~ — traité : 86 labels, et surtout `accessibilityRole`
+   + `accessibilityState={selected}` sur les bascules, qui est ce qui manquait
+   réellement (un label seul ne dit pas quelle option est active).
 4. **Pas de retour visuel de chargement par section.** Un spinner plein écran
    masque tout ; des squelettes par panneau donneraient une impression de
    vitesse très supérieure.
@@ -126,7 +128,7 @@ façon dont on entraîne sa reconnaissance de patterns.
 | ~~2~~ ✅ | ~~**MAE / MFE**~~ — livré | Deux champs, et le Playbook gagne les seules analyses qui font progresser. |
 | ~~3~~ ✅ | ~~**Objectifs personnels + Lock Guard pour tous**~~ — livré | Étend votre meilleur différenciateur aux comptes non-prop. |
 | ~~4~~ ✅ | ~~**Tags libres + filtrage croisé**~~ — livré | Rend le journal interrogeable. |
-| 5 | **Sorties partielles** | Le plus lourd ; à faire une fois les trois premiers en place. |
+| ~~5~~ ✅ | ~~**Sorties partielles**~~ — livré | Le plus lourd ; à faire une fois les trois premiers en place. |
 
 Les idées « coût de l'indiscipline » et « trade jumeau » de `AUDIT-2.md` restent
 valables et deviennent nettement plus fortes une fois les tags (4) en place.

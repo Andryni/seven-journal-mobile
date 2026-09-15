@@ -17,6 +17,7 @@ import { formatDuration } from '../../utils/formatDate';
 import { outcomeVariant } from '../../utils/tradeOutcome';
 import { tradeCost, hasCost, grossPnl } from '../../utils/tradingCosts';
 import { ExcursionBar } from './ExcursionBar';
+import { PartialExitsPanel } from './PartialExitsPanel';
 import { captureRatio, isNearMiss, isGiveBack } from '../../utils/excursions';
 import { tagsOf } from '../../utils/tradeTags';
 import type { Trade } from '../../types/domain';
@@ -169,6 +170,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             )}
 
             <ExcursionBar trade={trade} />
+
+            <PartialExitsPanel trade={trade} />
             {excursionNote ? <Text style={styles.costWarn}>{excursionNote}</Text> : null}
 
                         {/* Détails Exécution */}

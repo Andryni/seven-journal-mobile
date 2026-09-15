@@ -244,6 +244,41 @@ create unique index if not exists daily_session_locks_user_date_key
 -- Consumer: src/features/playbook/usePlaybook.ts
 -- Was AsyncStorage-only, so setups never synced and vanished on reinstall.
 -- ---------------------------------------------------------------------------
+-- trade_exits
+-- Partial exits (scaling out) for a trade.
+--
+-- Why a child table rather than restructuring `trades` into executions: the
+-- single `pnl` column is read by every statistic, every chart and the daily
+-- loss trigger. Turning a trade into a series of executions would change the
+-- meaning of that column everywhere at once, on live data, for a feature most
+-- traders use on a minority of trades.
+--
+-- So exits are ADDITIVE detail. `trades.pnl` stays the authoritative net total
+-- for the whole position; exits explain how that total was reached. A trade
+-- with no exit rows behaves exactly as it always did.
+-- ---------------------------------------------------------------------------
+create table if not exists public.trade_exits (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  trade_id   uuid not null references public.trades(id) on delete cascade,
+  -- Quantity closed at this exit, in the same unit as trades.size.
+  size       numeric not null check (size > 0),
+  price      numeric not null,
+  exit_time  timestamptz not null default now(),
+  -- Net result of THIS slice. Nullable: a trader may record the scale-out
+  -- levels without splitting the money, and a fabricated 0 would read as a
+  -- breakeven slice.
+  pnl        numeric,
+  note       text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists trade_exits_trade_idx
+  on public.trade_exits (trade_id, exit_time);
+create index if not exists trade_exits_user_idx
+  on public.trade_exits (user_id);
+
+-- ---------------------------------------------------------------------------
 create table if not exists public.playbook_setups (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references auth.users(id) on delete cascade,
@@ -583,6 +618,7 @@ grant execute on function public.prop_firm_status(uuid) to authenticated;
 alter table public.trading_accounts    enable row level security;
 alter table public.trades              enable row level security;
 alter table public.daily_session_locks enable row level security;
+alter table public.trade_exits         enable row level security;
 alter table public.playbook_setups     enable row level security;
 alter table public.daily_debriefs      enable row level security;
 alter table public.user_checklists     enable row level security;
@@ -592,7 +628,7 @@ declare
   tbl text;
 begin
   foreach tbl in array array[
-    'trading_accounts','trades','daily_session_locks',
+    'trading_accounts','trades','trade_exits','daily_session_locks',
     'playbook_setups','daily_debriefs','user_checklists'
   ]
   loop

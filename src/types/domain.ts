@@ -101,6 +101,26 @@ export interface TradingAccount {
   created_at: string;
 }
 
+/**
+ * One partial exit of a trade.
+ *
+ * Additive detail: `trades.pnl` stays the authoritative net total, these rows
+ * explain how it was reached. A trade with no exits behaves as it always did.
+ */
+export interface TradeExit {
+  id: string;
+  user_id: string;
+  trade_id: string;
+  /** Quantity closed, in the same unit as trades.size. */
+  size: number;
+  price: number;
+  exit_time: string;
+  /** Net result of this slice. Null when the trader logged levels only. */
+  pnl?: number | null;
+  note?: string | null;
+  created_at: string;
+}
+
 export interface DailySessionLock {
   id: string;
   user_id: string;
