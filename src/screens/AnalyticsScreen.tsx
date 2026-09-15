@@ -28,6 +28,11 @@ import type { FormatCurrencyOptions } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import { CostImpactCard } from '../components/dashboard/CostImpactCard';
+import { ExcursionCard } from '../components/dashboard/ExcursionCard';
+import { TagPerformanceCard } from '../components/dashboard/TagPerformanceCard';
+import { DisciplineCard } from '../components/dashboard/DisciplineCard';
+import { scopeTrades } from '../features/accounts/accountScope';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT, useI18nStore } from '../i18n';
@@ -307,6 +312,16 @@ export const AnalyticsScreen: React.FC = () => {
     lang,
     t,
   });
+
+  /**
+   * The analysis cards moved here from the dashboard, which had grown to
+   * eleven stacked sections. They scope to the selected account the same way
+   * every other figure on this screen does.
+   */
+  const scopedTrades = useMemo(
+    () => scopeTrades(trades, activeAccountId),
+    [trades, activeAccountId]
+  );
 
   /**
    * Challenge / funded accounts answer "am I passing?". Demo and personal
@@ -659,6 +674,9 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
       {activeTab === 'edge' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          {/* What the edge actually costs, and what it leaves on the table. */}
+          <CostImpactCard trades={scopedTrades} />
+          <ExcursionCard trades={scopedTrades} />
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('winRateBySetup')}>
               {setupBreakdown.map((st, i) => (
@@ -808,6 +826,8 @@ export const AnalyticsScreen: React.FC = () => {
       {/* ── TAB 6 : PSYCHOLOGIE ── */}
       {activeTab === 'behavior' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <DisciplineCard trades={scopedTrades} />
+          <TagPerformanceCard trades={scopedTrades} />
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('mentalImpact')}>
               {mentalBreakdown.map((mb, i) => (

@@ -18,13 +18,8 @@ import { LivePanel } from '../components/ui/LivePanel';
 import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
-import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
-import { DisciplineCard } from '../components/dashboard/DisciplineCard';
-import { CostImpactCard } from '../components/dashboard/CostImpactCard';
-import { ExcursionCard } from '../components/dashboard/ExcursionCard';
-import { TagPerformanceCard } from '../components/dashboard/TagPerformanceCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { PressableScale } from '../components/ui/PressableScale';
@@ -313,7 +308,7 @@ export const DashboardScreen: React.FC = () => {
       </LivePanel>
 
       {/* ── 4. RISK TODAY ── */}
-      <DailyRiskGauge trades={trades} account={activeAccount} />
+      <DailyRiskGauge trades={scopedTrades} account={activeAccount} />
 
       {/* ── 5. EMPTY STATE ── */}
       {m.totalTrades === 0 ? (
@@ -328,7 +323,9 @@ export const DashboardScreen: React.FC = () => {
         </Panel>
       ) : null}
 
-      {/* ── 6. EQUITY ── */}
+      {/* ── 6. EQUITY ──
+          One chart, not two. The daily P&L bars told the same story as this
+          curve; keeping both cost a screen of scroll for no extra insight. */}
       {m.equityCurve.length > 0 ? (
         <Panel title={t('equityLive')}>
           <GlowingEquityAreaChart
@@ -339,24 +336,20 @@ export const DashboardScreen: React.FC = () => {
         </Panel>
       ) : null}
 
-      {m.dailyPnL.length > 0 ? (
-        <Panel title={t('dailyPnl')}>
-          <BicolorBarChart
-                yAxisPrefix={sym}
-            data={m.dailyPnL.map(d => ({ label: d.date, value: d.pnl }))}
-            height={150}
-          />
-        </Panel>
+      {/* The cost, excursion, tag and discipline cards now live in Analytics,
+          which is the screen built for them. This keeps the dashboard a
+          cockpit rather than a report, without hiding anything. */}
+      {m.totalTrades > 0 ? (
+        <PressableScale
+          style={styles.analysisLink}
+          onPress={() => navigation.navigate('Analytics')}
+          accessibilityRole="button"
+          accessibilityLabel={t('dashSeeAnalysis')}
+        >
+          <Text style={styles.analysisLinkText}>{t('dashSeeAnalysis')}</Text>
+          <ChevronRight size={13} color={theme.colors.primary} strokeWidth={2} />
+        </PressableScale>
       ) : null}
-
-      {/* ── 7. DISCIPLINE (replaces the achievements wall) ── */}
-      {m.totalTrades > 0 ? <DisciplineCard trades={scopedTrades} /> : null}
-
-      {m.totalTrades > 0 ? <CostImpactCard trades={scopedTrades} /> : null}
-
-      {m.totalTrades > 0 ? <ExcursionCard trades={scopedTrades} /> : null}
-
-      {m.totalTrades > 0 ? <TagPerformanceCard trades={scopedTrades} /> : null}
 
       {/* ── 10. RECENT TRADES — blotter preview ── */}
       <Panel
@@ -590,7 +583,26 @@ const createStyles = (theme: AppTheme) =>
     },
 
     // View all
-    viewAll: {
+    analysisLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 14,
+    marginBottom: 12,
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
+  },
+  analysisLinkText: {
+    color: theme.colors.primary,
+    fontSize: 10,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.6,
+  },
+  viewAll: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 2,
