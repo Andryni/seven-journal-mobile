@@ -66,6 +66,29 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   );
   // Which screenshot is open in the full-screen zoomable viewer.
   const [viewer, setViewer] = useState<{ uri: string; label: string } | null>(null);
+
+  /**
+   * One actionable sentence, only when the excursion actually says something.
+   * Silence is preferable to narrating every ordinary trade.
+   *
+   * This must stay ABOVE the `if (!trade)` bail-out. Hooks are matched by call
+   * order, so a hook placed after an early return is skipped on the renders
+   * that bail -- React then sees a different hook count between renders and
+   * throws "Rendered more hooks than during the previous render". Every hook
+   * in this component therefore tolerates a null trade rather than being
+   * guarded by one.
+   */
+  const excursionNote = useMemo(() => {
+    if (!trade) return '';
+    if (isGiveBack(trade)) return t('excNoteGiveBack');
+    const cap = captureRatio(trade);
+    if ((trade.pnl || 0) > 0 && cap !== null && cap < 0.4) {
+      return t('excNoteLeftOnTable').replace('{pct}', String(Math.round(cap * 100)));
+    }
+    if (isNearMiss(trade)) return t('excNoteNearMiss');
+    return '';
+  }, [trade, t]);
+
   if (!trade) return null;
 
   const tradeTags = tagsOf(trade);
@@ -76,20 +99,6 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const gross = grossPnl(trade);
   const isWin = (trade.pnl || 0) > 0;
   const isLoss = (trade.pnl || 0) < 0;
-
-  /**
-   * One actionable sentence, only when the excursion actually says something.
-   * Silence is preferable to narrating every ordinary trade.
-   */
-  const excursionNote = useMemo(() => {
-    if (isGiveBack(trade)) return t('excNoteGiveBack');
-    const cap = captureRatio(trade);
-    if (isWin && cap !== null && cap < 0.4) {
-      return t('excNoteLeftOnTable').replace('{pct}', String(Math.round(cap * 100)));
-    }
-    if (isNearMiss(trade)) return t('excNoteNearMiss');
-    return '';
-  }, [trade, isWin, t]);
 
   return (
     <Modal visible={visible} transparent animationType="slide">
