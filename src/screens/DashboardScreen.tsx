@@ -6,6 +6,7 @@ import type { RootTabParamList } from '../types/navigation';
 import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useDailyLock } from '../features/guard/useDailyLock';
+import { computeMetricTrends } from '../features/dashboard/metricTrends';
 import { usePerformanceMetrics } from '../features/dashboard/usePerformanceMetrics';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
@@ -100,6 +101,8 @@ export const DashboardScreen: React.FC = () => {
     () => m.equityCurve.map(e => e.pnl),
     [m.equityCurve]
   );
+
+  const trends = useMemo(() => computeMetricTrends(scopedTrades), [scopedTrades]);
 
   const expectancy = useMemo(() => {
     if (m.closedTrades === 0) return 0;
@@ -198,7 +201,13 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </Animated.View>
 
-      {/* ── 2. LOCK GUARD — highest-priority interrupt ── */}
+      {/* ── 2. SESSIONS ──
+          Which session is open decides whether to trade at all, so it belongs
+          above the numbers, not buried under the charts at the bottom of the
+          scroll where it was never seen before the decision was made. */}
+      <MarketSessionsBar />
+
+      {/* ── 3. LOCK GUARD — highest-priority interrupt ── */}
       {isLocked ? (
         <Animated.View entering={FadeIn.duration(duration.fast)} style={styles.lockBanner}>
           <ShieldAlert color={theme.colors.red} size={18} strokeWidth={1.75} />
@@ -225,6 +234,7 @@ export const DashboardScreen: React.FC = () => {
                 value={`${m.winRate.toFixed(1)}%`}
                 sub={`${m.winCount}W / ${m.lossCount}L`}
                 size="small"
+                trend={trends.winRate}
               />
             </View>
             <View style={styles.vRule} />
@@ -235,6 +245,7 @@ export const DashboardScreen: React.FC = () => {
                 sub={`R ${m.avgRMultiple >= 0 ? '+' : ''}${m.avgRMultiple.toFixed(2)}`}
                 size="small"
                 tone="accent"
+                trend={trends.profitFactor}
               />
             </View>
           </View>
@@ -250,6 +261,7 @@ export const DashboardScreen: React.FC = () => {
                 size="small"
                 tone="pnl"
                 pnlValue={expectancy}
+                trend={trends.expectancy}
               />
             </View>
             <View style={styles.vRule} />
@@ -261,6 +273,8 @@ export const DashboardScreen: React.FC = () => {
                 size="small"
                 tone="pnl"
                 pnlValue={-m.maxDrawdown}
+                trend={trends.drawdown}
+                trendInverted
               />
             </View>
           </View>
@@ -306,9 +320,6 @@ export const DashboardScreen: React.FC = () => {
 
       {/* ── 7. DISCIPLINE (replaces the achievements wall) ── */}
       {m.totalTrades > 0 ? <DisciplineCard trades={scopedTrades} /> : null}
-
-      {/* ── 8. SESSIONS ── */}
-      <MarketSessionsBar />
 
       {/* ── 10. RECENT TRADES — blotter preview ── */}
       <Panel

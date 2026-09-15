@@ -10,6 +10,7 @@ import {
   INSTRUMENT_KEYS,
   MARKET_TYPES,
   defaultInstrumentFor,
+  normalizeMarket,
 } from '../positionSizing';
 
 describe('calculatePositionSize', () => {
@@ -288,5 +289,31 @@ describe('instrumentsForMarket — picker scope', () => {
 
   it('defaults a futures account to a listed contract', () => {
     expect(instrumentsForMarket('Futures')).toContain(defaultInstrumentFor('Futures'));
+  });
+});
+
+describe('normalizeMarket', () => {
+  it('passes through the three valid markets', () => {
+    expect(normalizeMarket('CFD')).toBe('CFD');
+    expect(normalizeMarket('Futures')).toBe('Futures');
+    expect(normalizeMarket('Crypto')).toBe('Crypto');
+  });
+
+  it('falls back to CFD when the column is missing', () => {
+    // Before the schema migration instrument_type is undefined. Treating that
+    // as "no filter" is what listed futures on a CFD account.
+    expect(normalizeMarket(undefined)).toBe('CFD');
+    expect(normalizeMarket(null)).toBe('CFD');
+    expect(normalizeMarket('')).toBe('CFD');
+  });
+
+  it('tolerates casing and whitespace from hand-edited rows', () => {
+    expect(normalizeMarket('futures')).toBe('Futures');
+    expect(normalizeMarket(' CRYPTO ')).toBe('Crypto');
+  });
+
+  it('treats an unknown value as CFD rather than unfiltered', () => {
+    expect(normalizeMarket('Forex')).toBe('CFD');
+    expect(instrumentsForMarket(normalizeMarket('Forex'))).not.toContain('ES');
   });
 });

@@ -96,6 +96,22 @@ export const MARKET_TYPES: MarketType[] = ['CFD', 'Futures', 'Crypto'];
  */
 const FUTURES_PICKER = ['ES', 'MES', 'NQ', 'MNQ', 'GC', 'MGC'];
 
+/**
+ * Normalises whatever the database returned into a market we can trust.
+ *
+ * `instrument_type` is a plain text column. If the schema migration has not
+ * been applied it is absent (undefined); older rows may hold a legacy or
+ * mis-cased value. Any of those used to fall through the market filter and
+ * leave every instrument listed, which is how a CFD account ended up offering
+ * futures contracts. Anything unrecognised is treated as CFD, the safe
+ * default, rather than as "no filter".
+ */
+export function normalizeMarket(value: string | null | undefined): MarketType {
+  if (!value) return 'CFD';
+  const found = MARKET_TYPES.find(m => m.toLowerCase() === String(value).trim().toLowerCase());
+  return found ?? 'CFD';
+}
+
 export function instrumentsForMarket(market: MarketType | null | undefined): string[] {
   if (!market) return INSTRUMENT_KEYS;
   if (market === 'Futures') {

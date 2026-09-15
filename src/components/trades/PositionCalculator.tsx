@@ -20,6 +20,7 @@ import {
   INSTRUMENTS,
   calculatePositionSize,
   instrumentsForMarket,
+  normalizeMarket,
   defaultInstrumentFor,
   formatSize,
 } from '../../utils/positionSizing';
@@ -77,7 +78,7 @@ export const PositionCalculator: React.FC = () => {
   }, [entryPrice, stopLossPrice, riskValue, riskType, instrument, accountId, accounts]);
 
   const activeAccount = accounts.find((a) => a.id === accountId);
-  const market = activeAccount?.instrument_type ?? 'CFD';
+  const market = normalizeMarket(activeAccount?.instrument_type);
   const availableInstruments = useMemo(() => instrumentsForMarket(market), [market]);
   const unitLabel = useSizeUnitLabel(sizeUnit);
 

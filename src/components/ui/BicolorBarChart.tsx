@@ -77,21 +77,6 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
 
   const chartContent = (
     <View style={[styles.container, { height: totalHeight, width: effectiveChartWidth + yAxisWidth }]}>
-      {/* Interactive Tooltip */}
-      {activeItem && (
-        <View style={styles.tooltipBadge}>
-          <Text style={styles.tooltipDate}>{activeItem.label}</Text>
-          <Text
-            style={[
-              styles.tooltipVal,
-              activeItem.value >= 0 ? styles.greenText : styles.redText,
-            ]}
-          >
-            {formatCurrency(activeItem.value, { symbol: yAxisPrefix })}
-          </Text>
-        </View>
-      )}
-
       <View style={styles.chartRow}>
         {/* Native Y-Axis Labels */}
         <View style={[styles.yAxisContainer, { height }]}>
@@ -193,21 +178,57 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
     </View>
   );
 
+  /**
+   * The readout sits ABOVE the plot, in normal flow.
+   *
+   * It used to be position:absolute pinned to the right of the canvas. When
+   * the data is wide the canvas is wider than the screen and lives inside a
+   * horizontal ScrollView, so "right of the canvas" is off-screen: the value
+   * was clipped mid-digit at the edge of the card. A row in normal flow is
+   * bounded by the card, so it cannot escape it no matter how wide the plot.
+   */
+  const readout = activeItem ? (
+    <View style={styles.readout}>
+      <Text style={styles.readoutDate} numberOfLines={1}>
+        {activeItem.label}
+      </Text>
+      <Text
+        style={[
+          styles.readoutVal,
+          activeItem.value >= 0 ? styles.greenText : styles.redText,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
+        {formatCurrency(activeItem.value, { symbol: yAxisPrefix })}
+      </Text>
+    </View>
+  ) : null;
+
   // Wrap in horizontal ScrollView if data is too wide
   if (needsScroll) {
     return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginHorizontal: -theme.spacing.md }}
-        contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}
-      >
-        {chartContent}
-      </ScrollView>
+      <View>
+        {readout}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginHorizontal: -theme.spacing.md }}
+          contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}
+        >
+          {chartContent}
+        </ScrollView>
+      </View>
     );
   }
 
-  return chartContent;
+  return (
+    <View>
+      {readout}
+      {chartContent}
+    </View>
+  );
 };
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
@@ -265,28 +286,21 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.textPrimary,
     fontFamily: theme.fonts.monoBold,
   },
-  tooltipBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 12,
-    backgroundColor: theme.colors.backgroundElevated,
-    borderColor: theme.colors.borderBright,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  readout: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    zIndex: 20,
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
   },
-  tooltipDate: {
+  readoutDate: {
+    flexShrink: 1,
     color: theme.colors.textSecondary,
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: theme.fonts.monoMedium,
   },
-  tooltipVal: {
-    fontSize: 11,
+  readoutVal: {
+    fontSize: 13,
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },

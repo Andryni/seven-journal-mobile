@@ -28,6 +28,7 @@ import {
   calculatePlannedRR,
   estimateRiskAtStop,
   instrumentsForMarket,
+  normalizeMarket,
   defaultInstrumentFor,
   formatSize,
 } from '../../utils/positionSizing';
@@ -67,7 +68,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
 
   // The account's market decides what is tradable and in what unit. An ES
   // contract on a CFD account is meaningless, so the picker is scoped.
-  const market = account?.instrument_type ?? 'CFD';
+  const market = normalizeMarket(account?.instrument_type);
   const availableInstruments = useMemo(() => instrumentsForMarket(market), [market]);
 
   const [instrument, setInstrument] = useState(() => defaultInstrumentFor(market));

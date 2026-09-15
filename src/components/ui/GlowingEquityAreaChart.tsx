@@ -156,23 +156,30 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
     formatCurrency(val, { symbol, compact: true, decimals: 0 });
 
   return (
-    <View style={[styles.container, { width, height }]}>
-      {/* Tooltip */}
+    <View style={{ width }}>
+      {/* Readout in normal flow, above the plot. Pinned absolutely inside the
+          canvas it ran past the card's right edge and the amount was clipped
+          mid-digit -- the longer the number, the more was lost. */}
       {activePoint && (
-        <View style={styles.tooltipBadge}>
-          <Text style={styles.tooltipDate}>
-            Trade #{activePoint.index} · {activePoint.date}
+        <View style={styles.readout}>
+          <Text style={styles.readoutDate} numberOfLines={1}>
+            #{activePoint.index} · {activePoint.date}
           </Text>
           <Text
             style={[
-              styles.tooltipVal,
+              styles.readoutVal,
               activePoint.value >= 0 ? styles.greenText : styles.redText,
             ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             {formatCurrency(activePoint.value, { symbol })}
           </Text>
         </View>
       )}
+
+      <View style={[styles.container, { width, height }]}>
 
       <View style={styles.chartRow}>
         {/* Y-Axis native labels */}
@@ -318,6 +325,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
           </View>
         </Animated.View>
       </View>
+      </View>
     </View>
   );
 };
@@ -378,28 +386,21 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     textAlign: 'center',
     width: 42,
   },
-  tooltipBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 12,
-    backgroundColor: theme.colors.backgroundElevated,
-    borderColor: theme.colors.borderBright,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  readout: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    zIndex: 20,
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
   },
-  tooltipDate: {
+  readoutDate: {
+    flexShrink: 1,
     color: theme.colors.textSecondary,
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: theme.fonts.monoMedium,
   },
-  tooltipVal: {
-    fontSize: 11,
+  readoutVal: {
+    fontSize: 13,
     fontFamily: theme.fonts.monoBold,
     fontVariant: ['tabular-nums'],
   },

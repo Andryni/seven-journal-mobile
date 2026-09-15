@@ -307,6 +307,28 @@ export const AnalyticsScreen: React.FC = () => {
     t,
   });
 
+  /**
+   * Challenge / funded accounts answer "am I passing?". Demo and personal
+   * accounts answer "am I growing?". Those are different questions and the
+   * prop-firm panel -- profit target, drawdown cap, consistency rule -- only
+   * answers the first. Anything not explicitly a prop account gets growth.
+   */
+  const isPropAccount =
+    selectedAccount?.type === 'challenge' || selectedAccount?.type === 'funded';
+
+  /** Capital-growth view, used where the prop tracker would be meaningless. */
+  const growth = useMemo(() => {
+    const balance = initialBalance + totalPnL;
+    const returnPct = initialBalance > 0 ? (totalPnL / initialBalance) * 100 : 0;
+    const days = new Set(closed.map(tr => tr.entry_time.slice(0, 10))).size;
+    const avgDailyPct = days > 0 ? returnPct / days : 0;
+    // Compounding at the observed daily rate; only meaningful while positive.
+    const monthsToDouble =
+      avgDailyPct > 0 ? Math.log(2) / Math.log(1 + avgDailyPct / 100) / 21 : null;
+    const ddPct = initialBalance > 0 ? (maxDrawdown / initialBalance) * 100 : 0;
+    return { balance, returnPct, days, avgDailyPct, monthsToDouble, ddPct };
+  }, [initialBalance, totalPnL, closed, maxDrawdown]);
+
   // Analytics is scoped to one account, so all figures share its currency.
   const sym = currencySymbol(selectedAccount?.currency);
   const money = (v: number, o: FormatCurrencyOptions = {}) =>
@@ -360,7 +382,12 @@ export const AnalyticsScreen: React.FC = () => {
               onPress={() => setActiveTab(tab.id)}
             >
               <Icon color={isActive ? theme.colors.primaryLight : theme.colors.textMuted} size={14} />
-              <Text style={[s.tabText, isActive && s.tabTextActive]}>{t(tab.labelKey as any)}</Text>
+              <Text style={[s.tabText, isActive && s.tabTextActive]}>
+                {/* A demo or personal account has no challenge to pass, so
+                    labelling the tab "PROP FIRM TRACKER" promises rules that
+                    do not exist. Same slot, honest name. */}
+                {tab.id === 'propfirm' && !isPropAccount ? t('tabGrowth') : t(tab.labelKey as any)}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -803,6 +830,118 @@ export const AnalyticsScreen: React.FC = () => {
         </Animated.View>
       )}
 
+      {/* ── TAB 7bis : ACCOUNT GROWTH (demo / personal) ── */}
+      {activeTab === 'propfirm' && !isAggregate && !isPropAccount && (
+        <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
+          <Panel>
+            <View style={s.scopeNotice}>
+              <Info color={theme.colors.primaryLight} size={16} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.scopeTitle}>
+                  {selectedAccount?.type === 'demo'
+                    ? t('growthNoticeDemo')
+                    : t('growthNoticePersonal')}
+                </Text>
+                <Text style={s.scopeText}>{t('growthNoticeHint')}</Text>
+              </View>
+            </View>
+          </Panel>
+
+          <Animated.View entering={FadeIn.delay(80).duration(350)}>
+            <Card title={t('accountGrowth')}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
+                <ProgressRing
+                  progress={Math.min(Math.abs(growth.returnPct) / 100, 1)}
+                  color={growth.returnPct >= 0 ? theme.colors.green : theme.colors.red}
+                  label={t('returnOnCapital')}
+                  value={`${growth.returnPct >= 0 ? '+' : ''}${growth.returnPct.toFixed(1)}%`}
+                  theme={theme}
+                  delay={200}
+                />
+                <ProgressRing
+                  progress={Math.min(growth.ddPct / 100, 1)}
+                  color={growth.ddPct > 20 ? theme.colors.red : theme.colors.cyan}
+                  label={t('maxDrawdownLabel')}
+                  value={`${growth.ddPct.toFixed(0)}%`}
+                  theme={theme}
+                  delay={300}
+                />
+                <ProgressRing
+                  progress={winRate / 100}
+                  color={theme.colors.primaryLight}
+                  label={t('winRate')}
+                  value={`${winRate.toFixed(0)}%`}
+                  theme={theme}
+                  delay={400}
+                />
+              </View>
+            </Card>
+          </Animated.View>
+
+          <Animated.View entering={FadeIn.delay(160).duration(350)}>
+            <Card title={t('growthStats')}>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('currentBalance')}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={s.kpiVal}>
+                    {money(growth.balance, { showPlus: false, decimals: 0, thousandsSeparator: true })}
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}
+                  >
+                    {money(totalPnL, { decimals: 0, thousandsSeparator: true })}
+                  </Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('avgDailyReturn')}</Text>
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                    style={[s.kpiVal, growth.avgDailyPct >= 0 ? s.greenText : s.redText]}
+                  >
+                    {growth.avgDailyPct >= 0 ? '+' : ''}
+                    {growth.avgDailyPct.toFixed(2)}%
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('monthsToDouble')}</Text>
+                  {/* A negative or flat edge never doubles. Printing a huge
+                      number there would read as a forecast; say so instead. */}
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[s.kpiVal, { color: theme.colors.goldLight }]}>
+                    {growth.monthsToDouble !== null && growth.monthsToDouble < 600
+                      ? growth.monthsToDouble.toFixed(1)
+                      : t('neverAtThisRate')}
+                  </Text>
+                </View>
+              </View>
+              <View style={s.grid2}>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('tradingDays')}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>
+                    {growth.days}
+                  </Text>
+                </View>
+                <View style={s.kpiBox}>
+                  <Text style={s.kpiLabel}>{t('profitFactor')}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={s.kpiVal}>
+                    {profitFactor === Infinity ? '\u221e' : profitFactor.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </Animated.View>
+        </Animated.View>
+      )}
+
       {/* ── TAB 7 : PROP FIRM TRACKER ── */}
       {/* Prop-firm rules are per-account: a profit target or a drawdown limit
           summed across accounts is not a number that means anything. Rather
@@ -821,7 +960,7 @@ export const AnalyticsScreen: React.FC = () => {
         </Animated.View>
       )}
 
-      {activeTab === 'propfirm' && !isAggregate && (
+      {activeTab === 'propfirm' && !isAggregate && isPropAccount && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Status Chips */}
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: 12 }}>

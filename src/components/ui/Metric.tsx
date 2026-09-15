@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { Sparkline } from './Sparkline';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -18,6 +19,18 @@ interface MetricProps {
   /** When tone="pnl", drives green/red/neutral. */
   pnlValue?: number | null;
   align?: 'left' | 'center' | 'right';
+  /**
+   * Recent history of this metric. When at least two points are given, a
+   * sparkline is drawn under the value so the number carries its direction,
+   * not just its level.
+   */
+  trend?: number[];
+  /**
+   * Set when a RISING series is bad news (drawdown). The sparkline colour is
+   * inverted so red always means "worse", regardless of which way the line
+   * happens to point.
+   */
+  trendInverted?: boolean;
   style?: ViewStyle;
 }
 
@@ -32,6 +45,8 @@ interface MetricProps {
 export const Metric: React.FC<MetricProps> = ({
   label,
   value,
+  trend,
+  trendInverted = false,
   sub,
   size = 'default',
   tone = 'default',
@@ -78,6 +93,16 @@ export const Metric: React.FC<MetricProps> = ({
       >
         {value}
       </Text>
+      {trend && trend.length >= 2 ? (
+        <View style={styles.spark}>
+          <Sparkline
+            data={trendInverted ? trend.map(v => -v) : trend}
+            width={78}
+            height={22}
+            strokeWidth={1.5}
+          />
+        </View>
+      ) : null}
       {sub ? (
         <Text style={[styles.sub, alignStyle]} numberOfLines={1}>
           {sub}
@@ -89,6 +114,10 @@ export const Metric: React.FC<MetricProps> = ({
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
+    spark: {
+      marginTop: 6,
+      marginBottom: 2,
+    },
     label: {
       color: theme.colors.textMuted,
       fontSize: theme.type.micro,

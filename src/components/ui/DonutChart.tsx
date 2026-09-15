@@ -102,19 +102,41 @@ export const DonutChart: React.FC<DonutChartProps> = ({
         )}
       </View>
 
-      {/* Legend */}
+      {/* Legend lists EVERY category, including the empty ones.
+          It used to render `slices`, which drops zero-value entries because a
+          0% arc cannot be drawn. That is right for the ring and wrong for the
+          legend: a missing "BE" row reads as "this app does not track
+          breakeven", when the honest answer is "you have none". */}
       <View style={styles.legend}>
-        {slices.map((s, i) => (
-          <View key={i} style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-            <Text style={styles.legendLabel} numberOfLines={1}>
-              {s.label}
-            </Text>
-            <Text style={[styles.legendVal, { color: s.color }]}>
-              {s.value} · {(s.fraction * 100).toFixed(0)}%
-            </Text>
-          </View>
-        ))}
+        {data.map((d, i) => {
+          const fraction = total > 0 ? d.value / total : 0;
+          const isEmpty = d.value === 0;
+          return (
+            <View key={i} style={styles.legendRow}>
+              <View
+                style={[
+                  styles.legendDot,
+                  { backgroundColor: d.color, opacity: isEmpty ? 0.3 : 1 },
+                ]}
+              />
+              <Text
+                style={[styles.legendLabel, isEmpty && styles.legendEmpty]}
+                numberOfLines={1}
+              >
+                {d.label}
+              </Text>
+              <Text
+                style={[
+                  styles.legendVal,
+                  { color: d.color },
+                  isEmpty && styles.legendEmpty,
+                ]}
+              >
+                {d.value} · {(fraction * 100).toFixed(0)}%
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -188,6 +210,9 @@ const createStyles = (theme: AppTheme) =>
     legend: {
       flex: 1,
       gap: theme.spacing.sm,
+    },
+    legendEmpty: {
+      color: theme.colors.textMuted,
     },
     legendRow: {
       flexDirection: 'row',

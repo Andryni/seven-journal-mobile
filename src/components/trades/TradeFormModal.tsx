@@ -25,6 +25,7 @@ import { calculateRMultiple } from '../../utils/financials';
 import {
   INSTRUMENTS,
   instrumentsForMarket,
+  normalizeMarket,
   defaultInstrumentFor,
   unitForMarket,
   formatSize,
@@ -204,7 +205,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   // accepted "MNQ" and then priced it with futures tick values. The list is
   // now scoped to the account's own market.
   const selectedAccountObj = accounts.find(acc => acc.id === accountId);
-  const accountMarket = (selectedAccountObj?.instrument_type ?? 'CFD') as MarketType;
+  const accountMarket = normalizeMarket(selectedAccountObj?.instrument_type);
   const allowedInstruments = useMemo(
     () => instrumentsForMarket(accountMarket),
     [accountMarket],
@@ -871,8 +872,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
-              {/* Exit timestamp — only meaningful once the trade is closed. */}
-              {result !== 'OPEN' ? (
+              {/* Exit timestamp. Always visible: gating it behind
+                  result !== 'OPEN' meant it never appeared, since OPEN is the
+                  default and most traders set the result last -- or log an
+                  exit price without touching the result pills at all. */}
+              {(
                 <View style={styles.dateRow}>
                   <Text style={styles.fieldLabel}>{t('tfExitDateTime')}</Text>
                   <View style={styles.row2}>
@@ -923,7 +927,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     </View>
                   ) : null}
                 </View>
-              ) : null}
+              )}
 
               {/* Risque % ou $ & Calcul live */}
               <View style={styles.row2}>

@@ -4,6 +4,7 @@ import { Globe, Play, Square, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { PressableScale } from '../ui/PressableScale';
+import { useT } from '../../i18n';
 
 /**
  * The three sessions the rest of the app knows about.
@@ -30,6 +31,7 @@ function getMarketSessions(date: Date) {
  */
 export const MarketSessionsBar: React.FC = () => {
   const { theme } = useTheme();
+  const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [now, setNow] = useState(new Date());
@@ -100,8 +102,8 @@ export const MarketSessionsBar: React.FC = () => {
         ) : (
           <Play color={theme.colors.textPrimary} size={12} />
         )}
-        <Text style={styles.sessionTimerText}>
-          {sessionActive ? formatElapsed(sessionElapsed) : 'Session'}
+        <Text style={styles.sessionTimerText} numberOfLines={1}>
+          {sessionActive ? formatElapsed(sessionElapsed) : t('sessionStart')}
         </Text>
         {sessionOverLimit && (
           <View style={styles.alertMiniRow}>
@@ -127,7 +129,9 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       gap: 5,
       flexWrap: 'wrap',
-      flex: 1,
+      // flexShrink, not flex:1. Growing to fill squeezed the timer button on
+      // the right until its label was cut to "Sessio".
+      flexShrink: 1,
     },
     sessionPill: {
       flexDirection: 'row',
@@ -167,6 +171,8 @@ const createStyles = (theme: AppTheme) =>
       paddingVertical: 6,
       borderRadius: theme.borderRadius.md,
       borderWidth: 1,
+      // Never give up width to the pills on the left.
+      flexShrink: 0,
     },
     timerNeutral: {
       backgroundColor: theme.colors.surface,
