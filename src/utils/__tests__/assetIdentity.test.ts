@@ -10,9 +10,13 @@ describe('assetIdentity', () => {
   });
 
   it('uses the base currency for an FX pair', () => {
-    expect(assetIdentity('EURUSD').symbol).toBe('EUR');
-    expect(assetIdentity('GBPJPY').symbol).toBe('GBP');
+    // Majors render as their currency sign: '€' is read as money at a
+    // glance where 'EUR' is read as three letters.
+    expect(assetIdentity('EURUSD').symbol).toBe('\u20AC');
+    expect(assetIdentity('GBPJPY').symbol).toBe('\u00A3');
     expect(assetIdentity('EURUSD').kind).toBe('fx');
+    // A pair with no sign in the table keeps the desk's three-letter base.
+    expect(assetIdentity('AUDNZD').symbol).toBe('AUD');
   });
 
   it('does not mistake the metals pair for FX', () => {
@@ -44,7 +48,7 @@ describe('assetIdentity', () => {
   });
 
   it('is case and whitespace insensitive', () => {
-    expect(assetIdentity(' eurusd ').symbol).toBe('EUR');
+    expect(assetIdentity(' eurusd ').symbol).toBe('\u20AC');
   });
 
   it('degrades gracefully on an unknown or empty symbol', () => {

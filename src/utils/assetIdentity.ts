@@ -43,6 +43,25 @@ const CRYPTO: Record<string, string> = {
   BTCUSD: '\u20BF', // ₿
   ETHUSD: '\u039E', // Ξ
   SOLUSD: 'SOL',
+  XRPUSD: 'XRP',
+  ADAUSD: 'ADA',
+  DOGEUSD: '\u00D0', // Ð
+};
+
+/**
+ * Currency signs for FX majors.
+ *
+ * '€' reads as a currency instantly where 'EUR' reads as three letters, and
+ * it is the same glyph a trader sees on every platform. Pairs outside this
+ * table keep their three-letter base, which is still the desk notation.
+ */
+const FX_SIGNS: Record<string, string> = {
+  EUR: '\u20AC', // €
+  GBP: '\u00A3', // £
+  JPY: '\u00A5', // ¥
+  USD: '$',
+  CHF: '\u20A3', // ₣
+  INR: '\u20B9', // ₹
 };
 
 const ENERGY = new Set(['CL', 'MCL', 'NG', 'QM']);
@@ -81,7 +100,7 @@ export function assetIdentity(symbolRaw: string): AssetIdentity {
   // FX before indices: a 6-letter all-alpha symbol is a currency pair.
   const base = fxBase(symbol);
   if (base && market !== 'Futures') {
-    return { symbol: base, kind: 'fx', market, tone: 'blue', isMicro };
+    return { symbol: FX_SIGNS[base] ?? base, kind: 'fx', market, tone: 'blue', isMicro };
   }
 
   if (market === 'Futures' || /^(US30|NAS100|SPX500|GER40|UK100|6E)$/.test(symbol)) {

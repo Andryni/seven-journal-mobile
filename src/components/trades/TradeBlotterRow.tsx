@@ -59,6 +59,18 @@ export const TradeBlotterRow: React.FC<TradeBlotterRowProps> = ({
     ? theme.colors.green
     : theme.colors.red;
 
+  /**
+   * Open positions keep a neutral rail: they have no outcome yet, and
+   * colouring them green or red would assert a result that does not exist.
+   */
+  const railColor = isOpen
+    ? theme.colors.textDark
+    : {
+        green: theme.colors.green,
+        red: theme.colors.red,
+        neutral: theme.colors.textMuted,
+      }[outcomeVariant(trade)];
+
   return (
     <PressableScale
       style={[styles.row, style]}
@@ -66,13 +78,13 @@ export const TradeBlotterRow: React.FC<TradeBlotterRowProps> = ({
       accessibilityLabel={`${trade.pair} ${trade.direction}`}
       pressedScale={0.995}
     >
-      {/* Direction rail — the only colour cue needed for long/short */}
-      <View
-        style={[
-          styles.rail,
-          { backgroundColor: trade.direction === 'BUY' ? theme.colors.green : theme.colors.red },
-        ]}
-      />
+      {/* Outcome rail — how the trade ENDED, which is what you scan for.
+          It used to repeat the direction, duplicating the BUY/SELL label two
+          centimetres to its right while the one thing a blotter is scanned
+          for -- did this win or lose -- had no left-edge cue at all. Driven
+          by money, not by the stated exit reason, so a BE that banked a
+          partial gain reads green rather than grey. */}
+      <View style={[styles.rail, { backgroundColor: railColor }]} />
 
       {/* Asset mark — lets a row be identified by shape and colour before
           the ticker is read. Typographic, so no logo licensing. */}
@@ -82,7 +94,19 @@ export const TradeBlotterRow: React.FC<TradeBlotterRowProps> = ({
       <View style={styles.colMain}>
         <View style={styles.pairLine}>
           <Text style={styles.pair}>{trade.pair}</Text>
-          <Text style={styles.dir}>{trade.direction}</Text>
+          <Text
+            style={[
+              styles.dir,
+              {
+                color:
+                  trade.direction === 'BUY'
+                    ? theme.colors.greenLight
+                    : theme.colors.redLight,
+              },
+            ]}
+          >
+            {trade.direction}
+          </Text>
         </View>
         <Text style={styles.meta} numberOfLines={1}>
           {new Date(trade.entry_time).toLocaleDateString(localeFor(lang), {
@@ -159,9 +183,9 @@ const createStyles = (theme: AppTheme) =>
       gap: theme.spacing.sm,
     },
     rail: {
-      width: 2,
-      height: 26,
-      borderRadius: 1,
+      width: 3,
+      height: 30,
+      borderRadius: 1.5,
     },
     colMain: { flex: 1, marginLeft: 10 },
     pairLine: {
@@ -176,9 +200,8 @@ const createStyles = (theme: AppTheme) =>
       letterSpacing: 0.4,
     },
     dir: {
-      color: theme.colors.textDark,
       fontSize: theme.type.micro,
-      fontFamily: theme.fonts.monoMedium,
+      fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.6,
     },
     meta: {

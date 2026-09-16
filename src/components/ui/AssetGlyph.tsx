@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../../theme';
+import { useTheme, withAlpha } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { assetIdentity } from '../../utils/assetIdentity';
 
@@ -49,7 +49,18 @@ export const AssetGlyph: React.FC<AssetGlyphProps> = ({ symbol, size = 30 }) => 
           width: size,
           height: size,
           borderRadius: size / 2,
-          borderColor: tone,
+          borderColor: withAlpha(tone, 0.55),
+          /**
+           * Tinted fill, not a bare outline.
+           *
+           * A hairline ring on the card background made every instrument the
+           * same shape in the corner of the eye; the whole point of the mark
+           * is that a row is identifiable before the ticker is read. A soft
+           * wash of the instrument's own tone gives it a silhouette at a
+           * glance while staying far enough from the P&L colours that it is
+           * never mistaken for a result.
+           */
+          backgroundColor: withAlpha(tone, 0.14),
           opacity,
         },
       ]}
@@ -68,8 +79,7 @@ const createStyles = (theme: AppTheme) =>
     wrap: {
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: StyleSheet.hairlineWidth * 2,
-      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
     },
     text: {
       fontFamily: theme.fonts.monoBold,
