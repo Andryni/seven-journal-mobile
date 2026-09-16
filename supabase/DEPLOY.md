@@ -151,6 +151,16 @@ npx supabase secrets set GEMINI_MODEL=le-modele-propose
 npx supabase functions deploy coach
 ```
 
+Le défaut actuel est `gemini-3.8-flash`, avec repli automatique sur
+`gemini-3.1-flash-lite` si Google répond « modèle occupé » (503). Le modèle
+qui a réellement répondu est visible dans le champ `model` de la réponse.
+
+> Piège connu (septembre 2026) : un identifiant **listé** par le catalogue
+> peut être **mort** pour la génération — `gemini-2.5-flash` est resté dans
+> la liste des modèles disponibles après son retrait, et seul un appel réel
+> le révèle. Le mode `diagnose` ci-dessous vérifie la clé, pas la vie du
+> modèle.
+
 Pour voir la liste complète des modèles autorisés par votre clé, sans passer
 par l'app (remplacez `VOTRE_REF` et `VOTRE_ANON_KEY`, tous deux dans `.env`) :
 
@@ -167,7 +177,7 @@ le modèle n'est pas appelé : c'est une simple interrogation de catalogue.
 Ancienne méthode, si besoin :
 
 ```
-npx supabase secrets set GEMINI_MODEL=gemini-2.5-flash
+npx supabase secrets set GEMINI_MODEL=gemini-flash-latest
 npx supabase functions deploy coach
 ```
 

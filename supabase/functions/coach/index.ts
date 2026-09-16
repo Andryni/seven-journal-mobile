@@ -28,19 +28,19 @@
 const OPENAI_MODEL = 'gpt-4o-mini';
 
 /**
- * Flash rather than Pro: this task is short-form rewriting of findings that
- * are already computed, and Pro models were removed from Google's free tier
- * in April 2026 while Flash kept its allowance.
+ * A numbered id, not an alias -- and this is a live-tested choice, not a
+ * guess. gemini-2.5-flash, the previous default, was retired in September
+ * 2026 but KEPT APPEARING in the model catalogue, so `diagnose` looked fine
+ * while every generateContent 404ed. The `gemini-flash-latest` alias was
+ * tried as a replacement and currently resolves to a preview model that
+ * answers 503 UNAVAILABLE far more often than the GA one. Google's own
+ * migration guide for the 2.5 shutdown names gemini-3.8-flash.
  *
- * Overridable without a redeploy of the client:
- *   supabase secrets set GEMINI_MODEL=gemini-3.8-flash
- *
- * Google retires model ids on a schedule -- gemini-2.0-flash, which this
- * used to hardcode, is already discontinued, and the 2.5 family has a
- * published shutdown date. Pinning a default here while allowing an override
- * means a retirement is a one-line secret change rather than a code change.
+ * When this id is eventually retired too, the 404 path below asks Google
+ * for a live replacement and the fix is one secret -- no redeploy:
+ *   supabase secrets set GEMINI_MODEL=<suggestion-from-the-app>
  */
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.8-flash';
 const ALLOWED_SEVERITIES = ['critical', 'warning', 'good'];
 
 const SYSTEM_PROMPT = `You are a trading performance coach reviewing a trader's journal statistics.
@@ -186,56 +186,112 @@ Deno.serve(async (req: Request) => {
   const payload = sanitize(body);
   if (!payload) return json({ error: 'bad_request' }, 400);
 
-  try {
-    const res = useGemini
-      ? await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-          {
+  /**
+   * The request body is identical on every attempt, so it is built once.
+   * Kept as a closure rather than a top-level constant so the function stays
+   * the single place that knows the payload shape.
+   */
+  const geminiBody = () =>
+    JSON.stringify({
+      // Gemini has no system role: the instructions go in
+      // systemInstruction, which it treats with the same weight.
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+      generationConfig: {
+        // No temperature: deprecated (then removed) on Gemini 3+ per
+        // Google's own migration guide -- sending it on a 3.x model
+        // is asking for a 400.
+        //
+        // 400 was too small and produced EMPTY answers on 3.x flash:
+        // those models think before answering and the thinking tokens
+        // come out of maxOutputTokens, so the budget died inside the
+        // reasoning and parts[0].text arrived missing/empty. The task
+        // is short but not free; 2048 leaves room for thinking plus
+        // the ~200 tokens the answer actually needs.
+        maxOutputTokens: 2048,
+        // Guarantees parseable output instead of prose wrapped in
+        // a markdown fence, which is what a plain prompt returns.
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            briefing: { type: 'STRING' },
+            priority: { type: 'STRING' },
+          },
+          required: ['briefing', 'priority'],
+        },
+      },
+    });
+
+  const openaiBody = () =>
+    JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.4,
+      max_tokens: 400,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: JSON.stringify(payload) },
+      ],
+    });
+
+  /**
+   * Lighter sibling used as an overload valve. gemini-3.8-flash answered
+   * 503 UNAVAILABLE on ~2 calls out of 3 during an observed load spike
+   * (September 2026) while gemini-3.1-flash-lite answered 3/3 with briefing
+   * quality well within what this task needs. A summary delayed a few
+   * seconds beats a summary that fails.
+   */
+  const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
+
+  /**
+   * 503 UNAVAILABLE is Google saying "model busy right now" -- observed live
+   * on a stable, non-preview model, and it succeeded on the second identical
+   * call seconds later. Sequence: one quiet retry of the primary after a
+   * real wait, then the lighter fallback model. The user only sees a
+   * failure when Google is busy for the whole ladder.
+   */
+  const callUpstream = async (): Promise<{ res: Response; modelUsed: string }> => {
+    // The id the ladder starts from -- on the OpenAI branch that is OpenAI's
+    // own model name, so modelUsed stays truthful about who answered.
+    const primaryId = useGemini ? GEMINI_MODEL : OPENAI_MODEL;
+    const once = (model: string) =>
+      useGemini
+        ? fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+            {
+              method: 'POST',
+              headers: {
+                'x-goog-api-key': apiKey,
+                'Content-Type': 'application/json',
+              },
+              body: geminiBody(),
+            }
+          )
+        : fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'x-goog-api-key': apiKey,
+              Authorization: `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              // Gemini has no system role: the instructions go in
-              // systemInstruction, which it treats with the same weight.
-              systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-              contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
-              generationConfig: {
-                temperature: 0.4,
-                maxOutputTokens: 400,
-                // Guarantees parseable output instead of prose wrapped in
-                // a markdown fence, which is what a plain prompt returns.
-                responseMimeType: 'application/json',
-                responseSchema: {
-                  type: 'OBJECT',
-                  properties: {
-                    briefing: { type: 'STRING' },
-                    priority: { type: 'STRING' },
-                  },
-                  required: ['briefing', 'priority'],
-                },
-              },
-            }),
-          }
-        )
-      : await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: OPENAI_MODEL,
-            temperature: 0.4,
-            max_tokens: 400,
-            response_format: { type: 'json_object' },
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: JSON.stringify(payload) },
-            ],
-          }),
-        });
+            body: openaiBody(),
+          });
+
+    const first = await once(primaryId);
+    if (first.status === 503) {
+      await new Promise((r) => setTimeout(r, 1200));
+      const second = await once(primaryId);
+      if (second.status === 503 && useGemini && GEMINI_MODEL !== FALLBACK_MODEL) {
+        const fallback = await once(FALLBACK_MODEL);
+        return { res: fallback, modelUsed: FALLBACK_MODEL };
+      }
+      return { res: second, modelUsed: primaryId };
+    }
+    return { res: first, modelUsed: primaryId };
+  };
+
+  try {
+    const { res, modelUsed } = await callUpstream();
 
     if (!res.ok) {
       /**
@@ -288,11 +344,25 @@ Deno.serve(async (req: Request) => {
               )
               .map((m: { name?: string }) => String(m.name ?? '').replace(/^models\//, ''))
               .filter(Boolean);
-            // Prefer a Flash model: this task is short-form rewriting, and
-            // Pro carries a much smaller free allowance.
+            // A listed id can be the dead one itself: gemini-2.5-flash kept
+            // appearing in this catalogue for weeks after generateContent
+            // began 404ing, so the naive "first flash in the list" suggested
+            // the corpse as its own replacement. Filter out media/specialist
+            // models, previews, the dead id, and (for a numbered dead model)
+            // its whole version family, which retires with it.
+            const junk = /(image|tts|transcribe|omni|robotics|lyria|embedding|veo|deep-research|computer-use|antigravity|preview)/;
+            const versionPrefix = /^gemini-\d/.test(GEMINI_MODEL)
+              ? GEMINI_MODEL.split('-').slice(0, 2).join('-') + '-'
+              : '';
+            const candidates = usable.filter(
+              (m) => m !== GEMINI_MODEL && !junk.test(m) && !m.startsWith(versionPrefix)
+            );
+            // The stable alias first: it survives the next retirement.
             suggestion =
-              usable.find((m) => m.includes('flash') && !m.includes('image')) ??
-              usable[0] ??
+              candidates.find((m) => m === 'gemini-flash-latest') ??
+              candidates.find((m) => m.includes('flash-latest')) ??
+              candidates.find((m) => m.includes('flash')) ??
+              candidates[0] ??
               '';
           }
         } catch {
@@ -313,7 +383,15 @@ Deno.serve(async (req: Request) => {
     const raw = useGemini
       ? data.candidates?.[0]?.content?.parts?.[0]?.text
       : data.choices?.[0]?.message?.content;
-    if (!raw) return json({ error: 'upstream_error' }, 502);
+    if (!raw) {
+      // A 200 with no text is almost always finishReason: MAX_TOKENS -- the
+      // thinking budget ate the answer. Name the reason instead of failing
+      // opaquely; it is a provider enum, never sensitive.
+      const finishReason =
+        useGemini ? String(data.candidates?.[0]?.finishReason ?? '') : '';
+      console.error('coach: empty completion', finishReason);
+      return json({ error: 'upstream_error', upstreamReason: finishReason }, 502);
+    }
 
     let parsed: { briefing?: unknown; priority?: unknown };
     try {
@@ -331,7 +409,9 @@ Deno.serve(async (req: Request) => {
       // slip through, so model output can never contradict the app's figures.
       briefing: stripNumbers(briefing).slice(0, 900),
       priority: stripNumbers(priority).slice(0, 300),
-      model: useGemini ? GEMINI_MODEL : OPENAI_MODEL,
+      // The id that ACTUALLY answered -- it can be the fallback model when
+      // the primary was overloaded.
+      model: modelUsed,
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {

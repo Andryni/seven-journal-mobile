@@ -48,7 +48,8 @@ expire within the hour, so they cannot be used as a stored secret.
 ### Choosing the model
 
 ```bash
-# Optional. Defaults to gemini-2.5-flash.
+# Optional. Defaults to gemini-3.8-flash, with an automatic fallback to
+# gemini-3.1-flash-lite when Google answers 503 (model busy).
 supabase secrets set GEMINI_MODEL=gemini-3.8-flash
 ```
 
@@ -56,10 +57,22 @@ Flash rather than Pro: this task is short-form rewriting of findings that are
 already computed, and Google removed Pro models from the free tier in April
 2026 while Flash kept its allowance.
 
+Two things learned the hard way in September 2026, worth knowing before
+guessing an id:
+
+1. **A listed model can be dead.** `gemini-2.5-flash`, the previous default,
+   was retired but KEPT APPEARING in the catalogue returned by the models
+   endpoint — so a diagnose looked healthy while every generation 404ed.
+   A model id is only proven alive by a real `generateContent` call.
+2. **A stable model can be temporarily overloaded.** During a load spike,
+   `gemini-3.8-flash` answered 503 UNAVAILABLE on most calls while
+   `gemini-3.1-flash-lite` answered every time. The function now retries the
+   primary once, then automatically falls back to the lighter sibling, and
+   reports which model actually answered in the `model` field.
+
 The model id is read from a secret because **Google retires them on a
-schedule**. `gemini-2.0-flash`, which this function hardcoded until now, is
-already discontinued, and the 2.5 family has a published shutdown date. When
-that lands, set the secret — no code change, no redeploy of the app.
+schedule**. When that happens to the default, the app shows
+"`old → new`" from a live catalogue query — set the secret, no code change.
 
 Current ids and free limits are at
 <https://ai.google.dev/gemini-api/docs/models> and
