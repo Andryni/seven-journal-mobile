@@ -331,11 +331,15 @@ export function useAnalytics({
         return mins >= b.min && mins < b.max;
       });
       const winsInBucket = inBucket.filter(t => (t.pnl || 0) > 0);
+      // Win rate alone lies about a bucket: 65% WR at -0.4R average is a
+      // disaster, not a style. The R average rides along for the chart.
+      const withR = inBucket.filter(t => t.r_multiple !== null);
       return {
         label: b.label,
         count: inBucket.length,
         winRate: inBucket.length > 0 ? (winsInBucket.length / inBucket.length) * 100 : 0,
         pnl: inBucket.reduce((s, t) => s + (t.pnl || 0), 0),
+        avgR: withR.length > 0 ? withR.reduce((s, t) => s + (t.r_multiple || 0), 0) / withR.length : null,
       };
     });
   }, [closed]);

@@ -49,6 +49,9 @@ import { ShareCardModal } from '../components/share/ShareCardModal';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
 import { InsightsCard } from '../components/analytics/InsightsCard';
+import { ResultSplitCard } from '../components/analytics/ResultSplitCard';
+import { HBarBreakdown } from '../components/ui/HBarBreakdown';
+import type { HBreakdownItem } from '../components/ui/HBarBreakdown';
 import { RDistributionChart } from '../components/ui/RDistributionChart';
 import { HourlyPerformanceChart } from '../components/ui/HourlyPerformanceChart';
 import {
@@ -73,17 +76,21 @@ const screenWidth = Dimensions.get('window').width;
  * Analytics was split across 7 tabs, several of which held two cards each.
  * That is a lot of tapping to compare related numbers. They are now grouped
  * into 4 views that answer 4 distinct questions:
- *   PERF     — how am I doing?          (overview + equity)
- *   EDGE     — where does my edge come from? (distribution + breakdown)
- *   BEHAVIOR — when and in what state do I trade well? (timing + psychology)
- *   PROP     — am I passing?            (prop firm)
+ *   PERF      — how am I doing?               (overview + equity)
+ *   EDGE      — where does my edge come from? (distribution + rolling)
+ *   BREAKDOWN — which category pays?          (setup/pair/tf)
+ *   TIMING    — when do I trade well?         (session/weekday/hour)
+ *   MIND      — what does my head cost me?    (discipline/mental/tags)
+ *   PROP      — am I passing?                 (prop firm)
  */
-type TabType = 'perf' | 'edge' | 'behavior' | 'propfirm';
+type TabType = 'perf' | 'edge' | 'breakdown' | 'timing' | 'mind' | 'propfirm';
 
 const TABS: { id: TabType; labelKey: string; icon: React.FC<{ color?: string; size?: number }> }[] = [
   { id: 'perf', labelKey: 'tabPerf', icon: TrendingUp },
   { id: 'edge', labelKey: 'tabEdge', icon: Target },
-  { id: 'behavior', labelKey: 'tabBehavior', icon: Brain },
+  { id: 'breakdown', labelKey: 'tabBreakdown', icon: BarChart3 },
+  { id: 'timing', labelKey: 'tabTiming', icon: Clock },
+  { id: 'mind', labelKey: 'tabMind', icon: Brain },
   { id: 'propfirm', labelKey: 'tabPropFirm', icon: Award },
 ];
 
@@ -279,7 +286,6 @@ export const AnalyticsScreen: React.FC = () => {
     maxDrawdownLimit,
     wins,
     losses,
-    breakeven,
     totalPnL,
     profitFactor,
     winRate,
@@ -354,15 +360,7 @@ export const AnalyticsScreen: React.FC = () => {
   const money = (v: number, o: FormatCurrencyOptions = {}) =>
     formatCurrency(v, { symbol: sym, ...o });
 
-  /** Chart palette lives in the view, not in the analytics hook. */
-  const pieData = useMemo(
-    () => [
-      { label: t('gainsLabel'), value: wins.length, color: theme.colors.green },
-      { label: t('lossesLabel'), value: losses.length, color: theme.colors.red },
-      { label: 'BE', value: breakeven.length, color: theme.colors.primary },
-    ],
-    [wins, losses, breakeven, t, theme]
-  );
+
 
   if (tradesLoading || accountsLoading || setupsLoading) {
     return (
@@ -623,14 +621,10 @@ export const AnalyticsScreen: React.FC = () => {
           </Animated.View>
 
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
-            <Card title={t('gainLossSplit')}>
-              <DonutChart
-                data={pieData}
-                size={150}
-                centerLabel={String(closed.length)}
-                centerSub="TRADES"
-              />
-            </Card>
+            {/* Classified by the DECLARED result (TP/SL/BE), not the sign of
+                net PnL — a BE exit minus commissions used to be counted as a
+                loss, hiding the BE bucket entirely. */}
+            <ResultSplitCard trades={closed} symbol={sym} />
           </Animated.View>
 
           <Animated.View entering={FadeIn.delay(100).duration(350)}>
@@ -666,109 +660,78 @@ export const AnalyticsScreen: React.FC = () => {
               {holdingTimeData.filter(h => h.count > 0).length === 0 ? (
                 <Text style={s.emptyText}>{t('noTradesYet')}</Text>
               ) : (
-                holdingTimeData.filter(h => h.count > 0).map((ht, i) => (
-                  <Animated.View key={ht.label} entering={FadeIn.delay(i * 60).duration(300)}>
-                    <View style={s.rowBetween}>
-                      <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={s.boldWhite}>{ht.label}</Text>
-                        <Text numberOfLines={2} style={s.subMuted}>{ht.count} trades</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, ht.winRate >= 50 ? s.greenText : ht.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
-                          {ht.count > 0 ? `${ht.winRate.toFixed(1)}% WR` : '—'}
-                        </Text>
-                        <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>
-                          {ht.count > 0 ? money(ht.pnl, { decimals: 2 }) : money(0)}
-                        </Text>
-                      </View>
-                    </View>
-                  </Animated.View>
-                ))
+                <HBarBreakdown
+                  symbol={sym}
+                  items={holdingTimeData
+                    .filter(h => h.count > 0)
+                    .map(ht => ({
+                      label: ht.label,
+                      value: ht.pnl,
+                      count: ht.count,
+                      winRate: ht.winRate,
+                      sub: ht.avgR !== null && ht.avgR !== undefined
+                        ? `${ht.avgR >= 0 ? '+' : ''}${ht.avgR.toFixed(2)}R`
+                        : undefined,
+                    }))}
+                />
               )}
             </Card>
           </Animated.View>
         </Animated.View>
       )}
 
-      {/* ── TAB 4 : PAR SETUP / PAIRE / TF ── */}
-      {activeTab === 'edge' && (
+      {/* ── TAB 4 : BREAKDOWN (qui paie ?) ── */}
+      {activeTab === 'breakdown' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* What the edge actually costs, and what it leaves on the table. */}
           <CostImpactCard trades={scopedTrades} />
           <ExcursionCard trades={scopedTrades} />
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('winRateBySetup')}>
-              {setupBreakdown.map((st, i) => (
-                <Animated.View key={st.name} entering={FadeIn.delay(i * 60).duration(300)}>
-                  <View style={s.rowBetween}>
-                    <View style={{ flex: 1 }}>
-                      <Text numberOfLines={1} style={s.boldWhite}>{st.name}</Text>
-                      <Text numberOfLines={2} style={s.subMuted}>{st.count} trades</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, st.winRate >= 50 ? s.greenText : st.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
-                        {st.count > 0 ? `${st.winRate.toFixed(1)}% WR` : '—'}
-                      </Text>
-                      <Text style={[s.subMuted, st.pnl >= 0 ? s.greenText : s.redText]}>
-                        {st.count > 0 ? money(st.pnl, { decimals: 2 }) : money(0)}
-                      </Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ))}
+              <HBarBreakdown
+                symbol={sym}
+                items={setupBreakdown.map(st => ({
+                  label: st.name,
+                  value: st.pnl,
+                  count: st.count,
+                  winRate: st.winRate,
+                }))}
+              />
             </Card>
           </Animated.View>
 
           <Animated.View entering={FadeIn.delay(100).duration(350)}>
             <Card title={t('perfByInstrument')}>
-              {pairBreakdown.map((p, i) => (
-                <Animated.View key={p.name} entering={FadeIn.delay(i * 60).duration(300)}>
-                  <View style={s.rowBetween}>
-                    <View>
-                      <Text numberOfLines={1} style={s.boldWhite}>{p.name}</Text>
-                      <Text numberOfLines={2} style={s.subMuted}>{p.total} trades</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, p.winRate >= 50 ? s.greenText : s.redText]}>
-                        {p.winRate.toFixed(1)}% WR
-                      </Text>
-                      <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
-                        {money(p.pnl, { decimals: 2 })}
-                      </Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ))}
+              <HBarBreakdown
+                symbol={sym}
+                items={pairBreakdown.map(p => ({
+                  label: p.name,
+                  value: p.pnl,
+                  count: p.total,
+                  winRate: p.winRate,
+                }))}
+              />
             </Card>
           </Animated.View>
 
           <Animated.View entering={FadeIn.delay(200).duration(350)}>
             <Card title={t('perfByTimeframe')}>
-              {tfBreakdown.map((tf, i) => (
-                <Animated.View key={tf.name} entering={FadeIn.delay(i * 60).duration(300)}>
-                  <View style={s.rowBetween}>
-                    <View>
-                      <Text numberOfLines={1} style={s.boldWhite}>{tf.name}</Text>
-                      <Text numberOfLines={2} style={s.subMuted}>{tf.total} trades</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, tf.winRate >= 50 ? s.greenText : s.redText]}>
-                        {tf.winRate.toFixed(1)}% WR
-                      </Text>
-                      <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
-                        {money(tf.pnl, { decimals: 2 })}
-                      </Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ))}
+              <HBarBreakdown
+                symbol={sym}
+                items={tfBreakdown.map(tf => ({
+                  label: tf.name,
+                  value: tf.pnl,
+                  count: tf.total,
+                  winRate: tf.winRate,
+                }))}
+              />
             </Card>
           </Animated.View>
         </Animated.View>
       )}
 
       {/* ── TAB 5 : TIMING ── */}
-      {activeTab === 'behavior' && (
+      {activeTab === 'timing' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Statistical findings first: they say what to change, whereas the
               charts below only say what happened. */}
@@ -790,24 +753,18 @@ export const AnalyticsScreen: React.FC = () => {
               {sessionBreakdown.filter(s => s.count > 0).length === 0 ? (
                 <Text style={s.emptyText}>{t('noTradesYet')}</Text>
               ) : (
-                sessionBreakdown.filter(s => s.count > 0).map((sb, i) => (
-                  <Animated.View key={sb.name} entering={FadeIn.delay(i * 60).duration(300)}>
-                    <View style={s.rowBetween}>
-                      <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={s.boldWhite}>{t(sb.labelKey as any)}</Text>
-                        <Text numberOfLines={2} style={s.subMuted}>{sb.count} {t('tradesCount').toLowerCase()} · Avg R: {sb.avgR >= 0 ? '+' : ''}{sb.avgR.toFixed(2)}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, sb.winRate >= 50 ? s.greenText : sb.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
-                          {sb.count > 0 ? `${sb.winRate.toFixed(1)}% WR` : '—'}
-                        </Text>
-                        <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>
-                          {sb.count > 0 ? money(sb.pnl, { decimals: 2 }) : money(0)}
-                        </Text>
-                      </View>
-                    </View>
-                  </Animated.View>
-                ))
+                <HBarBreakdown
+                  symbol={sym}
+                  items={sessionBreakdown
+                    .filter(s => s.count > 0)
+                    .map(sb => ({
+                      label: t(sb.labelKey as any),
+                      value: sb.pnl,
+                      count: sb.count,
+                      winRate: sb.winRate,
+                      sub: `${sb.avgR >= 0 ? '+' : ''}${sb.avgR.toFixed(2)}R`,
+                    }))}
+                />
               )}
             </Card>
           </Animated.View>
@@ -818,55 +775,45 @@ export const AnalyticsScreen: React.FC = () => {
               {dayOfWeekAnalysis.filter(d => d.count > 0).length === 0 ? (
                 <Text style={s.emptyText}>{t('noTradesYet')}</Text>
               ) : (
-                dayOfWeekAnalysis.filter(d => d.count > 0).map((dw, i) => (
-                  <Animated.View key={dw.name} entering={FadeIn.delay(i * 60).duration(300)}>
-                    <View style={s.rowBetween}>
-                      <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={s.boldWhite}>{dw.name}</Text>
-                        <Text numberOfLines={2} style={s.subMuted}>{dw.count} trades</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, dw.winRate >= 50 ? s.greenText : dw.count > 0 ? s.redText : { color: theme.colors.textMuted }]}>
-                          {dw.count > 0 ? `${dw.winRate.toFixed(1)}% WR` : '—'}
-                        </Text>
-                        <Text style={[s.subMuted, dw.pnl >= 0 ? s.greenText : s.redText]}>
-                          {dw.count > 0 ? money(dw.pnl, { decimals: 2 }) : money(0)}
-                        </Text>
-                      </View>
-                    </View>
-                  </Animated.View>
-                ))
+                <HBarBreakdown
+                  symbol={sym}
+                  items={dayOfWeekAnalysis
+                    .filter(d => d.count > 0)
+                    .map(dw => ({
+                      label: dw.name,
+                      value: dw.pnl,
+                      count: dw.count,
+                      winRate: dw.winRate,
+                    }))}
+                />
               )}
             </Card>
           </Animated.View>
         </Animated.View>
       )}
 
-      {/* ── TAB 6 : PSYCHOLOGIE ── */}
-      {activeTab === 'behavior' && (
+      {/* ── TAB 6 : MENTAL ── */}
+      {activeTab === 'mind' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           <DisciplineCard trades={scopedTrades} />
           <TagPerformanceCard trades={scopedTrades} />
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             <Card title={t('mentalImpact')}>
-              {mentalBreakdown.map((mb, i) => (
-                <Animated.View key={mb.state} entering={FadeIn.delay(i * 60).duration(300)}>
-                  <View style={s.rowBetween}>
-                    <View>
-                      <Text numberOfLines={1} style={s.boldWhite}>{mb.state}</Text>
-                      <Text numberOfLines={2} style={s.subMuted}>{mb.count} sessions</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.boldVal, mb.winRate >= 50 ? s.greenText : s.redText]}>
-                        {mb.winRate.toFixed(0)}% WR
-                      </Text>
-                      <Text style={[s.subMuted, mb.pnl >= 0 ? s.greenText : s.redText]}>
-                        {money(mb.pnl, { decimals: 2 })}
-                      </Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              ))}
+              {mentalBreakdown.filter(m => m.count > 0).length === 0 ? (
+                <Text style={s.emptyText}>{t('noTradesYet')}</Text>
+              ) : (
+                <HBarBreakdown
+                  symbol={sym}
+                  items={mentalBreakdown
+                    .filter(m => m.count > 0)
+                    .map(mb => ({
+                      label: mb.state,
+                      value: mb.pnl,
+                      count: mb.count,
+                      winRate: mb.winRate,
+                    }))}
+                />
+              )}
             </Card>
           </Animated.View>
         </Animated.View>

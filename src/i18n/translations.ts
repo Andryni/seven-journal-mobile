@@ -108,8 +108,6 @@ export const translations = {
     tabOverview: "VUE D'ENSEMBLE",
     tabEquity: 'EQUITY & DRAWDOWN',
     tabDistribution: 'DISTRIBUTION',
-    tabBreakdown: 'PAR SETUP/PAIRE',
-    tabTiming: 'TIMING (H/J)',
     tabPsychology: 'PSYCHOLOGIE & ERREURS',
     tabPropFirm: 'PROP FIRM TRACKER',
     tabGrowth: 'CROISSANCE DU COMPTE',
@@ -735,6 +733,9 @@ export const translations = {
       `Limite de perte quotidienne atteinte sur ${acc} (${loss} / max ${limit}). Session verrouillée.`,
     tabPerf: 'PERFORMANCE',
     tabEdge: 'EDGE',
+    tabBreakdown: 'RÉPARTITION',
+    tabTiming: 'TIMING',
+    tabMind: 'MENTAL',
     tabBehavior: 'COMPORTEMENT',
     entryPrice: 'ENTRÉE',
     riskLabel: 'RISQUE',
@@ -893,6 +894,11 @@ export const translations = {
     // Pie chart labels
     gainsLabel: 'GAINS',
     lossesLabel: 'PERTES',
+    beLabel: 'BREAKEVEN',
+    beCostLine: (n: number, cost: string) =>
+      `${n} trades BE · ${cost} de coûts pour rien`,
+    beCostLineOne: (cost: string) =>
+      `1 trade BE · ${cost} de coûts pour rien`,
 
     // Toast messages
     toastTradeCreated: 'Trade enregistré avec succès',
@@ -1016,8 +1022,6 @@ export const translations = {
     tabOverview: 'OVERVIEW',
     tabEquity: 'EQUITY & DRAWDOWN',
     tabDistribution: 'DISTRIBUTION',
-    tabBreakdown: 'BY SETUP/PAIR',
-    tabTiming: 'TIMING (H/D)',
     tabPsychology: 'PSYCHOLOGY & MISTAKES',
     tabPropFirm: 'PROP FIRM TRACKER',
     tabGrowth: 'ACCOUNT GROWTH',
@@ -1643,6 +1647,9 @@ export const translations = {
       `Daily loss limit reached on ${acc} (${loss} / max ${limit}). Session locked.`,
     tabPerf: 'PERFORMANCE',
     tabEdge: 'EDGE',
+    tabBreakdown: 'BREAKDOWN',
+    tabTiming: 'TIMING',
+    tabMind: 'MIND',
     tabBehavior: 'BEHAVIOR',
     entryPrice: 'ENTRY',
     riskLabel: 'RISK',
@@ -1801,6 +1808,11 @@ export const translations = {
     // Pie chart labels
     gainsLabel: 'GAINS',
     lossesLabel: 'LOSSES',
+    beLabel: 'BREAKEVEN',
+    beCostLine: (n: number, cost: string) =>
+      `${n} BE trades · ${cost} in dead costs`,
+    beCostLineOne: (cost: string) =>
+      `1 BE trade · ${cost} in dead costs`,
 
     // Toast messages
     toastTradeCreated: 'Trade registered successfully',
