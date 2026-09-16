@@ -39,15 +39,24 @@ import {
   Check,
   ShieldCheck,
   AlertTriangle,
+  Flame,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Panel } from '../components/ui/Panel';
 import { EmptyState } from '../components/ui/EmptyState';
+import {
+  statsForDay,
+  mistakeCosts,
+  disciplineStreak,
+  disciplineGrid,
+  mentalVsPnl,
+} from '../features/playbook/debriefInsights';
 import { Sparkline } from '../components/ui/Sparkline';
 import {
   computeAllSetupEdges,
   computeUnattributed,
   computeConfluence,
+  tradeMatchesSetup,
   MIN_SAMPLE,
 } from '../features/playbook/setupAttribution';
 
@@ -114,6 +123,64 @@ function emotionIdFromStored(value: string | null | undefined): string {
     default: return 'calm';
   }
 }
+
+/*
+ * Mini R-distribution inside a setup card. RDistributionChart is built for a
+ * full-width card; at this size the read needed is coarser — a compact bin
+ * count with the same green/red language.
+ */
+const RDistributionMini: React.FC<{ setup: PlaybookSetup; trades: Trade[] }> = ({
+  setup,
+  trades,
+}) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { t } = useT();
+
+  const rs = useMemo(
+    () =>
+      trades
+        .filter(tr => tr.r_multiple !== null && tradeMatchesSetup(tr, setup))
+        .map(tr => tr.r_multiple as number),
+    [trades, setup]
+  );
+  if (rs.length < 3) return null;
+
+  const bins = [-Infinity, -2, -1, 0, 1, 2, Infinity];
+  const counts = bins.slice(0, -1).map((lo, i) => {
+    const hi = bins[i + 1];
+    return rs.filter(r => r > lo && r <= hi).length;
+  });
+  const max = Math.max(...counts, 1);
+  const labels = ['≤-2R', '-2/-1', '-1/0', '0/+1', '+1/+2', '≥+2R'];
+
+  return (
+    <View style={styles.rDistWrap}>
+      <Text style={styles.rDistTitle}>{t('setupRDist')}</Text>
+      <View style={styles.rDistRow}>
+        {counts.map((c, i) => {
+          const negativeBin = i < 3;
+          const color = c === 0
+            ? theme.colors.surfaceLight
+            : negativeBin
+              ? theme.colors.red
+              : theme.colors.green;
+          return (
+            <View key={i} style={styles.rDistCol}>
+              <View style={styles.rDistBarTrack}>
+                <View
+                  style={[styles.rDistBar, { height: Math.max((c / max) * 34, c > 0 ? 3 : 0), backgroundColor: color }]}
+                />
+              </View>
+              <Text style={[styles.rDistCount, c === 0 && styles.rDistMuted]}>{c}</Text>
+              <Text style={styles.rDistLabel}>{labels[i]}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
 
 export const PlaybookScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -274,6 +341,16 @@ export const PlaybookScreen: React.FC = () => {
     [setups, trades]
   );
   const confluence = useMemo(() => computeConfluence(trades), [trades]);
+
+  // ── Debrief-side derived data (pure helpers, unit-tested) ──
+  const dayStats = useMemo(
+    () => statsForDay(trades, selectedDate),
+    [trades, selectedDate]
+  );
+  const costs = useMemo(() => mistakeCosts(debriefs, trades), [debriefs, trades]);
+  const streak = useMemo(() => disciplineStreak(debriefs), [debriefs]);
+  const grid = useMemo(() => disciplineGrid(debriefs, trades, 8), [debriefs, trades]);
+  const mentalMirror = useMemo(() => mentalVsPnl(debriefs, trades), [debriefs, trades]);
 
   // Débriefings triés par date décroissante (plus récent en premier)
   // Filtered setups
@@ -598,6 +675,11 @@ export const PlaybookScreen: React.FC = () => {
                           </View>
                         </View>
 
+                        {/* How the setup wins, not only that it wins: a
+                            many-small-gains shape and a lottery-ticket shape
+                            can share the same avg R. */}
+                        <RDistributionMini setup={edge.setup} trades={trades} />
+
                         {edge.lowConfidence && (
                           <View style={styles.warnRow}>
                             <AlertTriangle size={12} color={theme.colors.gold} />
@@ -681,6 +763,48 @@ export const PlaybookScreen: React.FC = () => {
       {/* ── TAB 2 : DÉBRIEFING JOURNALIER ── */}
       {activeTab === 'debrief' && (
         <View style={styles.tabContent}>
+          {/* The day as the journal recorded it, above the form: you write the
+              debrief looking at what actually happened, not at memory. */}
+          <Card title={t('debriefDayStats')}>
+            {dayStats.count === 0 ? (
+              <Text style={styles.dayStatsEmpty}>{t('debriefNoTradesDay')}</Text>
+            ) : (
+              <View style={styles.dayStatsRow}>
+                <View style={styles.dayStat}>
+                  <Text style={styles.dayStatVal}>{dayStats.count}</Text>
+                  <Text style={styles.dayStatLabel}>{t('tradesCount')}</Text>
+                </View>
+                <View style={styles.dayStat}>
+                  <Text
+                    style={[
+                      styles.dayStatVal,
+                      { color: dayStats.pnl >= 0 ? theme.colors.green : theme.colors.red },
+                    ]}
+                  >
+                    {money(dayStats.pnl, { decimals: 2 })}
+                  </Text>
+                  <Text style={styles.dayStatLabel}>P&L</Text>
+                </View>
+                <View style={styles.dayStat}>
+                  <Text style={styles.dayStatVal}>
+                    {dayStats.count > 0
+                      ? `${Math.round((dayStats.wins / dayStats.count) * 100)}%`
+                      : '—'}
+                  </Text>
+                  <Text style={styles.dayStatLabel}>{t('winRate')}</Text>
+                </View>
+                <View style={styles.dayStat}>
+                  <Text style={styles.dayStatVal}>
+                    {dayStats.avgR !== null
+                      ? `${dayStats.avgR >= 0 ? '+' : ''}${dayStats.avgR.toFixed(2)}R`
+                      : '—'}
+                  </Text>
+                  <Text style={styles.dayStatLabel}>R MOY.</Text>
+                </View>
+              </View>
+            )}
+          </Card>
+
           <Card title={t('debriefTitle')}>
             <Text style={styles.fieldLabel}>{t('debriefDate')}</Text>
             <TextInput
@@ -953,7 +1077,22 @@ export const PlaybookScreen: React.FC = () => {
 
       {activeTab === 'discipline' && (
         <View style={styles.tabContent}>
-          {/* Discipline Analytics */}
+          {/* The streak first: it is the number that makes writing tonight's
+              debrief feel like protecting something. */}
+          <Card title={t('disciplineStreakTitle')}>
+            <View style={styles.streakRow}>
+              <Flame
+                size={22}
+                color={streak > 0 ? theme.colors.primary : theme.colors.textMuted}
+              />
+              <Text style={styles.streakVal}>{streak}</Text>
+              <Text style={styles.streakLabel}>
+                {streak === 1 ? t('disciplineStreakOne') : t('disciplineStreakMany')}
+              </Text>
+            </View>
+          </Card>
+
+          {/* Frequency of each mistake, unchanged. */}
           <Card title={t('disciplineMatrix')}>
             {mistakesAnalytics.map(item => (
               <View key={item.id} style={styles.analyticsRow}>
@@ -971,6 +1110,110 @@ export const PlaybookScreen: React.FC = () => {
             ))}
           </Card>
 
+          {/* What each mistake costs: the day PnL of the debriefs naming it.
+              Context, not proof — but context a trader acts on. */}
+          {costs.length > 0 ? (
+            <Card title={t('mistakeCostTitle')}>
+              {costs.map(c => {
+                const negative = c.totalPnl < 0;
+                return (
+                  <View key={c.id} style={styles.costRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.costLabel}>{mistakeLabel(t, c.id)}</Text>
+                      <Text style={styles.costDays}>
+                        {c.days === 1 ? t('mistakeCostDayOne') : t('mistakeCostDays', c.days)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.costVal,
+                        { color: negative ? theme.colors.red : theme.colors.green },
+                      ]}
+                    >
+                      {money(c.totalPnl, { decimals: 0 })}
+                    </Text>
+                  </View>
+                );
+              })}
+              <Text style={styles.costHint}>{t('mistakeCostHint')}</Text>
+            </Card>
+          ) : null}
+
+          {/* 8 weeks at a glance, Monday-first. Colour = the debrief (was I
+              clean?), not PnL: this grid is about behaviour. */}
+          <Card title={t('disciplineGridTitle')}>
+            <View style={styles.gridWrap}>
+              {grid.map((week, wi) => (
+                <View key={wi} style={styles.gridCol}>
+                  {week.map(cell => {
+                    const bg = cell.isFuture
+                      ? 'transparent'
+                      : !cell.hasDebrief
+                        ? theme.colors.surface
+                        : cell.mistakes > 0
+                          ? withAlpha(theme.colors.red, cell.mistakes >= 2 ? 0.55 : 0.3)
+                          : withAlpha(theme.colors.green, 0.45);
+                    return (
+                      <View
+                        key={cell.dateKey ?? `${wi}-${cell.dateKey}`}
+                        style={[
+                          styles.gridCell,
+                          { backgroundColor: bg },
+                          cell.isToday && styles.gridCellToday,
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.gridLegend}>
+              <View style={styles.gridLegendItem}>
+                <View style={[styles.gridLegendDot, { backgroundColor: withAlpha(theme.colors.green, 0.45) }]} />
+                <Text style={styles.gridLegendText}>{t('gridClean')}</Text>
+              </View>
+              <View style={styles.gridLegendItem}>
+                <View style={[styles.gridLegendDot, { backgroundColor: withAlpha(theme.colors.red, 0.45) }]} />
+                <Text style={styles.gridLegendText}>{t('gridMistake')}</Text>
+              </View>
+              <View style={styles.gridLegendItem}>
+                <View style={[styles.gridLegendDot, { backgroundColor: theme.colors.surface }]} />
+                <Text style={styles.gridLegendText}>{t('gridNoDebrief')}</Text>
+              </View>
+            </View>
+          </Card>
+
+          {/* The mirror: declared mental state vs the money those days made.
+              When the correlation is absent, that fact is shown too — it is
+              the honest result, not a failure of the feature. */}
+          <Card title={t('mentalMirrorTitle')}>
+            {mentalMirror.strong.days === 0 && mentalMirror.weak.days === 0 ? (
+              <Text style={styles.dayStatsEmpty}>{t('mentalMirrorEmpty')}</Text>
+            ) : (
+              <>
+                {[
+                  { key: 'strong' as const, label: t('mentalStrong'), bucket: mentalMirror.strong, color: theme.colors.green },
+                  { key: 'weak' as const, label: t('mentalWeak'), bucket: mentalMirror.weak, color: theme.colors.red },
+                  ...(mentalMirror.middle.days > 0
+                    ? [{ key: 'middle' as const, label: t('mentalMiddle'), bucket: mentalMirror.middle, color: theme.colors.gold }]
+                    : []),
+                ].map(row => (
+                  <View key={row.key} style={styles.costRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.costLabel}>{row.label}</Text>
+                      <Text style={styles.costDays}>
+                        {row.bucket.days === 1 ? t('mentalMirrorDayOne') : t('mentalMirrorDays', row.bucket.days)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.costVal, { color: row.color }]}>
+                      {money(row.bucket.totalPnl, { decimals: 0 })}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={styles.costHint}>{t('mentalMirrorHint')}</Text>
+              </>
+            )}
+          </Card>
         </View>
       )}
 
@@ -1032,6 +1275,164 @@ export const PlaybookScreen: React.FC = () => {
 };
 
 const createStyles = (theme: AppTheme) => StyleSheet.create({
+  // ── Debrief: the day in numbers ──
+  dayStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  dayStat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  dayStatVal: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.type.metricSm,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+  },
+  dayStatLabel: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.mono,
+    letterSpacing: 0.5,
+  },
+  dayStatsEmpty: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.sans,
+  },
+  // ── Discipline: streak ──
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  streakVal: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.type.metric,
+    fontFamily: theme.fonts.monoExtraBold,
+    fontVariant: ['tabular-nums'],
+  },
+  streakLabel: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.mono,
+  },
+  // ── Discipline: mistake cost ──
+  costRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.hairline,
+  },
+  costLabel: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.monoMedium,
+  },
+  costDays: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.mono,
+    marginTop: 1,
+  },
+  costVal: {
+    fontSize: theme.type.body,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+  },
+  costHint: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.sans,
+    lineHeight: 15,
+    marginTop: 8,
+  },
+  // ── Discipline: 8-week grid ──
+  gridWrap: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  gridCol: {
+    flex: 1,
+    gap: 3,
+  },
+  gridCell: {
+    aspectRatio: 1,
+    borderRadius: 3,
+  },
+  gridCellToday: {
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLight,
+  },
+  gridLegend: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  gridLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  gridLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+  },
+  gridLegendText: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.mono,
+  },
+  // ── Setup: mini R distribution ──
+  rDistWrap: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.hairline,
+  },
+  rDistTitle: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  rDistRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  rDistCol: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  rDistBarTrack: {
+    height: 34,
+    justifyContent: 'flex-end',
+  },
+  rDistBar: {
+    width: 18,
+    borderRadius: 2,
+  },
+  rDistCount: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+  },
+  rDistMuted: {
+    color: theme.colors.textMuted,
+  },
+  rDistLabel: {
+    color: theme.colors.textMuted,
+    fontSize: theme.type.micro,
+    fontFamily: theme.fonts.mono,
+  },
   adherenceHead: {
     flexDirection: 'row',
     alignItems: 'center',
