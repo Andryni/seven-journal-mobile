@@ -91,15 +91,43 @@ module.exports = {
   Easing: new Proxy({}, { get: () => (...a) => (typeof a[0] === 'number' ? a[0] : identity) }),
   ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
 
-  FadeIn: makeTransition(),
-  FadeOut: makeTransition(),
-  FadeInDown: makeTransition(),
-  FadeInUp: makeTransition(),
-  FadeOutDown: makeTransition(),
-  SlideInDown: makeTransition(),
-  SlideOutDown: makeTransition(),
+  /**
+   * Every entering/exiting builder the app uses, plus the obvious siblings.
+   *
+   * Listing them by hand meant a screen using one I had not thought of --
+   * FadeInLeft, on Analytics -- crashed the render test with "Cannot read
+   * properties of undefined (reading 'duration')". That reads like an app
+   * bug and is not one, which is the worst kind of test failure. The proxy
+   * below answers for any name in this family instead.
+   */
+  ...Object.fromEntries(
+    [
+      'Fade',
+      'Slide',
+      'Zoom',
+      'Bounce',
+      'Flip',
+      'Stretch',
+      'Pinwheel',
+      'Roll',
+      'Rotate',
+      'Lightspeed',
+    ].flatMap(base =>
+      ['In', 'Out'].flatMap(dir =>
+        ['', 'Up', 'Down', 'Left', 'Right', 'X', 'Y', 'Easy'].map(suffix => [
+          `${base}${dir}${suffix}`,
+          makeTransition(),
+        ])
+      )
+    )
+  ),
   Layout: makeTransition(),
   LinearTransition: makeTransition(),
+  CurvedTransition: makeTransition(),
+  FadingTransition: makeTransition(),
+  JumpingTransition: makeTransition(),
+  SequencedTransition: makeTransition(),
+  EntryExitTransition: makeTransition(),
 
   // Reanimated re-exports these RN bindings in a few places.
   Animated: RNAnimated,
