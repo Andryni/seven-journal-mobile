@@ -20,6 +20,7 @@ import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
+import Reanimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react-native';
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
@@ -237,7 +238,7 @@ export const AuthScreen: React.FC = () => {
             {/* Logo — the shipped artwork, keyed to transparency. It floats on
                 the card like on the boot and lock screens: framing it in a
                 rounded plate cropped a scene that already carries its own. */}
-            <View style={styles.logoSection}>
+            <Reanimated.View entering={FadeIn.duration(420)} style={styles.logoSection}>
               <Animated.View style={[styles.logoGlow, { opacity: glowPulse }]} />
               <Animated.View style={[styles.logoWrap, { transform: [{ scale: logoScale }] }]}>
                 <Image
@@ -251,7 +252,7 @@ export const AuthScreen: React.FC = () => {
                 <Text style={styles.brandTracking}>JOURNAL</Text>
               </View>
               <Text style={styles.tagline}>QUANTITATIVE TRADING TERMINAL</Text>
-            </View>
+            </Reanimated.View>
 
             {/* Welcome text */}
             <Text style={styles.welcomeText}>
@@ -438,16 +439,14 @@ export const AuthScreen: React.FC = () => {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Forgot password link (only on sign in) */}
-            {isSignIn && (
-              <TouchableOpacity
-                style={styles.forgotBtn}
-                onPress={() => switchMode('forgotPassword')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.forgotText}>{t('forgotPassword')}</Text>
-              </TouchableOpacity>
-            )}
+            {/* No "forgot password" link.
+                resetPasswordForEmail needs a redirect target that returns to
+                the app, and that deep link is not wired up: the mail arrives
+                and its button goes nowhere. Offering a recovery that silently
+                fails is worse than not offering one -- a user locked out of a
+                trading journal would sit and wait for it. The code path below
+                (mode 'forgotPassword') is kept so re-enabling it is a matter
+                of restoring this link once the redirect works. */}
 
             {/* Toggle sign in / sign up */}
             {!isForgot && (
