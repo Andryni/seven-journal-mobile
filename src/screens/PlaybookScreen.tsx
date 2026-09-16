@@ -20,6 +20,7 @@ import { useRefresh } from '../features/data/useRefresh';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades } from '../features/accounts/accountScope';
 import type { Trade } from '../types/domain';
+import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import { localDayKey } from '../utils/formatDate';
 import type { AppTheme } from '../theme';
@@ -1122,7 +1123,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   sortBtnActive: {
     borderColor: theme.colors.primary,
-    backgroundColor: 'rgba(255, 159, 28, 0.18)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.18),
   },
   sortBtnText: {
     color: theme.colors.textMuted,
@@ -1309,7 +1310,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     paddingVertical: 8,
   },
   tabBtnActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   tabBtnText: {
@@ -1536,7 +1537,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.15),
     borderColor: theme.colors.primary,
     borderWidth: 1,
     borderRadius: theme.borderRadius.sm,
@@ -1602,7 +1603,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: withAlpha(theme.colors.scrim, 0.85),
     justifyContent: 'center',
     padding: theme.spacing.md,
   },
@@ -1628,10 +1629,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   searchInput: { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: theme.borderRadius.md, height: 38, paddingHorizontal: 12, color: theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.sansMedium, marginBottom: 6 },
   filterRow: { flexDirection: 'row', gap: 6 },
   filterPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.cardBorder },
-  filterPillActive: { backgroundColor: 'rgba(255, 159, 28, 0.2)', borderColor: theme.colors.primary },
+  filterPillActive: { backgroundColor: withAlpha(theme.colors.primary, 0.2), borderColor: theme.colors.primary },
   filterPillText: { color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold },
   filterPillTextActive: { color: theme.colors.textPrimary },
-  saveSuccess: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, backgroundColor: 'rgba(43, 213, 118, 0.1)', borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: 'rgba(43, 213, 118, 0.3)' },
+  saveSuccess: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 8, backgroundColor: withAlpha(theme.colors.green, 0.1), borderRadius: theme.borderRadius.md, borderWidth: 1, borderColor: withAlpha(theme.colors.green, 0.3) },
   saveSuccessText: { color: theme.colors.green, fontSize: 11, fontFamily: theme.fonts.monoBold },
   analyticsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
   analyticsLabel: { color: theme.colors.textSecondary, fontSize: 10, fontFamily: theme.fonts.sansMedium, marginBottom: 4 },

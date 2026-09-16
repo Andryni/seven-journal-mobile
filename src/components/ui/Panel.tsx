@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -44,8 +45,8 @@ export const Panel: React.FC<PanelProps> = ({
   const toneBorder = {
     default: theme.colors.cardBorder,
     accent: theme.colors.cardBorderGlow,
-    danger: 'rgba(255, 77, 77, 0.30)',
-    success: 'rgba(43, 213, 118, 0.30)',
+    danger: withAlpha(theme.colors.red, 0.3),
+    success: withAlpha(theme.colors.green, 0.3),
   }[tone];
 
   const Wrapper: React.ComponentType<any> = animated ? Animated.View : View;

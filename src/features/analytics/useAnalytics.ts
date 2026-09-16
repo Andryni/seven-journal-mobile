@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Trade, TradingAccount } from '../../types/domain';
+import { darkTheme, withAlpha } from '../../theme';
 import type { Language } from '../../i18n/translations';
 import type { PlaybookSetup } from '../playbook/usePlaybook';
 import { formatShortDate, localDayKey } from '../../utils/formatDate';
@@ -134,7 +135,7 @@ export function useAnalytics({
         datasets: [
           {
             data: values,
-            color: (opacity = 1) => totalPnL >= 0 ? `rgba(43, 213, 118, ${opacity})` : `rgba(255, 77, 77, ${opacity})`,
+            color: (opacity = 1) => withAlpha(totalPnL >= 0 ? darkTheme.colors.green : darkTheme.colors.red, opacity),
             strokeWidth: 3,
           },
         ],

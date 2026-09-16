@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { SettingsSheet } from '../settings/SettingsSheet';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import { PressableScale } from '../ui/PressableScale';
 import type { AppTheme } from '../../theme';
@@ -121,7 +122,7 @@ export const TopAccountBar: React.FC = () => {
         >
           <View style={styles.modalContent}>
             <LinearGradient
-              colors={['rgba(255, 159, 28, 0.6)', 'rgba(78, 201, 232, 0.4)', 'transparent']}
+              colors={[withAlpha(theme.colors.primary, 0.6), withAlpha(theme.colors.cyan, 0.4), 'transparent']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.modalGlow}
@@ -272,7 +273,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.15),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -311,7 +312,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: withAlpha(theme.colors.scrim, 0.85),
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
@@ -362,7 +363,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 8,
   },
   accountItemActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.15),
     borderColor: theme.colors.primary,
   },
   accountItemName: {

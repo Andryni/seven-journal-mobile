@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { AlertTriangle, CheckCircle, Info, X } from 'lucide-react-native';
@@ -19,23 +20,25 @@ const TOAST_ICONS: Record<ToastType, React.FC<{ color: string; size: number }>> 
   info: Info,
 };
 
-const TOAST_COLORS: Record<ToastType, { bg: string; border: string; icon: string }> = {
+const makeToastColors = (
+  colors: AppTheme['colors']
+): Record<ToastType, { bg: string; border: string; icon: string }> => ({
   error: {
-    bg: 'rgba(255, 77, 77, 0.15)',
-    border: 'rgba(255, 77, 77, 0.4)',
-    icon: '#FF7A7A',
+    bg: withAlpha(colors.red, 0.15),
+    border: withAlpha(colors.red, 0.4),
+    icon: colors.redLight,
   },
   success: {
-    bg: 'rgba(43, 213, 118, 0.15)',
-    border: 'rgba(43, 213, 118, 0.4)',
-    icon: '#5FE49A',
+    bg: withAlpha(colors.green, 0.15),
+    border: withAlpha(colors.green, 0.4),
+    icon: colors.greenLight,
   },
   info: {
-    bg: 'rgba(255, 159, 28, 0.15)',
-    border: 'rgba(255, 159, 28, 0.4)',
-    icon: '#FFB74D',
+    bg: withAlpha(colors.primary, 0.15),
+    border: withAlpha(colors.primary, 0.4),
+    icon: colors.primaryLight,
   },
-};
+});
 
 export const Toast: React.FC<ToastProps> = ({
   message,
@@ -48,7 +51,7 @@ export const Toast: React.FC<ToastProps> = ({
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-20)).current;
   const Icon = TOAST_ICONS[type];
-  const colors = TOAST_COLORS[type];
+  const colors = makeToastColors(theme.colors)[type];
 
   useEffect(() => {
     // Slide in

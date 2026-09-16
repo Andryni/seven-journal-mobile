@@ -35,6 +35,7 @@ import { ExcursionCard } from '../components/dashboard/ExcursionCard';
 import { TagPerformanceCard } from '../components/dashboard/TagPerformanceCard';
 import { DisciplineCard } from '../components/dashboard/DisciplineCard';
 import { scopeTrades } from '../features/accounts/accountScope';
+import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT, useI18nStore } from '../i18n';
@@ -1007,7 +1008,7 @@ export const AnalyticsScreen: React.FC = () => {
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: 12 }}>
             <StatusChip
               icon={propFirmData.profitPct >= 1 ?
-                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(43, 213, 118, 0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: withAlpha(theme.colors.green, 0.2), alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ color: theme.colors.greenLight, fontSize: 10 }}>✓</Text>
                 </View> :
                 <Flame color={theme.colors.gold} size={18} />
@@ -1158,7 +1159,7 @@ export const AnalyticsScreen: React.FC = () => {
                     borderWidth: 3,
                     borderColor: challengeCountdown.isExpired ? theme.colors.red : challengeCountdown.daysLeft <= 7 ? theme.colors.goldLight : theme.colors.green,
                     alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: challengeCountdown.isExpired ? 'rgba(255, 77, 77, 0.15)' : 'rgba(43, 213, 118, 0.1)',
+                    backgroundColor: challengeCountdown.isExpired ? withAlpha(theme.colors.red, 0.15) : withAlpha(theme.colors.green, 0.1),
                   }}>
                     <Text style={{
                       fontSize: 28, fontFamily: theme.fonts.monoBold,
@@ -1203,7 +1204,7 @@ export const AnalyticsScreen: React.FC = () => {
                   <Text style={s.kpiLabel}>{t('maxDrawdownLabel')} restant</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>{money(-ddProjection.remainingDd, { decimals: 2 })}</Text>
                 </View>
-                <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(43, 213, 118, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(212, 162, 76, 0.1)' : 'rgba(255, 77, 77, 0.1)' }]}>
+                <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? withAlpha(theme.colors.green, 0.1) : ddProjection.ddLevel === 'warning' ? withAlpha(theme.colors.gold, 0.1) : withAlpha(theme.colors.red, 0.1) }]}>
                   <Text style={s.kpiLabel}>STATUS</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, ddProjection.ddLevel === 'safe' ? s.greenText : ddProjection.ddLevel === 'warning' ? { color: theme.colors.goldLight } : s.redText, { fontSize: 11 }]}>
                     {ddProjection.ddLevel === 'safe' ? t('projectionSafe') : ddProjection.ddLevel === 'warning' ? t('projectionWarning') : t('projectionDanger')}
@@ -1228,8 +1229,8 @@ export const AnalyticsScreen: React.FC = () => {
               </View>
               <View style={{
                 marginTop: 8, marginBottom: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
-                backgroundColor: consistencyData.isCompliant ? 'rgba(43, 213, 118, 0.12)' : 'rgba(255, 77, 77, 0.12)',
-                borderWidth: 1, borderColor: consistencyData.isCompliant ? 'rgba(43, 213, 118, 0.3)' : 'rgba(255, 77, 77, 0.3)',
+                backgroundColor: consistencyData.isCompliant ? withAlpha(theme.colors.green, 0.12) : withAlpha(theme.colors.red, 0.12),
+                borderWidth: 1, borderColor: consistencyData.isCompliant ? withAlpha(theme.colors.green, 0.3) : withAlpha(theme.colors.red, 0.3),
                 alignItems: 'center',
               }}>
                 <Text style={{ color: consistencyData.isCompliant ? theme.colors.greenLight : theme.colors.redLight, fontSize: 12, fontFamily: theme.fonts.monoBold }}>
@@ -1328,7 +1329,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginRight: theme.spacing.sm,
   },
   tabItemActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   tabText: {
@@ -1448,7 +1449,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderWidth: 1,
   },
   dateRangeBtnActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   dateRangeText: {

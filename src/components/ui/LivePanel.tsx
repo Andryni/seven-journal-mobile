@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
   interpolateColor,
 } from 'react-native-reanimated';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { duration, easing } from '../../theme/motion';
@@ -86,14 +87,14 @@ export const LivePanel: React.FC<LivePanelProps> = ({
 
   const restColor = {
     neutral: theme.colors.cardBorder,
-    positive: 'rgba(43, 213, 118, 0.28)',
-    negative: 'rgba(255, 77, 77, 0.28)',
+    positive: withAlpha(theme.colors.green, 0.28),
+    negative: withAlpha(theme.colors.red, 0.28),
   }[tone];
 
   const peakColor = {
     neutral: theme.colors.borderBright,
-    positive: 'rgba(43, 213, 118, 0.65)',
-    negative: 'rgba(255, 77, 77, 0.60)',
+    positive: withAlpha(theme.colors.green, 0.65),
+    negative: withAlpha(theme.colors.red, 0.6),
   }[tone];
 
   const borderStyle = useAnimatedStyle(() => ({

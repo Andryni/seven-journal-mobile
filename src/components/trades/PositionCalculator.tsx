@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { useUIStore } from '../../store/uiStore';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
@@ -331,7 +332,7 @@ const createStyles = (theme: AppTheme) =>
       borderColor: theme.colors.cardBorder,
     },
     riskTypeBtnActive: {
-      backgroundColor: 'rgba(212, 162, 76, 0.2)',
+      backgroundColor: withAlpha(theme.colors.gold, 0.2),
       borderColor: theme.colors.goldLight,
     },
     riskTypeText: {
@@ -343,8 +344,8 @@ const createStyles = (theme: AppTheme) =>
       color: theme.colors.goldLight,
     },
     resultBox: {
-      backgroundColor: 'rgba(212, 162, 76, 0.1)',
-      borderColor: 'rgba(212, 162, 76, 0.3)',
+      backgroundColor: withAlpha(theme.colors.gold, 0.1),
+      borderColor: withAlpha(theme.colors.gold, 0.3),
       borderWidth: 1,
       borderRadius: theme.borderRadius.md,
       padding: theme.spacing.lg,
@@ -380,7 +381,7 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: 'space-around',
       width: '100%',
       borderTopWidth: 1,
-      borderTopColor: 'rgba(212, 162, 76, 0.2)',
+      borderTopColor: withAlpha(theme.colors.gold, 0.2),
       paddingTop: 12,
     },
     resultItem: {

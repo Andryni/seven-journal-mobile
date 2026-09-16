@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { X, ShieldCheck, ShieldAlert, ShieldX, Zap } from 'lucide-react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
@@ -450,7 +451,7 @@ const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.6)',
+      backgroundColor: withAlpha(theme.colors.scrim, 0.6),
       justifyContent: 'flex-end',
     },
     sheetWrap: { justifyContent: 'flex-end' },

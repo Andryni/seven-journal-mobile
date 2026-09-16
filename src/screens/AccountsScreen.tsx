@@ -22,6 +22,7 @@ import type { TradingAccount, AccountType, Trade, MarketType } from '../types/do
 import { MARKET_TYPES } from '../utils/positionSizing';
 import { useMarketUnitLabel } from '../features/accounts/useMarket';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { accountTypeLabel, useT } from '../i18n';
@@ -855,7 +856,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(212, 162, 76, 0.1)',
+    backgroundColor: withAlpha(theme.colors.gold, 0.1),
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -869,7 +870,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(43, 213, 118, 0.1)',
+    backgroundColor: withAlpha(theme.colors.green, 0.1),
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -944,7 +945,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: withAlpha(theme.colors.scrim, 0.85),
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 30,
@@ -995,7 +996,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 12,
   },
   propSection: {
-    borderColor: 'rgba(212, 162, 76, 0.3)',
+    borderColor: withAlpha(theme.colors.gold, 0.3),
     backgroundColor: theme.colors.surface,
   },
   sectionHeader: {
@@ -1064,7 +1065,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   typeBtnActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   typeBtnText: {
@@ -1090,7 +1091,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   currBtnActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   currBtnText: {
@@ -1115,7 +1116,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   ddTypeBtnActive: {
-    backgroundColor: 'rgba(212, 162, 76, 0.2)',
+    backgroundColor: withAlpha(theme.colors.gold, 0.2),
     borderColor: theme.colors.gold,
   },
   ddTypeText: {

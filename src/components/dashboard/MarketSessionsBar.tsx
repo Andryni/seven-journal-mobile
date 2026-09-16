@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Globe, Play, Square, AlertTriangle } from 'lucide-react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { PressableScale } from '../ui/PressableScale';
@@ -144,7 +145,7 @@ const createStyles = (theme: AppTheme) =>
     },
     sessionOpen: {
       backgroundColor: theme.colors.greenGlow,
-      borderColor: 'rgba(43, 213, 118, 0.4)',
+      borderColor: withAlpha(theme.colors.green, 0.4),
     },
     sessionClosed: {
       backgroundColor: 'transparent',
@@ -180,11 +181,11 @@ const createStyles = (theme: AppTheme) =>
     },
     timerGreen: {
       backgroundColor: theme.colors.greenGlow,
-      borderColor: 'rgba(43, 213, 118, 0.4)',
+      borderColor: withAlpha(theme.colors.green, 0.4),
     },
     timerRed: {
       backgroundColor: theme.colors.redGlow,
-      borderColor: 'rgba(255, 77, 77, 0.4)',
+      borderColor: withAlpha(theme.colors.red, 0.4),
     },
     sessionTimerText: {
       color: theme.colors.textPrimary,

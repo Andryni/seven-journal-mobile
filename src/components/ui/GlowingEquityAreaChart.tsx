@@ -9,6 +9,7 @@ import Animated, {
   withSequence,
   Easing,
 } from 'react-native-reanimated';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { duration as motionDuration, easing as motionEasing } from '../../theme/motion';
@@ -350,7 +351,7 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
               cx={activePoint.x}
               cy={activePoint.y}
               r={9}
-              fill={activePoint.value >= 0 ? 'rgba(43, 213, 118, 0.3)' : 'rgba(255, 77, 77, 0.3)'}
+              fill={activePoint.value >= 0 ? withAlpha(theme.colors.green, 0.3) : withAlpha(theme.colors.red, 0.3)}
             />
             <Circle
               cx={activePoint.x}

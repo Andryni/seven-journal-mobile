@@ -10,6 +10,7 @@ import {
   Linking,
 } from 'react-native';
 import { ScreenshotViewer } from './ScreenshotViewer';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
@@ -404,7 +405,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: withAlpha(theme.colors.scrim, 0.85),
     justifyContent: 'center',
     padding: theme.spacing.md,
   },
@@ -598,7 +599,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontFamily: theme.fonts.monoBold,
   },
   strategyPill: {
-    backgroundColor: 'rgba(255, 159, 28, 0.15)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.15),
     borderColor: theme.colors.primary,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -666,8 +667,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 77, 77, 0.15)',
-    borderColor: 'rgba(255, 77, 77, 0.3)',
+    backgroundColor: withAlpha(theme.colors.red, 0.15),
+    borderColor: withAlpha(theme.colors.red, 0.3),
     borderWidth: 1,
     height: 44,
     borderRadius: theme.borderRadius.md,

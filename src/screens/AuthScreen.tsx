@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AuthSession from 'expo-auth-session';
 import { supabase } from '../api/supabaseClient';
+import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -486,7 +487,7 @@ const createStyles = (theme: AppTheme) =>
       width: 350,
       height: 350,
       borderRadius: 175,
-      backgroundColor: 'rgba(255, 159, 28, 0.1)',
+      backgroundColor: withAlpha(theme.colors.primary, 0.1),
       top: '15%',
       alignSelf: 'center',
     },
@@ -495,7 +496,7 @@ const createStyles = (theme: AppTheme) =>
       width: 200,
       height: 200,
       borderRadius: 100,
-      backgroundColor: 'rgba(78, 201, 232, 0.06)',
+      backgroundColor: withAlpha(theme.colors.cyan, 0.06),
       bottom: '20%',
       alignSelf: 'center',
     },
@@ -528,7 +529,7 @@ const createStyles = (theme: AppTheme) =>
       width: 150,
       height: 150,
       borderRadius: 75,
-      backgroundColor: 'rgba(255, 159, 28, 0.22)',
+      backgroundColor: withAlpha(theme.colors.primary, 0.22),
       top: -20,
     },
     logoWrap: {
@@ -576,8 +577,8 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: 'rgba(255, 77, 77, 0.12)',
-      borderColor: 'rgba(255, 77, 77, 0.35)',
+      backgroundColor: withAlpha(theme.colors.red, 0.12),
+      borderColor: withAlpha(theme.colors.red, 0.35),
       borderWidth: 1,
       padding: theme.spacing.md,
       borderRadius: theme.borderRadius.md,
@@ -593,8 +594,8 @@ const createStyles = (theme: AppTheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: 'rgba(43, 213, 118, 0.12)',
-      borderColor: 'rgba(43, 213, 118, 0.35)',
+      backgroundColor: withAlpha(theme.colors.green, 0.12),
+      borderColor: withAlpha(theme.colors.green, 0.35),
       borderWidth: 1,
       padding: theme.spacing.md,
       borderRadius: theme.borderRadius.md,
@@ -638,11 +639,11 @@ const createStyles = (theme: AppTheme) =>
       height: 48,
     },
     inputError: {
-      borderColor: 'rgba(255, 77, 77, 0.5)',
-      backgroundColor: 'rgba(255, 77, 77, 0.05)',
+      borderColor: withAlpha(theme.colors.red, 0.5),
+      backgroundColor: withAlpha(theme.colors.red, 0.05),
     },
     inputValid: {
-      borderColor: 'rgba(43, 213, 118, 0.3)',
+      borderColor: withAlpha(theme.colors.green, 0.3),
     },
     icon: {
       marginRight: theme.spacing.sm,

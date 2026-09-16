@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import type { Trade } from '../../types/domain';
-import { useTheme } from '../../theme';
+import { useTheme, withAlpha } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Card } from '../ui/Card';
@@ -56,10 +56,12 @@ export const SessionHeatmapCard: React.FC<SessionHeatmapCardProps> = ({ trades }
     const intensity = Math.min(Math.abs(avg) / maxAbsAvg, 1);
     if (avg > 0) {
       const alpha = 0.15 + intensity * 0.7;
-      return `rgba(16,185,129,${alpha})`;
+      // Palette tokens, not the Tailwind emerald/red-500 this card shipped
+      // with — its colours had survived two palette redesigns untouched.
+      return withAlpha(theme.colors.green, alpha);
     } else {
       const alpha = 0.15 + intensity * 0.7;
-      return `rgba(239,68,68,${alpha})`;
+      return withAlpha(theme.colors.red, alpha);
     }
   };
 
@@ -122,13 +124,13 @@ export const SessionHeatmapCard: React.FC<SessionHeatmapCardProps> = ({ trades }
         <Text style={styles.legendLabel}>{t('sessionHeatmapIntensity')}</Text>
         <View style={styles.legendGroup}>
           {[0.15, 0.35, 0.55, 0.75, 0.95].map((v, i) => (
-            <View key={i} style={[styles.legendDot, { backgroundColor: `rgba(16,185,129,${v})` }]} />
+            <View key={i} style={[styles.legendDot, { backgroundColor: withAlpha(theme.colors.green, v) }]} />
           ))}
           <Text style={styles.legendText}>{t('sessionHeatmapProfit')}</Text>
         </View>
         <View style={styles.legendGroup}>
           {[0.15, 0.35, 0.55, 0.75, 0.95].map((v, i) => (
-            <View key={i} style={[styles.legendDot, { backgroundColor: `rgba(239,68,68,${v})` }]} />
+            <View key={i} style={[styles.legendDot, { backgroundColor: withAlpha(theme.colors.red, v) }]} />
           ))}
           <Text style={styles.legendText}>{t('sessionHeatmapLoss')}</Text>
         </View>
@@ -183,7 +185,7 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: 'center',
     },
     cellCount: {
-      color: 'rgba(255,255,255,0.6)',
+      color: theme.colors.textSecondary,
       fontSize: 7,
       fontFamily: theme.fonts.monoBold,
     },

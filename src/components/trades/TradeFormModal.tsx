@@ -13,6 +13,7 @@ import {
   Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, localeFor, mentalStateLabel, sessionLabel, useT } from '../../i18n';
@@ -861,7 +862,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                   const reward = Math.abs(tp - entry);
                   const rr = risk > 0 ? (reward / risk) : 0;
                   const rrColor = rr >= 2 ? theme.colors.green : rr >= 1 ? theme.colors.goldLight : theme.colors.redLight;
-                  const rrBg = rr >= 2 ? 'rgba(43, 213, 118, 0.15)' : rr >= 1 ? 'rgba(212, 162, 76, 0.15)' : 'rgba(255, 77, 77, 0.15)';
+                  const rrBg = rr >= 2 ? withAlpha(theme.colors.green, 0.15) : rr >= 1 ? withAlpha(theme.colors.gold, 0.15) : withAlpha(theme.colors.red, 0.15);
                   return (
                     <View style={[styles.rrCalcBox, { backgroundColor: rrBg, borderColor: rrColor + '60' }]}>
                       <Target size={12} color={rrColor} />
@@ -1418,7 +1419,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(10, 10, 11, 0.95)',
+    backgroundColor: withAlpha(theme.colors.background, 0.95),
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1488,8 +1489,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    backgroundColor: 'rgba(255, 77, 77, 0.15)',
-    borderColor: 'rgba(255, 77, 77, 0.3)',
+    backgroundColor: withAlpha(theme.colors.red, 0.15),
+    borderColor: withAlpha(theme.colors.red, 0.3),
     borderWidth: 1,
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
@@ -1534,7 +1535,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.gold,
-    backgroundColor: 'rgba(240, 180, 41, 0.10)',
+    backgroundColor: withAlpha(theme.colors.gold, 0.1),
   },
   outcomeWarnText: {
     flex: 1,
@@ -1660,11 +1661,11 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     alignItems: 'center',
   },
   buyActive: {
-    backgroundColor: 'rgba(43, 213, 118, 0.2)',
+    backgroundColor: withAlpha(theme.colors.green, 0.2),
     borderColor: theme.colors.green,
   },
   sellActive: {
-    backgroundColor: 'rgba(255, 77, 77, 0.2)',
+    backgroundColor: withAlpha(theme.colors.red, 0.2),
     borderColor: theme.colors.red,
   },
   directionText: {
@@ -1771,9 +1772,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255, 77, 77, 0.12)',
+    backgroundColor: withAlpha(theme.colors.red, 0.12),
     borderWidth: 1,
-    borderColor: 'rgba(255, 77, 77, 0.45)',
+    borderColor: withAlpha(theme.colors.red, 0.45),
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
@@ -1839,7 +1840,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: theme.spacing.md,
   },
   setupCardActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   setupCardText: {
@@ -1851,7 +1852,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     color: theme.colors.greenLight,
     fontSize: 10,
     fontFamily: theme.fonts.monoBold,
-    backgroundColor: 'rgba(43, 213, 118, 0.1)',
+    backgroundColor: withAlpha(theme.colors.green, 0.1),
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,

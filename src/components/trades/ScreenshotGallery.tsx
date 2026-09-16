@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, Image, FlatList, Dimensions } from 'react-native';
 import { X, Images } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { duration } from '../../theme/motion';
@@ -196,7 +197,7 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       paddingHorizontal: 8,
       paddingVertical: 6,
-      backgroundColor: 'rgba(10, 10, 11, 0.75)',
+      backgroundColor: withAlpha(theme.colors.background, 0.75),
     },
     tilePair: {
       color: theme.colors.textPrimary,

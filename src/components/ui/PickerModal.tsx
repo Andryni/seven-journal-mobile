@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { X, Check } from 'lucide-react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -94,7 +95,7 @@ export const PickerModal: React.FC<PickerModalProps> = ({
 const createStyles = (theme: AppTheme) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: withAlpha(theme.colors.scrim, 0.75),
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -141,7 +142,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     marginBottom: 6,
   },
   itemActive: {
-    backgroundColor: 'rgba(255, 159, 28, 0.2)',
+    backgroundColor: withAlpha(theme.colors.primary, 0.2),
     borderColor: theme.colors.primary,
   },
   itemLeft: {

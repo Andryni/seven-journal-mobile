@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { AlertTriangle } from 'lucide-react-native';
@@ -72,7 +73,7 @@ const fallbackStyles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 77, 77, 0.15)',
+    backgroundColor: withAlpha('#FF4D4D', 0.15), // raw hex on purpose: this boundary renders when the theme provider itself may have failed
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,

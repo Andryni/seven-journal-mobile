@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
 import { X, Bell, Fingerprint, Languages, Clock, Calculator } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT, useI18nStore } from '../../i18n';
@@ -259,7 +260,7 @@ const Row: React.FC<{
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: withAlpha(theme.colors.scrim, 0.6), justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: theme.colors.modalBg,
       borderTopLeftRadius: theme.borderRadius.xl,

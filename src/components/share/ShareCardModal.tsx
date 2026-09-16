@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { X, Share2, Download, Check, TrendingUp } from 'lucide-react-native';
+import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { localeFor, useT } from '../../i18n';
@@ -301,7 +302,7 @@ const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.86)',
+      backgroundColor: withAlpha(theme.colors.scrim, 0.86),
       justifyContent: 'center',
       padding: 16,
     },

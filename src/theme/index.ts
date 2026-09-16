@@ -29,6 +29,8 @@ export interface Theme {
     card: string;
     surface: string;
     surfaceLight: string;
+    /** Modal/backdrop scrims (pure black, by design). */
+    scrim: string;
 
     // Lines
     cardBorder: string;
@@ -174,6 +176,14 @@ const elevation = {
   },
 };
 
+/** Base pigments — declared once, referenced by every derived token below. */
+const WHITE = '#FFFFFF';
+const PRIMARY = '#FF9F1C';
+const GOLD = '#D4A24C';
+const GREEN = '#2BD576';
+const RED = '#FF4D4D';
+const CYAN = '#4EC9E8';
+
 const darkColors: Theme['colors'] = {
   // Warm near-black. Not #000 (crushes OLED detail), not blue-violet.
   background: '#0A0A0B',
@@ -184,38 +194,41 @@ const darkColors: Theme['colors'] = {
   card: '#121214',
   surface: '#161618',
   surfaceLight: '#1C1C1F',
+  /** Modal/backdrop scrims. Pure black ON PURPOSE: a scrim is not a surface,
+   * it must darken whatever sits under it without adding warmth. */
+  scrim: '#000000',
 
-  cardBorder: 'rgba(255, 255, 255, 0.07)',
-  cardBorderGlow: 'rgba(255, 159, 28, 0.32)',
+  cardBorder: withAlpha(WHITE, 0.07),
+  cardBorderGlow: withAlpha(PRIMARY, 0.32),
   borderStrong: '#26262A',
-  borderBright: 'rgba(255, 255, 255, 0.14)',
-  hairline: 'rgba(255, 255, 255, 0.06)',
+  borderBright: withAlpha(WHITE, 0.14),
+  hairline: withAlpha(WHITE, 0.06),
 
   // Amber phosphor — the signature. Reads as "terminal", not "startup".
-  primary: '#FF9F1C',
+  primary: PRIMARY,
   primaryLight: '#FFB74D',
   primaryDeep: '#E08600',
-  primaryGlow: 'rgba(255, 159, 28, 0.14)',
-  primaryMuted: 'rgba(255, 159, 28, 0.10)',
+  primaryGlow: withAlpha(PRIMARY, 0.14),
+  primaryMuted: withAlpha(PRIMARY, 0.10),
 
   // Prop firm keeps a distinct warmer/brassier tone vs the accent.
-  gold: '#D4A24C',
+  gold: GOLD,
   goldLight: '#E8BF74',
-  goldGlow: 'rgba(212, 162, 76, 0.14)',
+  goldGlow: withAlpha(GOLD, 0.14),
 
   // P&L — desaturated so they never scream, only inform.
-  green: '#2BD576',
+  green: GREEN,
   greenLight: '#5FE49A',
-  greenGlow: 'rgba(43, 213, 118, 0.14)',
-  greenMuted: 'rgba(43, 213, 118, 0.10)',
-  red: '#FF4D4D',
+  greenGlow: withAlpha(GREEN, 0.14),
+  greenMuted: withAlpha(GREEN, 0.10),
+  red: RED,
   redLight: '#FF7A7A',
-  redGlow: 'rgba(255, 77, 77, 0.14)',
-  redMuted: 'rgba(255, 77, 77, 0.10)',
+  redGlow: withAlpha(RED, 0.14),
+  redMuted: withAlpha(RED, 0.10),
 
-  cyan: '#4EC9E8',
+  cyan: CYAN,
   cyanLight: '#8BDDF0',
-  cyanGlow: 'rgba(78, 201, 232, 0.14)',
+  cyanGlow: withAlpha(CYAN, 0.14),
 
   // Warm-tinted text ramp (slightly off-white, easier on OLED at night).
   textPrimary: '#F5F3F0',
@@ -241,6 +254,31 @@ export const darkTheme: Theme = {
  * @deprecated use `darkTheme`
  */
 export const lightTheme: Theme = darkTheme;
+
+/**
+ * Tint any theme colour at an explicit opacity: `withAlpha(theme.colors.green, 0.3)`.
+ *
+ * The rule this exists to enforce: the COLOUR always comes from the token, so
+ * a palette change propagates everywhere; only the opacity is stated at the
+ * call site, because it is layout intent (a fill, a track, a scrim), not a
+ * colour. This replaces the 90+ `rgba(43, 213, 118, …)` literals that parsed
+ * the hex back into decimal by hand — and drifted from the palette when it
+ * moved (the old emerald rgba values survived the green's redesign).
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const hex = color.replace('#', '');
+  const full =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map(c => c + c)
+          .join('')
+      : hex;
+  if (full.length !== 6) return color; // gradients etc. pass through untouched
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16));
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
 
 interface ThemeState {
   mode: ThemeMode;

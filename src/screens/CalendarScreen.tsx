@@ -18,6 +18,7 @@ import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountSco
 import type { Trade } from '../types/domain';
 import { useMoney } from '../features/accounts/useMoney';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
@@ -524,15 +525,15 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: 2,
   },
   dayCellWin: {
-    backgroundColor: 'rgba(43, 213, 118, 0.12)',
-    borderColor: 'rgba(43, 213, 118, 0.35)',
+    backgroundColor: withAlpha(theme.colors.green, 0.12),
+    borderColor: withAlpha(theme.colors.green, 0.35),
   },
   dayCellLoss: {
-    backgroundColor: 'rgba(255, 77, 77, 0.12)',
-    borderColor: 'rgba(255, 77, 77, 0.35)',
+    backgroundColor: withAlpha(theme.colors.red, 0.12),
+    borderColor: withAlpha(theme.colors.red, 0.35),
   },
   dayCellToday: {
-    borderColor: 'rgba(255, 159, 28, 0.5)',
+    borderColor: withAlpha(theme.colors.primary, 0.5),
     borderWidth: 1.5,
   },
   dayCellSelected: {
