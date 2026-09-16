@@ -70,7 +70,11 @@ s'adresser.
 
 ```
 npx supabase functions deploy coach
+npx supabase functions deploy chat
 ```
+
+`chat` alimente l'onglet COACH (conversation). Il partage la clé et le modèle
+de `coach` : aucun secret supplémentaire.
 
 ---
 

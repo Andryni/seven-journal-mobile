@@ -10,6 +10,8 @@ export type RootTabParamList = {
   Trades: undefined;
   Calendar: undefined;
   Analytics: undefined;
+  /** Conversation with the journal, backed by the chat Edge Function. */
+  Chat: undefined;
   /** Playbook, Accounts and Settings live behind this tab. */
   More: undefined;
 };

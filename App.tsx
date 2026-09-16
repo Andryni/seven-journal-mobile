@@ -41,6 +41,7 @@ import { TopAccountBar } from './src/components/common/TopAccountBar';
 import { GlobalAddTradeFab } from './src/components/trades/GlobalAddTradeFab';
 import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
 import { BootScreen } from './src/components/common/BootScreen';
+import { ChatScreen } from './src/screens/ChatScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -51,7 +52,7 @@ import { MoreScreen } from './src/screens/MoreScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { LockScreen } from './src/screens/LockScreen';
 import { useAppLock } from './src/features/security/useAppLock';
-import { LayoutGrid, BookOpen, Calendar, BarChart2, MoreHorizontal } from 'lucide-react-native';
+import { LayoutGrid, BookOpen, Calendar, BarChart2, Sparkles, MoreHorizontal } from 'lucide-react-native';
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
 import type { Session } from '@supabase/supabase-js';
@@ -290,6 +291,16 @@ export default function App() {
                   options={{
                     tabBarLabel: t('tabAnalytics'),
                     tabBarIcon: ({ color }) => <BarChart2 color={color} size={19} strokeWidth={1.75} />,
+                  }}
+                />
+                <Tab.Screen
+                  name="Chat"
+                  component={ChatScreen}
+                  options={{
+                    tabBarLabel: t('tabChat'),
+                    tabBarIcon: ({ color }) => (
+                      <Sparkles color={color} size={19} strokeWidth={1.75} />
+                    ),
                   }}
                 />
                 <Tab.Screen

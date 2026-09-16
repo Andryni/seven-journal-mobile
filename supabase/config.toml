@@ -18,3 +18,8 @@ project_id = "seven-journal-mobile"
 # The gateway's verify_jwt is what actually rejects an unauthenticated
 # caller, so turning it off here would leave a public proxy to a paid API.
 verify_jwt = true
+
+[functions.chat]
+# Same reasoning as coach: the function only checks that a bearer token is
+# PRESENT, so the gateway must be the one that validates it.
+verify_jwt = true
