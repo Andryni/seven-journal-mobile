@@ -49,9 +49,37 @@ export interface TwinAggregate {
   trades: Trade[];
 }
 
-const DIMENSIONS = 5; // direction, session, timeframe, mental, tags, setups → scores above
-/** A candidate must reach this fraction of the top possible score. */
+/** A candidate must reach this fraction of the score its criteria allow. */
 const MATCH_THRESHOLD = 0.5;
+
+/**
+ * The highest score these criteria could possibly award.
+ *
+ * This has to be derived, not fixed. The old code compared against a constant
+ * `DIMENSIONS = 5` while the real ceiling is 8 (direction, session, timeframe
+ * and mental state at 1 each, plus 2 for tags and 2 for setups), which broke
+ * the rule at both ends:
+ *
+ *   - Fully specified criteria: the bar sat at 3/8, so a trade sharing three
+ *     tags and nothing else -- different direction, different session --
+ *     was presented as a twin at the moment of decision.
+ *   - Sparse criteria: a form with only a pair and a direction tops out at 1,
+ *     so a fixed bar of 3 could never be cleared and the panel stayed empty
+ *     however much history existed.
+ *
+ * Scoring against what was actually asked for keeps "half a match" meaning
+ * the same thing whether the trader filled in two fields or all of them.
+ */
+export function maxTwinScore(criteria: TwinCriteria): number {
+  let max = 0;
+  if (criteria.direction) max += 1;
+  if (criteria.session) max += 1;
+  if (criteria.timeframe) max += 1;
+  if (criteria.mentalState) max += 1;
+  max += Math.min(criteria.tags?.length ?? 0, 2);
+  max += Math.min(criteria.setupStructures?.length ?? 0, 2);
+  return max;
+}
 
 export function twinScore(trade: Trade, criteria: TwinCriteria): number {
   if ((trade.pair ?? '').toUpperCase() !== (criteria.pair ?? '').toUpperCase()) {
@@ -82,12 +110,22 @@ export function twinScore(trade: Trade, criteria: TwinCriteria): number {
 export function findTwinTrades(
   history: Trade[],
   criteria: TwinCriteria,
-  minScore = Math.ceil(DIMENSIONS * MATCH_THRESHOLD)
+  minScore?: number
 ): Trade[] {
   if (!criteria.pair) return [];
+
+  /**
+   * With nothing but a pair to go on there is no context to match, so every
+   * past trade on the instrument would score 0 and qualify. That is a
+   * "trades on XAUUSD" list, not a twin: say nothing instead.
+   */
+  const max = maxTwinScore(criteria);
+  if (max === 0) return [];
+
+  const bar = minScore ?? Math.max(1, Math.ceil(max * MATCH_THRESHOLD));
   return history
     .map(t => ({ t, score: twinScore(t, criteria) }))
-    .filter(({ t, score }) => score >= minScore && t.pnl !== null && t.pnl !== undefined)
+    .filter(({ t, score }) => score >= bar && t.pnl !== null && t.pnl !== undefined)
     .sort((a, b) => b.score - a.score || (a.t.entry_time < b.t.entry_time ? 1 : -1))
     .map(({ t }) => t);
 }

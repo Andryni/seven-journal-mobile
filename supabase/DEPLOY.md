@@ -174,6 +174,11 @@ curl -X POST "https://VOTRE_REF.supabase.co/functions/v1/coach" ^
 La réponse liste `availableModels`. Aucune donnée de trading n'est envoyée et
 le modèle n'est pas appelé : c'est une simple interrogation de catalogue.
 
+> **Attention** : ce catalogue n'est pas fiable à 100 %. `gemini-2.5-flash`
+> y est resté listé plusieurs jours après avoir cessé de fonctionner. Un
+> identifiant présent dans la liste est un *candidat*, pas une garantie — la
+> seule preuve qu'un modèle marche est un appel réussi.
+
 Ancienne méthode, si besoin :
 
 ```

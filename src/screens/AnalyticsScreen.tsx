@@ -418,7 +418,16 @@ export const AnalyticsScreen: React.FC = () => {
       </Animated.View>
 
       {/* TABS SELECTOR */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll}>
+      {/* The strip is ~517px against a ~360dp screen, so it scrolls by design.
+          What was missing is the CUE: with the indicator hidden and the last
+          tab flush to the edge, nothing said more tabs existed. Trailing
+          padding leaves the next tab half-visible, which is the cue. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.tabsScroll}
+        contentContainerStyle={s.tabsContent}
+      >
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1307,17 +1316,31 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   tabsScroll: {
     marginBottom: theme.spacing.md,
   },
+  tabsContent: {
+    // Room past the last tab so it never sits flush with the screen edge,
+    // which reads as "the list ends here".
+    paddingRight: theme.spacing.lg,
+  },
   tabItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: theme.spacing.md,
+    /**
+     * Tightened from spacing.md/6 to fit six tabs.
+     *
+     * At the old widths the row measured ~656px against a ~360dp screen, so
+     * the last two tabs -- MIND and PROP FIRM -- sat entirely off-screen with
+     * nothing on the strip to suggest they existed. Splitting the overloaded
+     * behaviour tab into six was the right call; paying for it by hiding two
+     * of them was not.
+     */
+    gap: 5,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: theme.colors.card,
     borderColor: theme.colors.cardBorder,
     borderWidth: 1,
     borderRadius: theme.borderRadius.md,
-    marginRight: theme.spacing.sm,
+    marginRight: 5,
   },
   tabItemActive: {
     backgroundColor: withAlpha(theme.colors.primary, 0.2),

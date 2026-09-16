@@ -208,6 +208,14 @@ Deno.serve(async (req: Request) => {
    * Model ids are retired on a schedule and availability varies by key and by
    * region, so no id hardcoded in this repo stays correct. Only the names are
    * returned -- no key material, no payload, and the model is never called.
+   *
+   * CAVEAT, learned the hard way: this catalogue is NOT authoritative.
+   * gemini-2.5-flash kept appearing in the list for days after it stopped
+   * serving generateContent, so diagnose reported a healthy model while
+   * every real call 404ed. Treat a listed id as a candidate, not a promise --
+   * the only proof a model works is a successful generateContent, which is
+   * why the 404 path suggests a replacement rather than switching to one
+   * silently.
    */
   if (useGemini && (body as { diagnose?: unknown })?.diagnose === true) {
     try {
@@ -240,8 +248,31 @@ Deno.serve(async (req: Request) => {
    * Kept as a closure rather than a top-level constant so the function stays
    * the single place that knows the payload shape.
    */
-  const geminiBody = () =>
-    JSON.stringify({
+  /**
+   * How to ask a given model to think less.
+   *
+   * Raising maxOutputTokens to 2048 stopped the empty completions, but it
+   * only gave the reasoning room to run -- it never told the model to keep
+   * the reasoning short, so the budget is still spent at the model's
+   * discretion on a task that is one paragraph of rewriting.
+   *
+   * The parameter differs by family, and sending the wrong one is not free:
+   *   - 2.5 uses `thinkingBudget` (a token count). 512 is ample here.
+   *   - 3.x replaced it with `thinkingLevel`; Google's docs warn that
+   *     thinkingBudget on a 3.x model may degrade it, and thinking cannot be
+   *     switched off entirely on Flash, only lowered.
+   * An unknown id gets neither: a rejected field would fail the whole call,
+   * and the 2048 ceiling already keeps it safe.
+   */
+  const thinkingConfigFor = (model: string): Record<string, unknown> | null => {
+    if (/gemini-3/.test(model)) return { thinkingLevel: 'low' };
+    if (/gemini-2\.5/.test(model)) return { thinkingBudget: 512 };
+    return null;
+  };
+
+  const geminiBody = (model: string) => {
+    const thinkingConfig = thinkingConfigFor(model);
+    return JSON.stringify({
       // Gemini has no system role: the instructions go in
       // systemInstruction, which it treats with the same weight.
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
@@ -258,6 +289,7 @@ Deno.serve(async (req: Request) => {
         // is short but not free; 2048 leaves room for thinking plus
         // the ~200 tokens the answer actually needs.
         maxOutputTokens: 2048,
+        ...(thinkingConfig ? { thinkingConfig } : {}),
         // Guarantees parseable output instead of prose wrapped in
         // a markdown fence, which is what a plain prompt returns.
         responseMimeType: 'application/json',
@@ -271,6 +303,7 @@ Deno.serve(async (req: Request) => {
         },
       },
     });
+  };
 
   const openaiBody = () =>
     JSON.stringify({
@@ -314,7 +347,7 @@ Deno.serve(async (req: Request) => {
                 'x-goog-api-key': apiKey,
                 'Content-Type': 'application/json',
               },
-              body: geminiBody(),
+              body: geminiBody(model),
             }
           )
         : fetch('https://api.openai.com/v1/chat/completions', {
@@ -379,6 +412,9 @@ Deno.serve(async (req: Request) => {
          * fact that the configured id is dead, and it would come back every
          * single call. The user sets the secret once and the problem is gone.
          */
+        // Best effort only: the catalogue lists ids that no longer serve
+        // generateContent (see the diagnose caveat above), so this names a
+        // candidate to try, not a guaranteed working model.
         let suggestion = '';
         try {
           const listed = await fetch(

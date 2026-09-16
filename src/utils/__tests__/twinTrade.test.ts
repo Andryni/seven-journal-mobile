@@ -1,5 +1,6 @@
 import {
   twinScore,
+  maxTwinScore,
   findTwinTrades,
   aggregateTwins,
   isTwinSignificant,
@@ -107,6 +108,111 @@ describe('findTwinTrades', () => {
 
   it('is empty without a pair', () => {
     expect(findTwinTrades([base], { pair: '' })).toEqual([]);
+  });
+});
+
+/**
+ * The bar scales with what was asked for.
+ *
+ * It used to be a constant 3, derived from a `DIMENSIONS = 5` that did not
+ * match the real ceiling of 8. That broke the rule at both ends, and both
+ * ends are covered below.
+ */
+describe('maxTwinScore', () => {
+  it('counts only the dimensions the criteria actually specify', () => {
+    expect(maxTwinScore({ pair: 'XAUUSD' })).toBe(0);
+    expect(maxTwinScore({ pair: 'XAUUSD', direction: 'BUY' })).toBe(1);
+    expect(
+      maxTwinScore({ pair: 'XAUUSD', direction: 'BUY', session: 'London', timeframe: 'M15' })
+    ).toBe(3);
+  });
+
+  it('caps tags and structures at two each, matching twinScore', () => {
+    const criteria = {
+      pair: 'XAUUSD',
+      direction: 'BUY' as const,
+      session: 'London',
+      timeframe: 'M15',
+      mentalState: 'revenge',
+      tags: ['a', 'b', 'c', 'd'],
+      setupStructures: ['FVG', 'OB', 'BOS'],
+    };
+    // 4 single dimensions + 2 tags + 2 structures.
+    expect(maxTwinScore(criteria)).toBe(8);
+    // The ceiling must be reachable: a trade matching everything scores it.
+    const perfect = twin(
+      { tags: ['a', 'b', 'c', 'd'], setup_structures: ['FVG', 'OB', 'BOS'] },
+      't20'
+    );
+    expect(twinScore(perfect, criteria)).toBe(maxTwinScore(criteria));
+  });
+});
+
+describe('findTwinTrades — threshold scales with the criteria', () => {
+  it('finds twins when the form carries only a pair and a direction', () => {
+    // Previously impossible: the ceiling here is 1 and the fixed bar was 3,
+    // so the panel stayed empty however much history existed.
+    const history = [twin({ direction: 'BUY', pnl: 100 }, 't2')];
+    const found = findTwinTrades(history, { pair: 'XAUUSD', direction: 'BUY' });
+    expect(found.map(t => t.id)).toEqual(['t2']);
+  });
+
+  it('rejects a trade that shares only tags when the context differs', () => {
+    // Was accepted at 3/8: two tags plus one structure cleared the old bar
+    // despite the opposite direction and another session.
+    const criteria = {
+      pair: 'XAUUSD',
+      direction: 'BUY' as const,
+      session: 'London',
+      timeframe: 'M15',
+      mentalState: 'revenge',
+      tags: ['news', 'gap'],
+      setupStructures: ['FVG'],
+    };
+    const opposite = twin(
+      {
+        direction: 'SELL',
+        session: 'NewYork',
+        timeframe: 'H1',
+        mental_state: 'focused',
+        tags: ['news', 'gap'],
+        setup_structures: ['FVG'],
+      },
+      't3'
+    );
+    expect(twinScore(opposite, criteria)).toBe(3);
+    expect(findTwinTrades([opposite], criteria)).toEqual([]);
+  });
+
+  it('still accepts a trade matching half of a fully specified context', () => {
+    const criteria = {
+      pair: 'XAUUSD',
+      direction: 'BUY' as const,
+      session: 'London',
+      timeframe: 'M15',
+      mentalState: 'revenge',
+      tags: ['news', 'gap'],
+      setupStructures: ['FVG'],
+    };
+    const half = twin(
+      {
+        direction: 'BUY',
+        session: 'London',
+        timeframe: 'M15',
+        mental_state: 'focused',
+        tags: ['news'],
+        setup_structures: [],
+      },
+      't4'
+    );
+    expect(findTwinTrades([half], criteria).map(t => t.id)).toEqual(['t4']);
+  });
+
+  it('says nothing when the pair is the only criterion', () => {
+    // Every past trade on the instrument would score 0 and qualify: that is
+    // a "trades on XAUUSD" list, not a twin.
+    const history = [twin({ pnl: 50 }, 't5'), twin({ pnl: -20 }, 't6')];
+    expect(findTwinTrades(history, { pair: 'XAUUSD' })).toEqual([]);
   });
 });
 
