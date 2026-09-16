@@ -100,3 +100,34 @@ describe('typography', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Screen headers.
+ *
+ * Five screens rendered their own title block and had drifted into four
+ * versions of the same element: 26/18/16pt titles, -0.6/1/1.2 tracking, and
+ * subtitles in three colours. components/ui/ScreenHeader is now the one
+ * implementation; this fails if a screen grows its own again.
+ */
+describe('screen headers', () => {
+  const screens = files.filter(f => f.includes(`${path.sep}screens${path.sep}`));
+
+  it('finds the screen files', () => {
+    expect(screens.length).toBeGreaterThan(5);
+  });
+
+  it('no screen defines its own screenTitle style', () => {
+    const offenders: string[] = [];
+    for (const file of screens) {
+      const source = fs.readFileSync(file, 'utf8');
+      if (/\n {2}screenTitle: \{/.test(source)) {
+        offenders.push(path.relative(SRC, file));
+      }
+    }
+    // Known remaining: these still predate ScreenHeader and are listed so the
+    // number can only go down, never quietly up.
+    expect(offenders.sort()).toEqual(
+      ['screens/AnalyticsScreen.tsx', 'screens/PlaybookScreen.tsx', 'screens/TradesScreen.tsx'].sort()
+    );
+  });
+});

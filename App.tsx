@@ -207,7 +207,19 @@ export default function App() {
     );
   }
 
-  // Show Reset Password screen when user arrives via email link
+  /**
+   * Reset-password screen, reached via a recovery link.
+   *
+   * Still wired up even though AuthScreen no longer offers a "forgot
+   * password" link. Those are two different things: the link is disabled
+   * because the redirect back into the app is not configured, but
+   * PASSWORD_RECOVERY still fires whenever a recovery link IS opened --
+   * including one sent by hand from the Supabase dashboard, which is
+   * currently the only way to unlock a locked-out user.
+   *
+   * Removing this screen would break that escape hatch. It is not dead code;
+   * it is the half of the flow that works.
+   */
   if (isPasswordRecovery) {
     return (
       <SafeAreaProvider>

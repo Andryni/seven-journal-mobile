@@ -22,6 +22,7 @@ import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
+import { ScreenHeader } from '../components/ui/ScreenHeader';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { duration } from '../theme/motion';
 import { Card } from '../components/ui/Card';
@@ -148,13 +149,12 @@ export const CalendarScreen: React.FC = () => {
         />
       }
     >
-      {/* ── HEADER ──
-          Staggered like the dashboard: the screen assembles top-down instead
-          of appearing whole, which is the only motion cue this screen had. */}
-      <Animated.View entering={FadeInDown.duration(duration.base)} style={styles.header}>
-        <Text style={styles.screenTitle}>{t('screenTitleCalendar')}</Text>
-        <Text style={styles.screenSubtitle}>{t('screenSubtitleCalendar')}</Text>
-      </Animated.View>
+      {/* Shared header: same type, spacing and entrance as every other
+          screen. See components/ui/ScreenHeader. */}
+      <ScreenHeader
+        title={t('screenTitleCalendar')}
+        subtitle={t('screenSubtitleCalendar')}
+      />
 
       {mixedCurrencies ? (
         <View style={styles.warnBanner}>
@@ -390,18 +390,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   header: {
     marginBottom: theme.spacing.md,
-  },
-  screenTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-    fontFamily: theme.fonts.sansExtraBold,
-    letterSpacing: 1.2,
-  },
-  screenSubtitle: {
-    color: theme.colors.primaryLight,
-    fontSize: 10,
-    fontFamily: theme.fonts.monoMedium,
-    marginTop: 2,
   },
 
   // ── Hero Card ──

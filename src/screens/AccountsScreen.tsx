@@ -20,6 +20,7 @@ import { formatCurrency, currencySymbol, CURRENCIES } from '../utils/formatCurre
 import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
 import { MARKET_TYPES } from '../utils/positionSizing';
+import { ScreenHeader } from '../components/ui/ScreenHeader';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { duration, stagger } from '../theme/motion';
 import { useMarketUnitLabel } from '../features/accounts/useMarket';
@@ -366,23 +367,25 @@ export const AccountsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* ── HEADER ── */}
-      <View style={styles.screenHeader}>
-        <View>
-          <Text style={styles.screenTitle}>{t('screenTitleAccounts')}</Text>
-          <Text style={styles.screenSubtitle}>{t('screenSubtitleAccounts')}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={openAddModal}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={t('addAccount')}
-        >
-          <Plus color={theme.colors.textPrimary} size={16} />
-          <Text style={styles.addBtnText}>{t('addAccount')}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Shared header: same type, spacing and entrance as every other
+          screen. See components/ui/ScreenHeader. */}
+      <ScreenHeader
+        title={t('screenTitleAccounts')}
+        subtitle={t('screenSubtitleAccounts')}
+        action={
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={openAddModal}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('addAccount')}
+          >
+            <Plus color={theme.colors.textPrimary} size={16} />
+            <Text style={styles.addBtnText}>{t('addAccount')}</Text>
+          </TouchableOpacity>
+        }
+        style={styles.screenHeader}
+      />
 
       {/* ── ACCOUNTS LIST ── */}
       <FlatList
@@ -710,18 +713,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
-  },
-  screenTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-    fontFamily: theme.fonts.sansExtraBold,
-    letterSpacing: 1.2,
-  },
-  screenSubtitle: {
-    color: theme.colors.primaryLight,
-    fontSize: 10,
-    fontFamily: theme.fonts.monoMedium,
-    marginTop: 2,
   },
   addBtn: {
     flexDirection: 'row',
