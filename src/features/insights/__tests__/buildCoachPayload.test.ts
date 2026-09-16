@@ -1,5 +1,26 @@
 import { buildCoachPayload } from '../buildCoachPayload';
 import type { Trade } from '../../../types/domain';
+import type { DailyDebrief } from '../../playbook/usePlaybook';
+
+const debrief = (over: Partial<DailyDebrief>): DailyDebrief =>
+  ({
+    id: 'd1',
+    user_id: 'u1',
+    date: '2026-01-13',
+    market_sentiment: null,
+    lessons_learned: null,
+    mistakes_committed: [],
+    mental_score: 8,
+    htf_analysis: null,
+    htf_image_url: null,
+    rules_followed: [],
+    objective_tomorrow: null,
+    emotion_before: 'calm',
+    day_rating: 7,
+    created_at: '2026-01-13T21:00:00.000Z',
+    updated_at: '2026-01-13T21:00:00.000Z',
+    ...over,
+  }) as DailyDebrief;
 
 let seq = 0;
 const base = (over: Partial<Trade> = {}): Trade =>
@@ -56,6 +77,7 @@ describe('buildCoachPayload — privacy boundary', () => {
     expect(Object.keys(payload).sort()).toEqual(
       [
         'avgR',
+        'discipline',
         'findings',
         'locale',
         'planAdherence',
@@ -139,5 +161,49 @@ describe('buildCoachPayload — content', () => {
   it('caps findings at 12, matching the server-side cap', () => {
     const payload = buildCoachPayload(book(), 'fr')!;
     expect(payload.findings.length).toBeLessThanOrEqual(12);
+  });
+
+  it('discipline is null when no debriefs exist — no data is not "no mistakes"', () => {
+    const payload = buildCoachPayload(book(), 'fr', [], []);
+    expect(payload!.discipline).toBeNull();
+  });
+
+  it('carries streak, mistake share and the worst mistake with a relative cost', () => {
+    // Trade days for the book, so day PnL can join.
+    const trades = book();
+    const debriefs = [
+      debrief({ date: '2026-01-01', mistakes_committed: ['revenge'] }),
+      debrief({ date: '2026-01-02', mistakes_committed: ['revenge'] }),
+      debrief({ date: '2026-01-03', mistakes_committed: [] }),
+    ];
+    const payload = buildCoachPayload(trades, 'fr', [], debriefs)!;
+    expect(payload.discipline).not.toBeNull();
+    expect(payload.discipline!.debriefedDays).toBe(3);
+    expect(payload.discipline!.daysWithMistakes).toBe(2);
+    // All three trades land on day keys inside the book; the exact join is
+    // debriefInsights' tested job — here we assert the shape and the share.
+    expect(payload.discipline!.topMistake?.id).toBe('revenge');
+    expect(payload.discipline!.topMistake!.daySharePct).toBeCloseTo(66.67, 1);
+    expect(payload.discipline!.topMistake!.costPct === null || typeof payload.discipline!.topMistake!.costPct === 'number').toBe(true);
+  });
+
+  it('never sends currency amounts in the discipline block either', () => {
+    const trades = book();
+    seq = 0;
+    const small = buildCoachPayload(trades, 'fr', [], [
+      debrief({ date: '2026-01-01', mistakes_committed: ['revenge'] }),
+      debrief({ date: '2026-01-02', mistakes_committed: ['revenge'] }),
+    ]);
+    seq = 0;
+    const large = buildCoachPayload(
+      trades.map(t => ({ ...t, pnl: (t.pnl as number) * 1000 })),
+      'fr',
+      [],
+      [
+        debrief({ date: '2026-01-01', mistakes_committed: ['revenge'] }),
+        debrief({ date: '2026-01-02', mistakes_committed: ['revenge'] }),
+      ],
+    );
+    expect(large).toEqual(small);
   });
 });

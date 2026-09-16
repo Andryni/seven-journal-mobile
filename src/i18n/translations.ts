@@ -918,6 +918,7 @@ export const translations = {
     // Pie chart labels
     gainsLabel: 'GAINS',
     lossesLabel: 'PERTES',
+    drillActiveFilter: (cat: string) => `Filtre : ${cat}`,
     beLabel: 'BREAKEVEN',
     beCostLine: (n: number, cost: string) =>
       `${n} trades BE · ${cost} de coûts pour rien`,
@@ -1856,6 +1857,7 @@ export const translations = {
     // Pie chart labels
     gainsLabel: 'GAINS',
     lossesLabel: 'LOSSES',
+    drillActiveFilter: (cat: string) => `Filter: ${cat}`,
     beLabel: 'BREAKEVEN',
     beCostLine: (n: number, cost: string) =>
       `${n} BE trades · ${cost} in dead costs`,

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { supabase } from '../../api/supabaseClient';
 import { buildCoachPayload } from './buildCoachPayload';
 import type { Trade } from '../../types/domain';
+import type { DailyDebrief } from '../playbook/usePlaybook';
 
 /**
  * Calls the AI coach Edge Function.
@@ -29,7 +30,12 @@ export type CoachError =
   | 'network'
   | 'unknown';
 
-export function useCoach(trades: Trade[], locale: string, playbookTitles: string[] = []) {
+export function useCoach(
+  trades: Trade[],
+  locale: string,
+  playbookTitles: string[] = [],
+  debriefs: DailyDebrief[] = []
+) {
   const [result, setResult] = useState<CoachResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<CoachError | null>(null);
@@ -43,7 +49,7 @@ export function useCoach(trades: Trade[], locale: string, playbookTitles: string
   const [detail, setDetail] = useState<string | null>(null);
 
   const ask = useCallback(async () => {
-    const payload = buildCoachPayload(trades, locale, playbookTitles);
+    const payload = buildCoachPayload(trades, locale, playbookTitles, debriefs);
     if (!payload) {
       setError('not_enough_data');
       return;

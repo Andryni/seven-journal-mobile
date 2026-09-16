@@ -4,6 +4,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { PressableScale } from './PressableScale';
 
 /**
  * Horizontal diverging bar breakdown — one bar per category, centred on zero.
@@ -17,6 +18,10 @@ import { formatCurrency } from '../../utils/formatCurrency';
  *
  * Rows sort by value, most negative first when the card is dominated by
  * losses, otherwise most positive first: the row that matters most leads.
+ *
+ * A row is pressable when the caller passes `onRowPress`: analytics answers
+ * "which category pays?", the drill-down to the trade list answers "show me
+ * exactly those trades". Rows without a handler render statically.
  */
 export interface HBreakdownItem {
   label: string;
@@ -26,6 +31,8 @@ export interface HBreakdownItem {
   winRate?: number;
   /** Secondary metric under the label (e.g. average R). */
   sub?: string;
+  /** Opaque value handed back through onRowPress (e.g. a drill key). */
+  payload?: string;
 }
 
 interface HBarBreakdownProps {
@@ -34,6 +41,8 @@ interface HBarBreakdownProps {
   /** Hide zero-count rows (default) — an empty category is not information. */
   hideEmpty?: boolean;
   testID?: string;
+  /** Called with item.payload when a row carrying one is pressed. */
+  onRowPress?: (payload: string, item: HBreakdownItem) => void;
 }
 
 export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
@@ -41,6 +50,7 @@ export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
   symbol,
   hideEmpty = true,
   testID,
+  onRowPress,
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -59,6 +69,11 @@ export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
 
   if (rows.ordered.length === 0) return null;
 
+  const a11y = (item: HBreakdownItem) =>
+    `${item.label}, ${formatCurrency(item.value, { symbol, decimals: 0 })}, ${item.count} trades${
+      item.winRate !== undefined ? `, ${Math.round(item.winRate)} percent win rate` : ''
+    }`;
+
   return (
     <View testID={testID}>
       {rows.ordered.map((item, i) => {
@@ -70,49 +85,59 @@ export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
           : positive
             ? theme.colors.green
             : theme.colors.red;
+        const pressable = Boolean(onRowPress && item.payload);
         return (
           <Animated.View
             key={`${item.label}-${i}`}
             entering={FadeIn.delay(i * 50).duration(280)}
-            style={styles.row}
           >
-            {/* Labels column, fixed so bars stay aligned across rows. */}
-            <View style={styles.labelCol}>
-              <Text numberOfLines={1} style={styles.label}>
-                {item.label}
-              </Text>
-              <Text numberOfLines={1} style={styles.meta}>
-                {item.count}
-                {item.winRate !== undefined ? ` · ${item.winRate.toFixed(0)}% WR` : ''}
-                {item.sub ? ` · ${item.sub}` : ''}
-              </Text>
-            </View>
-
-            {/* Diverging bar: track halves, bar grows from the centre line. */}
-            <View style={styles.track}>
-              <View style={styles.trackHalf} />
-              <View style={styles.trackHalf} />
-              <View style={[styles.centreLine, { backgroundColor: theme.colors.hairline }]} />
-              <View style={styles.barLayer} pointerEvents="none">
-                <View
-                  style={[
-                    styles.bar,
-                    positive ? { left: '50%' } : { right: '50%' },
-                    { width: `${widthPct}%`, backgroundColor: color, opacity: 0.85 },
-                  ]}
-                />
-              </View>
-            </View>
-
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.value,
-                { color: zero ? theme.colors.textMuted : color },
-              ]}
+            <PressableScale
+              onPress={pressable ? () => onRowPress!(item.payload!, item) : undefined}
+              disabled={!pressable}
+              accessibilityRole={pressable ? 'button' : 'text'}
+              accessibilityLabel={a11y(item)}
+              testID={testID ? `${testID}-row-${item.payload ?? i}` : undefined}
             >
-              {formatCurrency(item.value, { symbol, decimals: 0 })}
-            </Text>
+              <View style={styles.row}>
+                {/* Labels column, fixed so bars stay aligned across rows. */}
+                <View style={styles.labelCol}>
+                  <Text numberOfLines={1} style={styles.label}>
+                    {item.label}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.meta}>
+                    {item.count}
+                    {item.winRate !== undefined ? ` · ${item.winRate.toFixed(0)}% WR` : ''}
+                    {item.sub ? ` · ${item.sub}` : ''}
+                  </Text>
+                </View>
+
+                {/* Diverging bar: track halves, bar grows from the centre line. */}
+                <View style={styles.track}>
+                  <View style={styles.trackHalf} />
+                  <View style={styles.trackHalf} />
+                  <View style={[styles.centreLine, { backgroundColor: theme.colors.hairline }]} />
+                  <View style={styles.barLayer} pointerEvents="none">
+                    <View
+                      style={[
+                        styles.bar,
+                        positive ? { left: '50%' } : { right: '50%' },
+                        { width: `${widthPct}%`, backgroundColor: color, opacity: 0.85 },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.value,
+                    { color: zero ? theme.colors.textMuted : color },
+                  ]}
+                >
+                  {formatCurrency(item.value, { symbol, decimals: 0 })}
+                </Text>
+              </View>
+            </PressableScale>
           </Animated.View>
         );
       })}

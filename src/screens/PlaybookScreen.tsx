@@ -44,6 +44,7 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Panel } from '../components/ui/Panel';
 import { EmptyState } from '../components/ui/EmptyState';
+import { SkeletonPanels } from '../components/ui/Skeleton';
 import {
   statsForDay,
   mistakeCosts,
@@ -405,9 +406,26 @@ export const PlaybookScreen: React.FC = () => {
   }, [debriefs]);
 
   if (debriefsLoading || setupsLoading) {
+    // Panel placeholders instead of a spinner: the header and tabs below
+    // render for real, and each tab's panels settle into their own slots.
     return (
-      <View style={styles.center}>
-        <CandleLoader size={62} label={t('loading')} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.screenTitle}>{t('screenTitlePlaybook')}</Text>
+            <Text style={styles.screenSubtitle}>{t('screenSubtitlePlaybook')}</Text>
+          </View>
+        </View>
+        <View style={styles.tabsRow}>
+          {(['setups', 'debrief', 'discipline'] as const).map(id => (
+            <View key={id} style={[styles.tabBtn, activeTab === id && styles.tabBtnActive]}>
+              <Text style={[styles.tabBtnText, activeTab === id && styles.tabBtnTextActive]}>
+                {id === 'setups' ? t('myStrategies') : id === 'debrief' ? t('dailyDebrief') : t('disciplineMatrix')}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <SkeletonPanels count={activeTab === 'setups' ? 4 : 3} rowsPerPanel={4} />
       </View>
     );
   }

@@ -340,6 +340,9 @@ export function useAnalytics({
         winRate: inBucket.length > 0 ? (winsInBucket.length / inBucket.length) * 100 : 0,
         pnl: inBucket.reduce((s, t) => s + (t.pnl || 0), 0),
         avgR: withR.length > 0 ? withR.reduce((s, t) => s + (t.r_multiple || 0), 0) / withR.length : null,
+        // "min-max" in minutes ("240-" = open-ended), the drill-down filter
+        // key for the trade list.
+        range: b.max === Infinity ? `${b.min}-` : `${b.min}-${b.max}`,
       };
     });
   }, [closed]);

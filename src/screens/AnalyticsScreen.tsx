@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,14 +22,18 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTrades } from '../features/trades/useTrades';
 import { useRefresh } from '../features/data/useRefresh';
+import { useNavigation } from '@react-navigation/native';
+import { TradesScreenProps } from '../types/navigation';
+import type { TradesDrill } from '../store/uiStore';
+import { hapticLight } from '../utils/haptics';
 import { useAccounts } from '../features/accounts/useAccounts';
-import { usePlaybookSetups } from '../features/playbook/usePlaybook';
+import { usePlaybookSetups, usePlaybook } from '../features/playbook/usePlaybook';
 import { useAnalytics } from '../features/analytics/useAnalytics';
 import { formatCurrency, currencySymbol } from '../utils/formatCurrency';
 import type { FormatCurrencyOptions } from '../utils/formatCurrency';
 import { useUIStore } from '../store/uiStore';
 import type { Trade } from '../types/domain';
-import { SkeletonCard } from '../components/ui/Skeleton';
+import { SkeletonCard, SkeletonPanels } from '../components/ui/Skeleton';
 import { CostImpactCard } from '../components/dashboard/CostImpactCard';
 import { ExcursionCard } from '../components/dashboard/ExcursionCard';
 import { TagPerformanceCard } from '../components/dashboard/TagPerformanceCard';
@@ -259,11 +263,15 @@ export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
   const s = useMemo(() => createStyles(theme), [theme]);
   const { t } = useT();
-  const lang = useI18nStore(s => s.lang);
+  const lang = useI18nStore(l => l.lang);
+  const navigation = useNavigation<TradesScreenProps['navigation']>();
+  const setTradesDrill = useUIStore(st => st.setTradesDrill);
   const { trades, isLoading: tradesLoading } = useTrades();
   const { refreshing, onRefresh } = useRefresh();
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
+  // Debriefs feed the coach's discipline aggregates (streak, mistake cost).
+  const { debriefs } = usePlaybook();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
   const [activeTab, setActiveTab] = useState<TabType>('perf');
@@ -324,6 +332,22 @@ export const AnalyticsScreen: React.FC = () => {
   });
 
   /**
+   * A bar answers "which category pays?"; pressing it opens the trade list
+   * narrowed to exactly those trades. The drill payload carries the raw
+   * filter value; the label is already localized here.
+   */
+  const drillToTrades = useCallback(
+    (payload: string, item: { label: string }) => {
+      const parts = payload.split(':');
+      const kind = parts[0] as TradesDrill['kind'];
+      setTradesDrill({ kind, value: parts.slice(1).join(':'), label: item.label });
+      hapticLight();
+      navigation.navigate('Trades');
+    },
+    [navigation, setTradesDrill]
+  );
+
+  /**
    * The analysis cards moved here from the dashboard, which had grown to
    * eleven stacked sections. They scope to the selected account the same way
    * every other figure on this screen does.
@@ -360,17 +384,8 @@ export const AnalyticsScreen: React.FC = () => {
   const money = (v: number, o: FormatCurrencyOptions = {}) =>
     formatCurrency(v, { symbol: sym, ...o });
 
-
-
-  if (tradesLoading || accountsLoading || setupsLoading) {
-    return (
-      <View style={s.container} accessibilityLabel={t('loading')}>
-        <SkeletonCard lines={3} />
-        <SkeletonCard lines={4} />
-        <SkeletonCard lines={2} />
-      </View>
-    );
-  }
+  const dataLoading = tradesLoading || accountsLoading || setupsLoading;
+  const panelCount = activeTab === 'perf' ? 5 : activeTab === 'edge' ? 4 : activeTab === 'breakdown' ? 3 : activeTab === 'timing' ? 4 : activeTab === 'mind' ? 3 : 4;
 
   return (
     <ScrollView
@@ -440,9 +455,17 @@ export const AnalyticsScreen: React.FC = () => {
         ))}
         <View style={{ flex: 1 }} />
         <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.monoBold, alignSelf: 'center' }}>
-          {closed.length} {t('tradesInPeriod')}
+          {dataLoading ? '…' : `${closed.length} ${t('tradesInPeriod')}`}
         </Text>
       </View>
+
+      {/* Panel placeholders while the queries settle: tabs, header and the
+          date filter above are real chrome, so the skeletons slot into the
+          same frame the content will occupy — no full-screen swap. */}
+      {dataLoading ? (
+        <SkeletonPanels count={panelCount} rowsPerPanel={4} />
+      ) : (
+      <>
 
       {/* ── TAB 1 : VUE D'ENSEMBLE ── */}
       {hasMixedCurrencies && (
@@ -662,6 +685,7 @@ export const AnalyticsScreen: React.FC = () => {
               ) : (
                 <HBarBreakdown
                   symbol={sym}
+                  onRowPress={drillToTrades}
                   items={holdingTimeData
                     .filter(h => h.count > 0)
                     .map(ht => ({
@@ -672,6 +696,7 @@ export const AnalyticsScreen: React.FC = () => {
                       sub: ht.avgR !== null && ht.avgR !== undefined
                         ? `${ht.avgR >= 0 ? '+' : ''}${ht.avgR.toFixed(2)}R`
                         : undefined,
+                      payload: `holding:${ht.range}`,
                     }))}
                 />
               )}
@@ -690,11 +715,13 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('winRateBySetup')}>
               <HBarBreakdown
                 symbol={sym}
+                onRowPress={drillToTrades}
                 items={setupBreakdown.map(st => ({
                   label: st.name,
                   value: st.pnl,
                   count: st.count,
                   winRate: st.winRate,
+                  payload: `setup:${st.name}`,
                 }))}
               />
             </Card>
@@ -704,11 +731,13 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('perfByInstrument')}>
               <HBarBreakdown
                 symbol={sym}
+                onRowPress={drillToTrades}
                 items={pairBreakdown.map(p => ({
                   label: p.name,
                   value: p.pnl,
                   count: p.total,
                   winRate: p.winRate,
+                  payload: `pair:${p.name}`,
                 }))}
               />
             </Card>
@@ -718,11 +747,13 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('perfByTimeframe')}>
               <HBarBreakdown
                 symbol={sym}
+                onRowPress={drillToTrades}
                 items={tfBreakdown.map(tf => ({
                   label: tf.name,
                   value: tf.pnl,
                   count: tf.total,
                   winRate: tf.winRate,
+                  payload: `timeframe:${tf.name}`,
                 }))}
               />
             </Card>
@@ -734,8 +765,13 @@ export const AnalyticsScreen: React.FC = () => {
       {activeTab === 'timing' && (
         <Animated.View entering={FadeInLeft.duration(280)} style={s.tabContent}>
           {/* Statistical findings first: they say what to change, whereas the
-              charts below only say what happened. */}
-          <InsightsCard trades={closed} playbookSetups={playbookSetups} />
+              charts below only say what happened. Debriefs feed the AI
+              summary's discipline aggregates. */}
+          <InsightsCard
+            trades={closed}
+            playbookSetups={playbookSetups}
+            debriefs={debriefs}
+          />
 
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             {/* 24h diverging columns replace the aggregated bar chart:
@@ -755,6 +791,7 @@ export const AnalyticsScreen: React.FC = () => {
               ) : (
                 <HBarBreakdown
                   symbol={sym}
+                  onRowPress={drillToTrades}
                   items={sessionBreakdown
                     .filter(s => s.count > 0)
                     .map(sb => ({
@@ -763,6 +800,7 @@ export const AnalyticsScreen: React.FC = () => {
                       count: sb.count,
                       winRate: sb.winRate,
                       sub: `${sb.avgR >= 0 ? '+' : ''}${sb.avgR.toFixed(2)}R`,
+                      payload: `session:${sb.name}`,
                     }))}
                 />
               )}
@@ -777,6 +815,7 @@ export const AnalyticsScreen: React.FC = () => {
               ) : (
                 <HBarBreakdown
                   symbol={sym}
+                  onRowPress={drillToTrades}
                   items={dayOfWeekAnalysis
                     .filter(d => d.count > 0)
                     .map(dw => ({
@@ -784,6 +823,7 @@ export const AnalyticsScreen: React.FC = () => {
                       value: dw.pnl,
                       count: dw.count,
                       winRate: dw.winRate,
+                      payload: `weekday:${dw.nameEn ?? dw.name}`,
                     }))}
                 />
               )}
@@ -804,6 +844,7 @@ export const AnalyticsScreen: React.FC = () => {
               ) : (
                 <HBarBreakdown
                   symbol={sym}
+                  onRowPress={drillToTrades}
                   items={mentalBreakdown
                     .filter(m => m.count > 0)
                     .map(mb => ({
@@ -811,6 +852,7 @@ export const AnalyticsScreen: React.FC = () => {
                       value: mb.pnl,
                       count: mb.count,
                       winRate: mb.winRate,
+                      payload: `mental:${mb.state.toLowerCase()}`,
                     }))}
                 />
               )}
@@ -1217,6 +1259,8 @@ export const AnalyticsScreen: React.FC = () => {
       )}
 
       <View style={{ height: 40 }} />
+      </>
+      )}
 
       {/* Share P&L Card Modal */}
       <ShareCardModal

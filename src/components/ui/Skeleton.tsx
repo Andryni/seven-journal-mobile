@@ -109,6 +109,24 @@ export const SkeletonRows: React.FC<{ rows?: number }> = ({ rows = 6 }) => {
   );
 };
 
+/**
+ * A stack of card placeholders, one per analytics panel. The screen keeps
+ * its real layout while loading instead of swapping one spinner for the
+ * whole page — panels settle into place rather than jumping.
+ */
+export const SkeletonPanels: React.FC<{ count?: number; rowsPerPanel?: number }> = ({
+  count = 4,
+  rowsPerPanel = 5,
+}) => {
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} lines={rowsPerPanel} />
+      ))}
+    </View>
+  );
+};
+
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     card: {

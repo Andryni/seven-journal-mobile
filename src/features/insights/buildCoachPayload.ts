@@ -1,6 +1,8 @@
 import { computeInsights, MIN_TRADES_FOR_INSIGHTS } from './computeInsights';
 import type { Insight } from './computeInsights';
 import type { Trade } from '../../types/domain';
+import { disciplineStreak, mistakeCosts } from '../playbook/debriefInsights';
+import type { DailyDebrief } from '../playbook/usePlaybook';
 
 /**
  * Builds the payload sent to the AI coach Edge Function.
@@ -43,6 +45,27 @@ export interface CoachPayload {
   planAdherence: number;
   profitFactor: number | null;
   findings: CoachFinding[];
+  /**
+   * Discipline-side aggregates, from the debriefs. Still day-level and
+   * anonymous: a streak length, a mistake share — never which day, never
+   * the notes written about it.
+   */
+  discipline: CoachDiscipline | null;
+}
+
+export interface CoachDiscipline {
+  /** Consecutive clean debriefed days ending today (or yesterday). */
+  disciplineStreak: number;
+  /** Days with a debrief naming at least one mistake. */
+  daysWithMistakes: number;
+  /** Total debriefed days. The ratio is what the model reads. */
+  debriefedDays: number;
+  /**
+   * The most frequent mistake id (the app's own stable ids), as a share of
+   * debriefed days. Its cost rides as a percentage of P&L volume, like every
+   * other money figure — no currency leaves the device.
+   */
+  topMistake: { id: string; daySharePct: number; costPct: number | null } | null;
 }
 
 /** Rounds to two decimals, keeping payloads small and non-identifying. */
@@ -51,7 +74,8 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export function buildCoachPayload(
   trades: Trade[],
   locale: string,
-  playbookTitles: string[] = []
+  playbookTitles: string[] = [],
+  debriefs: DailyDebrief[] = []
 ): CoachPayload | null {
   const closed = trades.filter(t => t.pnl !== null);
   // Below the local engine's threshold there is nothing worth asking about,
@@ -87,6 +111,31 @@ export function buildCoachPayload(
     sampleSize: i.sampleSize,
   }));
 
+  /**
+   * Discipline aggregates from the debriefs. Null when the trader does not
+   * debrief — the model must not be told "0 mistakes" when the truth is
+   * "no data": those read opposite.
+   */
+  let discipline: CoachDiscipline | null = null;
+  if (debriefs.length > 0) {
+    const costs = mistakeCosts(debriefs, trades);
+    const worst = costs[0];
+    discipline = {
+      disciplineStreak: disciplineStreak(debriefs),
+      daysWithMistakes: debriefs.filter(d => (d.mistakes_committed || []).length > 0).length,
+      debriefedDays: debriefs.length,
+      topMistake:
+        worst && worst.days >= 2
+          ? {
+              id: worst.id,
+              daySharePct: r2((worst.days / debriefs.length) * 100),
+              costPct:
+                pnlVolume > 0 ? r2((worst.totalPnl / pnlVolume) * 100) : null,
+            }
+          : null,
+    };
+  }
+
   return {
     v: 1,
     locale,
@@ -99,5 +148,6 @@ export function buildCoachPayload(
     planAdherence: r2((onPlan.length / closed.length) * 100),
     profitFactor: grossLoss > 0 ? r2(grossWin / grossLoss) : null,
     findings,
+    discipline,
   };
 }

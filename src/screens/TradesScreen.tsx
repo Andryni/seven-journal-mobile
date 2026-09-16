@@ -15,6 +15,8 @@ import { Panel, Hairline } from '../components/ui/Panel';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { duration, stagger } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
+import { X } from 'lucide-react-native';
+import { withAlpha } from '../theme';
 import { AssetGlyph } from '../components/ui/AssetGlyph';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonRows } from '../components/ui/Skeleton';
@@ -92,6 +94,14 @@ export const TradesScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  /**
+   * Drill-down from an analytics bar (see uiStore.TradesDrill). The chip
+   * stays active until dismissed; a later drill replaces it.
+   */
+  const tradesDrill = useUIStore(s => s.tradesDrill);
+  const setTradesDrill = useUIStore(s => s.setTradesDrill);
+  const clearDrill = useCallback(() => setTradesDrill(null), [setTradesDrill]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags(prev =>
@@ -286,8 +296,34 @@ export const TradesScreen: React.FC = () => {
             : activeFilter === 'OPEN'
             ? 'open'
             : 'all',
+        // The analytics drill-down, when one is armed. setup rides the text
+        // query (titles live in free-text notes); weekdays use their
+        // Monday-first index; holding buckets their "min-max" minutes.
+        ...(tradesDrill
+          ? tradesDrill.kind === 'pair'
+            ? { query: tradesDrill.value }
+            : tradesDrill.kind === 'timeframe'
+            ? { timeframes: [tradesDrill.value] }
+            : tradesDrill.kind === 'session'
+            ? { sessions: [tradesDrill.value] }
+            : tradesDrill.kind === 'mental'
+            ? { mentalStates: [tradesDrill.value] }
+            : tradesDrill.kind === 'weekday'
+            ? {
+                weekdays: [
+                  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(
+                    tradesDrill.value
+                  ),
+                ].filter(i => i >= 0),
+              }
+            : tradesDrill.kind === 'holding'
+            ? { holdingRanges: [tradesDrill.value] }
+            : tradesDrill.kind === 'setup'
+            ? { query: tradesDrill.value }
+            : {}
+          : {}),
       }),
-    [trades, searchQuery, activeFilter, selectedTags]
+    [trades, searchQuery, activeFilter, selectedTags, tradesDrill]
   );
 
   // Quick stats computed on filtered list
@@ -490,6 +526,27 @@ export const TradesScreen: React.FC = () => {
           onChangeText={setSearchQuery}
         />
       </View>
+
+      {/* Active analytics drill-down. One chip, one tap to leave: the bar in
+          Analytics narrowed this list, so the way back must be as obvious as
+          the way in. */}
+      {tradesDrill ? (
+        <View style={styles.drillChipRow}>
+          <View style={[styles.drillChip, { borderColor: withAlpha(theme.colors.primary, 0.5) }]}>
+            <Text style={[styles.drillChipText, { color: theme.colors.primaryLight }]} numberOfLines={1}>
+              {t('drillActiveFilter', tradesDrill.label)}
+            </Text>
+            <PressableScale
+              onPress={clearDrill}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('filterClear')}
+            >
+              <X size={14} color={theme.colors.primaryLight} />
+            </PressableScale>
+          </View>
+        </View>
+      ) : null}
 
       {mixedCurrencies ? (
         <View style={styles.warnBanner}>
@@ -713,6 +770,26 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
 
   // ── Search & filters ──
+  drillChipRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  drillChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'transparent',
+    maxWidth: '100%',
+  },
+  drillChipText: {
+    fontSize: theme.type.label,
+    fontFamily: theme.fonts.monoBold,
+    flexShrink: 1,
+  },
   searchBarWrap: {
     flexDirection: 'row',
     alignItems: 'center',

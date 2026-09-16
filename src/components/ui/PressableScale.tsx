@@ -19,11 +19,13 @@ interface PressableScaleProps {
   /** Scale when pressed (default 0.96) */
   pressedScale?: number;
   accessibilityLabel?: string;
-  accessibilityRole?: 'button' | 'link' | 'tab';
+  accessibilityRole?: 'button' | 'link' | 'tab' | 'text';
   /** Announce toggle state (selected/checked) to screen readers. */
   accessibilityState?: AccessibilityState;
   hitSlop?: number;
+  testID?: string;
 }
+
 
 /**
  * Tactile pressable with a springy scale-down — gives every touchable
@@ -40,6 +42,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
   accessibilityRole = 'button',
   accessibilityState,
   hitSlop,
+  testID,
 }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -103,6 +106,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
+      testID={testID}
       style={outerStyle}
     >
       <Animated.View

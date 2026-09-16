@@ -19,12 +19,15 @@ import { computeInsights, MIN_TRADES_FOR_INSIGHTS } from '../../features/insight
 import { useCoach } from '../../features/insights/useCoach';
 import type { Insight, InsightSeverity } from '../../features/insights/computeInsights';
 import type { Trade } from '../../types/domain';
+import type { DailyDebrief } from '../../features/playbook/usePlaybook';
 
 interface InsightsCardProps {
   /** Already account-scoped, like every other figure in the app. */
   trades: Trade[];
   /** The user's own strategies; only these can be named as a best setup. */
   playbookSetups?: { title: string }[];
+  /** Debriefs, for the discipline aggregates in the AI summary. */
+  debriefs?: DailyDebrief[];
 }
 
 const ICONS: Record<InsightSeverity, React.FC<{ color: string; size: number }>> = {
@@ -40,7 +43,11 @@ const ICONS: Record<InsightSeverity, React.FC<{ color: string; size: number }>> 
  * explicitly rather than rendering an empty card: "not enough data yet" is
  * information, a blank panel is a bug.
  */
-export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetups = [] }) => {
+export const InsightsCard: React.FC<InsightsCardProps> = ({
+  trades,
+  playbookSetups = [],
+  debriefs = [],
+}) => {
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -59,7 +66,7 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
     () => computeInsights(trades, playbookTitles),
     [trades, playbookTitles]
   );
-  const coach = useCoach(trades, lang, playbookTitles);
+  const coach = useCoach(trades, lang, playbookTitles, debriefs);
 
   const coachErrorKey = {
     not_enough_data: 'coachErrorNotEnough',

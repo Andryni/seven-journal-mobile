@@ -56,6 +56,8 @@ Hard rules:
 - Address the trader as "you". Be direct and unsentimental, not encouraging.
 - Respond in the language given by the locale field.
 
+If a "discipline" object is present, weave it into the story: an active streak deserves naming as a strength to protect; a frequent mistake with a large cost share is a priority candidate. If "discipline" is null, say nothing about debriefing — its absence means no data, not good behaviour.
+
 Respond with JSON only: {"briefing": string, "priority": string}`;
 
 interface CoachFinding {
@@ -63,6 +65,13 @@ interface CoachFinding {
   severity: string;
   impactPct: number | null;
   sampleSize: number;
+}
+
+interface CoachDisciplineIn {
+  disciplineStreak: number;
+  daysWithMistakes: number;
+  debriefedDays: number;
+  topMistake: { id: string; daySharePct: number; costPct: number | null } | null;
 }
 
 const CORS = {
@@ -112,6 +121,39 @@ function sanitize(input: unknown): Record<string, unknown> | null {
   // No "findings.length === 0" rejection here: empty is the disciplined-book
   // case, valid by design (see the Array.isArray check above).
 
+  /**
+   * Discipline block, rebuilt field by field like everything else. Mistake
+   * ids are truncated like finding ids; the shape of the object decides
+   * whether the model sees discipline data at all.
+   */
+  let discipline: CoachDisciplineIn | null = null;
+  if (typeof p.discipline === 'object' && p.discipline !== null) {
+    const d = p.discipline as Record<string, unknown>;
+    const streak = num(d.disciplineStreak);
+    const daysWithMistakes = num(d.daysWithMistakes);
+    const debriefedDays = num(d.debriefedDays);
+    let top: CoachDisciplineIn['topMistake'] = null;
+    if (typeof d.topMistake === 'object' && d.topMistake !== null) {
+      const tm = d.topMistake as Record<string, unknown>;
+      const share = num(tm.daySharePct);
+      if (typeof tm.id === 'string' && share !== null) {
+        top = {
+          id: tm.id.slice(0, 40),
+          daySharePct: share,
+          costPct: num(tm.costPct),
+        };
+      }
+    }
+    if (streak !== null && daysWithMistakes !== null && debriefedDays !== null) {
+      discipline = {
+        disciplineStreak: Math.min(streak, 365),
+        daysWithMistakes: Math.min(daysWithMistakes, debriefedDays),
+        debriefedDays: Math.min(debriefedDays, 3660),
+        topMistake: top,
+      };
+    }
+  }
+
   return {
     locale: typeof p.locale === 'string' ? p.locale.slice(0, 8) : 'en',
     tradesAnalysed: p.tradesAnalysed,
@@ -120,6 +162,7 @@ function sanitize(input: unknown): Record<string, unknown> | null {
     planAdherence: num(p.planAdherence),
     profitFactor: num(p.profitFactor),
     findings,
+    discipline,
   };
 }
 

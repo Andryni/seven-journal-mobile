@@ -97,6 +97,10 @@ export interface TradeFilter {
   mentalStates?: string[];
   directions?: Array<'BUY' | 'SELL'>;
   timeframes?: string[];
+  /** Monday-first weekday indexes (0 = Monday) on entry_time. */
+  weekdays?: number[];
+  /** Holding-time buckets as "min-max" in minutes, e.g. "30-60"; "240-" = 4h+. */
+  holdingRanges?: string[];
   /** Inclusive bounds on the realised R multiple. */
   minR?: number | null;
   maxR?: number | null;
@@ -130,6 +134,8 @@ export function filterTrades(trades: Trade[], filter: TradeFilter): Trade[] {
     mentalStates = [],
     directions = [],
     timeframes = [],
+    weekdays = [],
+    holdingRanges = [],
     minR = null,
     maxR = null,
     outcome = 'all',
@@ -155,6 +161,25 @@ export function filterTrades(trades: Trade[], filter: TradeFilter): Trade[] {
     }
     if (directions.length > 0 && !directions.includes(t.direction)) return false;
     if (timeframes.length > 0 && !timeframes.includes(t.timeframe ?? '')) return false;
+
+    if (weekdays.length > 0) {
+      const d = new Date(t.entry_time).getDay();
+      if (!weekdays.includes(d === 0 ? 6 : d - 1)) return false;
+    }
+
+    if (holdingRanges.length > 0) {
+      const mins =
+        t.entry_time && t.exit_time
+          ? (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / 60000
+          : -1;
+      const ok = holdingRanges.some(range => {
+        const [loStr, hiStr] = range.split('-');
+        const lo = Number(loStr);
+        const hi = hiStr === '' || hiStr === undefined ? Infinity : Number(hiStr);
+        return mins >= lo && mins < hi;
+      });
+      if (!ok) return false;
+    }
 
     if (outcome === 'win' && !((t.pnl ?? 0) > 0)) return false;
     if (outcome === 'loss' && !((t.pnl ?? 0) < 0)) return false;
