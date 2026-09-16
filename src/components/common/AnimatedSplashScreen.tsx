@@ -28,12 +28,45 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
   const markSize = Math.max(72, Math.min(120, width * 0.2));
 
   useEffect(() => {
-    Animated.sequence([
+    /**
+     * The whole app waits on this callback, so it must not be the only way out.
+     *
+     * Animated.start(cb) does not guarantee the callback runs: if the
+     * animation is interrupted -- Android backgrounding the app during launch,
+     * the driver being torn down, a dropped frame batch -- it simply never
+     * fires. splashFinished then stays false forever and the app sits on the
+     * logo. That is the intermittent freeze, and it survived the earlier
+     * session-loading fix because it has nothing to do with the session.
+     *
+     * A single guarded `done` is called by whichever comes first: the
+     * animation or a hard ceiling slightly longer than its own duration.
+     */
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      onAnimationFinish();
+    };
+
+    const anim = Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
       // Long enough to read the mark and wordmark; short enough to not stall.
       Animated.delay(900),
       Animated.timing(opacity, { toValue: 0, duration: 280, useNativeDriver: true }),
-    ]).start(() => onAnimationFinish());
+    ]);
+
+    anim.start(finish);
+    // 320 + 900 + 280 = 1500ms of animation; 2200 leaves slack for a slow
+    // first frame without being a perceptible wait if the callback is lost.
+    const failsafe = setTimeout(finish, 2200);
+
+    return () => {
+      clearTimeout(failsafe);
+      anim.stop();
+      // Unmounting must still release the gate: React may remount this
+      // component, and a second splash cycle is far better than a dead app.
+      finish();
+    };
   }, [opacity, onAnimationFinish]);
 
   return (

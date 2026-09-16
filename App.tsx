@@ -165,11 +165,19 @@ export default function App() {
     await SplashScreen.hideAsync();
   }, []);
 
+  /**
+   * Stable, because AnimatedSplashScreen restarts its animation whenever this
+   * identity changes. Passed inline it was a fresh closure on every render --
+   * the auth listener firing mid-animation reset the sequence, and with it the
+   * only path to splashFinished.
+   */
+  const finishSplash = useCallback(() => setSplashFinished(true), []);
+
   if (!splashFinished || !fontsLoaded) {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: theme.colors.background }} onLayout={onSplashLayout}>
-          <AnimatedSplashScreen onAnimationFinish={() => setSplashFinished(true)} />
+          <AnimatedSplashScreen onAnimationFinish={finishSplash} />
         </View>
       </SafeAreaProvider>
     );
@@ -314,10 +322,12 @@ export default function App() {
               </Tab.Navigator>
             )}
             </ErrorBoundary>
+            {/* Logging lives above the navigator so it is reachable from every
+                tab, not only from Trades. Inside NavigationContainer, though,
+                so it can read the active route and stand down where it would
+                cover something -- see GlobalAddTradeFab. */}
+            {session ? <GlobalAddTradeFab /> : null}
           </NavigationContainer>
-          {/* Logging lives above the navigator so it is reachable from every
-              tab, not only from Trades. */}
-          {session ? <GlobalAddTradeFab /> : null}
         </SafeAreaView>
       </SafeAreaProvider>
     </PersistQueryClientProvider>

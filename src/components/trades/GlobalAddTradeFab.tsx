@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Plus, Zap } from 'lucide-react-native';
+import { useNavigationState } from '@react-navigation/native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
@@ -21,13 +22,28 @@ import { QuickTradeSheet } from './QuickTradeSheet';
  * opens the full form. A journal is only kept if logging is faster than not
  * logging.
  */
+/**
+ * Screens where the floating button must not appear.
+ *
+ * On Chat it sat directly on top of the send button, so the composer could be
+ * typed into but not submitted. A global overlay has to know about the one
+ * place that owns its own bottom-right corner; anywhere else it is welcome.
+ */
+const HIDDEN_ON: string[] = ['Chat'];
+
 export const GlobalAddTradeFab: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  const routeName = useNavigationState(state =>
+    state ? state.routes[state.index]?.name : undefined
+  );
+
   const [quickVisible, setQuickVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
+
+  if (routeName && HIDDEN_ON.includes(routeName)) return null;
 
   return (
     <>
