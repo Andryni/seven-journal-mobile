@@ -13,6 +13,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { SettingsSheet } from '../settings/SettingsSheet';
 import { useTheme } from '../../theme';
+import { PressableScale } from '../ui/PressableScale';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
 import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
@@ -58,10 +59,10 @@ export const TopAccountBar: React.FC = () => {
       </View>
 
       {/* Account Selector Button */}
-      <TouchableOpacity
+      <PressableScale
         style={styles.selectorBtn}
         onPress={() => setModalVisible(true)}
-        activeOpacity={0.8}
+        accessibilityLabel={t('selectActiveAccount')}
       >
         <View style={styles.btnLeft}>
           <View style={styles.iconCircle}>
@@ -79,43 +80,34 @@ export const TopAccountBar: React.FC = () => {
           </View>
         </View>
         <ChevronDown size={14} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
+      </PressableScale>
 
       {/* Settings + Language + Logout quick access.
           The theme toggle was removed: the app is dark-only, so it was a
           button that did nothing. Settings took its slot. */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.iconBtn}
           onPress={() => setSettingsVisible(true)}
-          activeOpacity={0.8}
-          accessibilityRole="button"
           accessibilityLabel={t('settings')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Settings size={14} color={theme.colors.textSecondary} strokeWidth={1.75} />
-        </TouchableOpacity>
-        <TouchableOpacity
+        </PressableScale>
+        <PressableScale
           style={styles.iconBtn}
           onPress={toggleLang}
-          activeOpacity={0.8}
-          accessibilityRole="button"
           accessibilityLabel={t('switchLanguage')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Languages size={14} color={theme.colors.textSecondary} />
           <Text style={styles.langText}>{lang.toUpperCase()}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </PressableScale>
+        <PressableScale
           style={styles.iconBtn}
           onPress={() => supabase.auth.signOut()}
-          activeOpacity={0.8}
-          accessibilityRole="button"
           accessibilityLabel={t('logout')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <LogOut size={14} color={theme.colors.textMuted} />
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <SettingsSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
@@ -218,13 +210,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     height: 36,
     borderRadius: 10,
     overflow: 'hidden',
+    // No-Glow rule (DESIGN.md): the rail is a border, not a halo.
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 159, 28, 0.5)',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+    borderColor: theme.colors.cardBorderGlow,
   },
   logoImage: {
     width: '100%',

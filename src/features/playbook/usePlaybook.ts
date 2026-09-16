@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../api/supabaseClient';
+import { registerReplayableMutation } from '../../api/offlineQueue';
 import { useToast } from '../../store/toastStore';
 import { useT } from '../../i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -58,6 +59,61 @@ type SetupPayload = Omit<PlaybookSetup, 'id' | 'user_id' | 'created_at'> & { id?
 
 const LEGACY_DEBRIEFS_KEY = 'seven_daily_debriefs';
 const LEGACY_SETUPS_KEY = 'seven_playbook_setups';
+
+/* ── Replayable write functions (offline queue) ─────────────────────────
+ * Same contract as useTrades: registered at module scope so a debrief or
+ * setup saved in a tunnel replays after reconnect — even across a restart.
+ */
+
+async function upsertDebrief(payload: DebriefPayload) {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Not authenticated');
+
+  const { id, ...fields } = payload;
+  const row = { ...fields, user_id: userId, updated_at: new Date().toISOString() };
+
+  // One debrief per day: upsert on the natural key instead of branching.
+  const { data, error } = id
+    ? await supabase.from('daily_debriefs').update(row).eq('id', id).select().single()
+    : await supabase
+        .from('daily_debriefs')
+        .upsert(row, { onConflict: 'user_id,date' })
+        .select()
+        .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function destroyDebrief(id: string) {
+  const { error } = await supabase.from('daily_debriefs').delete().eq('id', id);
+  if (error) throw error;
+}
+
+async function upsertSetup(payload: SetupPayload) {
+  const userId = await currentUserId();
+  if (!userId) throw new Error('Not authenticated');
+
+  const { id, ...fields } = payload;
+  const row = { ...fields, user_id: userId };
+
+  const { data, error } = id
+    ? await supabase.from('playbook_setups').update(row).eq('id', id).select().single()
+    : await supabase.from('playbook_setups').insert(row).select().single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function destroySetup(id: string) {
+  const { error } = await supabase.from('playbook_setups').delete().eq('id', id);
+  if (error) throw error;
+}
+
+registerReplayableMutation('save-debrief', upsertDebrief);
+registerReplayableMutation('delete-debrief', destroyDebrief);
+registerReplayableMutation('save-setup', upsertSetup);
+registerReplayableMutation('delete-setup', destroySetup);
 
 const isLegacyId = (id: string) => id.startsWith('local_');
 
@@ -123,25 +179,9 @@ export function usePlaybook() {
   });
 
   const { mutateAsync: saveDebrief, isPending: isSaving } = useMutation({
-    mutationFn: async (payload: DebriefPayload) => {
-      const userId = await currentUserId();
-      if (!userId) throw new Error('Not authenticated');
-
-      const { id, ...fields } = payload;
-      const row = { ...fields, user_id: userId, updated_at: new Date().toISOString() };
-
-      // One debrief per day: upsert on the natural key instead of branching.
-      const { data, error } = id
-        ? await supabase.from('daily_debriefs').update(row).eq('id', id).select().single()
-        : await supabase
-            .from('daily_debriefs')
-            .upsert(row, { onConflict: 'user_id,date' })
-            .select()
-            .single();
-
-      if (error) throw error;
-      return data;
-    },
+    mutationKey: ['save-debrief', 'queue'],
+    networkMode: 'offlineFirst',
+    mutationFn: upsertDebrief,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily_debriefs'] });
     },
@@ -151,10 +191,9 @@ export function usePlaybook() {
   });
 
   const { mutateAsync: deleteDebrief } = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('daily_debriefs').delete().eq('id', id);
-      if (error) throw error;
-    },
+    mutationKey: ['delete-debrief', 'queue'],
+    networkMode: 'offlineFirst',
+    mutationFn: destroyDebrief,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily_debriefs'] });
     },
@@ -195,20 +234,9 @@ export function usePlaybookSetups() {
   });
 
   const { mutateAsync: saveSetup } = useMutation({
-    mutationFn: async (payload: SetupPayload) => {
-      const userId = await currentUserId();
-      if (!userId) throw new Error('Not authenticated');
-
-      const { id, ...fields } = payload;
-      const row = { ...fields, user_id: userId };
-
-      const { data, error } = id
-        ? await supabase.from('playbook_setups').update(row).eq('id', id).select().single()
-        : await supabase.from('playbook_setups').insert(row).select().single();
-
-      if (error) throw error;
-      return data;
-    },
+    mutationKey: ['save-setup', 'queue'],
+    networkMode: 'offlineFirst',
+    mutationFn: upsertSetup,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playbook_setups'] });
     },
@@ -218,10 +246,9 @@ export function usePlaybookSetups() {
   });
 
   const { mutateAsync: deleteSetup } = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('playbook_setups').delete().eq('id', id);
-      if (error) throw error;
-    },
+    mutationKey: ['delete-setup', 'queue'],
+    networkMode: 'offlineFirst',
+    mutationFn: destroySetup,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playbook_setups'] });
     },

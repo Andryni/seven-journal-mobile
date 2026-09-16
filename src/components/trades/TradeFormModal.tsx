@@ -56,6 +56,7 @@ import {
 import { estimatePnl } from '../../utils/positionSizing';
 import { isOutcomeInconsistent } from '../../utils/tradeOutcome';
 import { parseTagInput, normalizeTags } from '../../utils/tradeTags';
+import { TwinTradeHint } from './TwinTradeHint';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
@@ -76,7 +77,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { createTrade, updateTrade, isCreating, isUpdating } = useTrades();
+  const { createTrade, updateTrade, trades: allTrades, isCreating, isUpdating } = useTrades();
   const { accounts } = useAccounts();
   const { setups: playbookSetups } = usePlaybookSetups();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -1327,6 +1328,22 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
             </View>
           </ScrollView>
 
+          {/* The twin trade, read BEFORE the write: how the closest past
+              version of this trade went. Silent below the sample floor. */}
+          <TwinTradeHint
+            trades={allTrades}
+            excludeId={editingTrade?.id}
+            criteria={{
+              pair: pair.trim().toUpperCase(),
+              direction,
+              session: session || null,
+              timeframe,
+              mentalState,
+              tags: parseTagInput(tagsInput),
+              setupStructures: selectedSetupTitle ? [selectedSetupTitle] : [],
+            }}
+          />
+
           {/* Bouton de Soumission */}
           <TouchableOpacity
             style={styles.submitBtn}
@@ -1888,11 +1905,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    // No-Glow rule (DESIGN.md): the fill carries the emphasis.
   },
   submitText: {
     color: theme.colors.textPrimary,

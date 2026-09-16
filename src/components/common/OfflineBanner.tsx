@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { useIsMutating } from '@tanstack/react-query';
+import { useIsMutating, useMutationState } from '@tanstack/react-query';
 import { CloudOff, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
+import { isQueuedMutation } from '../../api/offlineQueue';
 
 /**
  * Connectivity strip. Offline state used to be completely invisible: a trade
@@ -17,6 +18,13 @@ export const OfflineBanner: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isOffline, setIsOffline] = useState(false);
   const pending = useIsMutating();
+  // Writes paused by offline mode — the visible promise that nothing was lost.
+  const queued = useMutationState<number>({
+    filters: {
+      predicate: m => m.state.isPaused && isQueuedMutation(m),
+    },
+    select: () => 1,
+  }).reduce((n, v) => n + v, 0);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -25,7 +33,7 @@ export const OfflineBanner: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  if (!isOffline && pending === 0) return null;
+  if (!isOffline && pending === 0 && queued === 0) return null;
 
   const syncing = !isOffline && pending > 0;
 
@@ -37,7 +45,11 @@ export const OfflineBanner: React.FC = () => {
         <CloudOff size={11} color={theme.colors.gold} strokeWidth={2} />
       )}
       <Text style={[styles.text, { color: syncing ? theme.colors.primary : theme.colors.gold }]}>
-        {syncing ? t('syncPending', pending) : t('offlineBanner')}
+        {syncing
+          ? t('syncPending', pending)
+          : queued > 0
+            ? t('offlineQueued', queued)
+            : t('offlineBanner')}
       </Text>
     </View>
   );

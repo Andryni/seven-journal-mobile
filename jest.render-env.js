@@ -10,3 +10,25 @@
  */
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'http://localhost:54321';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+
+/*
+ * React Fabric's global error reporter (ReactFabric-dev.js, reportGlobalError)
+ * builds a `window.ErrorEvent` and dispatches it when an uncaught error
+ * escapes a commit. The RN test environment defines `window.ErrorEvent` but
+ * NOT `window.dispatchEvent`, so the reporter itself crashed with
+ * "window.dispatchEvent is not a function" — masking the real error behind
+ * a misleading TypeError, and only under load (full-suite runs), which made
+ * the DashboardScreen rerender test look flaky.
+ *
+ * Shim the dispatcher to log the event like a browser uncaught error would.
+ * Now the genuine error surfaces in the output instead of a fake one.
+ */
+if (typeof window !== 'undefined' && typeof window.dispatchEvent !== 'function') {
+  window.dispatchEvent = event => {
+    if (event && (event.error || event.message)) {
+      // eslint-disable-next-line no-console
+      console.error('uncaught (via ErrorEvent):', event.error ?? event.message);
+    }
+    return true;
+  };
+}

@@ -98,14 +98,10 @@ const createStyles = (theme: AppTheme) =>
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: 10,
       borderRadius: theme.borderRadius.md,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 10,
-      elevation: 6,
+      // No-Glow rule (DESIGN.md).
     },
     actionText: {
-      color: '#ffffff',
+      color: theme.colors.background,
       fontSize: 12,
       fontFamily: theme.fonts.sansExtraBold,
       letterSpacing: 0.8,

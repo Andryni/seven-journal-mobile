@@ -35,7 +35,8 @@ import { Badge } from '../components/ui/Badge';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
 import { QuickTradeSheet } from '../components/trades/QuickTradeSheet';
-import { Plus, Search, TrendingUp, Download, Upload, Zap, Info } from 'lucide-react-native';
+import { Plus, Search, TrendingUp, Download, Upload, Zap, Info, Images } from 'lucide-react-native';
+import { ScreenshotGallery } from '../components/trades/ScreenshotGallery';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -86,6 +87,7 @@ export const TradesScreen: React.FC = () => {
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const { refreshing, onRefresh } = useRefresh();
   const [quickSheetVisible, setQuickSheetVisible] = useState(false);
+  const [galleryVisible, setGalleryVisible] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
@@ -421,35 +423,37 @@ export const TradesScreen: React.FC = () => {
           <Text style={styles.screenSubtitle}>{t('screenSubtitleTrades')}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
+          {/* Pattern-training gallery: every attached chart in one grid. */}
+          <PressableScale
+            style={styles.iconBtn}
+            onPress={() => setGalleryVisible(true)}
+            accessibilityLabel={t('galleryOpen')}
+          >
+            <Images color={theme.colors.textSecondary} size={15} strokeWidth={1.75} />
+          </PressableScale>
+          <PressableScale
             style={styles.iconBtn}
             onPress={handleImportTrades}
-            activeOpacity={0.7}
             accessibilityLabel="Import"
-            hitSlop={8}
           >
             <Upload color={theme.colors.textSecondary} size={15} strokeWidth={1.75} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressableScale>
+          <PressableScale
             style={styles.iconBtn}
             onPress={handleExportCSV}
-            activeOpacity={0.7}
             accessibilityLabel="Export CSV"
-            hitSlop={8}
           >
             <Download color={theme.colors.textSecondary} size={15} strokeWidth={1.75} />
-          </TouchableOpacity>
+          </PressableScale>
           {/* Logging moved to the global FAB: here the label was clipped by
               the icon buttons and the target was under 44px. */}
-          <TouchableOpacity
+          <PressableScale
             style={styles.iconBtn}
             onPress={handleAddTrade}
-            activeOpacity={0.7}
             accessibilityLabel={t('newTradeBtn')}
-            hitSlop={8}
           >
             <Plus color={theme.colors.textSecondary} size={16} strokeWidth={2} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 
@@ -508,30 +512,28 @@ export const TradesScreen: React.FC = () => {
             {availableTags.map(({ tag, count }) => {
               const active = selectedTags.includes(tag);
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={tag}
                   onPress={() => toggleTag(tag)}
                   style={[styles.tagFilter, active && styles.tagFilterActive]}
-                  accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`${t('tfTags')} ${tag}`}
                 >
                   <Text style={[styles.tagFilterText, active && styles.tagFilterTextActive]}>
                     {tag} {count}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </ScrollView>
           {selectedTags.length > 0 && (
-            <TouchableOpacity
+            <PressableScale
               onPress={() => setSelectedTags([])}
               style={styles.tagClear}
-              accessibilityRole="button"
               accessibilityLabel={t('filterClear')}
             >
               <Text style={styles.tagClearText}>{t('filterClear')}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
       )}
@@ -540,15 +542,17 @@ export const TradesScreen: React.FC = () => {
         {(['ALL', 'WIN', 'LOSS', 'OPEN'] as FilterType[]).map(f => {
           const isActive = activeFilter === f;
           return (
-            <TouchableOpacity
+            <PressableScale
               key={f}
               style={[styles.filterPill, isActive && styles.filterPillActive]}
               onPress={() => setActiveFilter(f)}
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={f === 'ALL' ? t('filterAll') : f === 'WIN' ? t('filterWin') : f === 'LOSS' ? t('filterLoss') : t('filterOpen')}
             >
               <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
                 {f === 'ALL' ? t('filterAll') : f === 'WIN' ? t('filterWin') : f === 'LOSS' ? t('filterLoss') : t('filterOpen')}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
       </View>
@@ -601,6 +605,12 @@ export const TradesScreen: React.FC = () => {
         onClose={() => setDetailModalVisible(false)}
         onEdit={handleEditTrade}
         onDelete={(id: string) => handleDeleteTrade(id)}
+      />
+
+      <ScreenshotGallery
+        visible={galleryVisible}
+        onClose={() => setGalleryVisible(false)}
+        trades={trades}
       />
     </View>
   );

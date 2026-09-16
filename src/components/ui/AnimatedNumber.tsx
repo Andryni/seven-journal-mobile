@@ -2,6 +2,31 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Text, TextStyle, StyleProp, Animated } from 'react-native';
 import { duration as motionDuration, easing } from '../../theme/motion';
 
+/**
+ * Reanimated's Easing.bezier returns a FACTORY ({ factory(): fn }), because
+ * the curve is built on the UI thread; RN's Animated.timing wants the plain
+ * `(v: number) => number`. Unwrap `.factory()` when present — and unwrap
+ * again if the factory itself returns a factory (true in the test shim).
+ * (Calling `.factory()` unconditionally threw on every mount — a failure the
+ * fabric error reporter swallowed until the ErrorEvent shim exposed it.)
+ */
+function toRnCurve(value: unknown): (v: number) => number {
+  let current: unknown = value;
+  for (let depth = 0; depth < 4; depth++) {
+    if (typeof current === 'function') return current as (v: number) => number;
+    const candidate = current as { factory?: () => unknown } | null;
+    if (candidate && typeof candidate.factory === 'function') {
+      current = candidate.factory();
+      continue;
+    }
+    break;
+  }
+  // Unreachable with a real easing; fall back to linear rather than crash.
+  return (v: number) => v;
+}
+
+const rnCurve = toRnCurve(easing.out);
+
 interface AnimatedNumberProps {
   /** Target numeric value to animate to */
   value: number;
@@ -46,7 +71,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
       toValue: 1,
       duration,
       // Shared curve from the motion system: data settles, never overshoots.
-      easing: easing.out.factory(),
+      easing: rnCurve,
       useNativeDriver: false,
     }).start(() => {
       fromRef.current = value;

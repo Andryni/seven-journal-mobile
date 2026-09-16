@@ -20,6 +20,18 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister, PERSIST_MAX_AGE } from './src/api/queryClient';
+import {
+  applyMutationDefaults,
+  installOnlineManager,
+  resumeQueuedMutations,
+} from './src/api/offlineQueue';
+
+// Replayable writes must be registered before the persisted mutation cache
+// restores, or a queue saved offline would replay without a mutationFn.
+applyMutationDefaults(queryClient);
+// Teach React Query the truth about connectivity (NetInfo) and replay any
+// queue left paused by a previous session.
+installOnlineManager(queryClient);
 import { OfflineBanner } from './src/components/common/OfflineBanner';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from './src/api/supabaseClient';
@@ -171,6 +183,9 @@ export default function App() {
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE }}
+      // Mutations restored from disk arrive paused; the cache is only complete
+      // now, so this is the moment to try the replay.
+      onSuccess={() => resumeQueuedMutations(queryClient)}
     >
       <SafeAreaProvider>
         <SafeAreaView

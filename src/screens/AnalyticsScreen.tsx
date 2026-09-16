@@ -469,7 +469,10 @@ export const AnalyticsScreen: React.FC = () => {
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('netPnlTotal')}</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, totalPnL >= 0 ? s.greenText : s.redText]}>
-                    {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
+                    {/* formatCurrency, not a hand-rolled prefix: the manual
+                        version put the sign AFTER the symbol ("$-2000")
+                        while the dashboard showed "-$2000". */}
+                    {money(totalPnL, { decimals: 2 })}
                   </Text>
                 </View>
                 <View style={s.kpiBox}>
@@ -501,7 +504,7 @@ export const AnalyticsScreen: React.FC = () => {
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('expectancy')}</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, expectancy >= 0 ? s.greenText : s.redText]}>
-                    {expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}
+                    {money(expectancy, { decimals: 2 })}
                   </Text>
                 </View>
               </View>
@@ -568,12 +571,12 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxDrawdown')}</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>-${maxDrawdown.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>{money(-maxDrawdown, { decimals: 2 })}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('currentDrawdown')}</Text>
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, currentDrawdown > 0 ? s.redText : s.greenText]}>
-                    -${currentDrawdown.toFixed(2)}
+                    {money(-currentDrawdown, { decimals: 2 })}
                   </Text>
                 </View>
               </View>
@@ -674,7 +677,7 @@ export const AnalyticsScreen: React.FC = () => {
                           {ht.count > 0 ? `${ht.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, ht.pnl >= 0 ? s.greenText : s.redText]}>
-                          {ht.count > 0 ? `${ht.pnl >= 0 ? '+' : ''}$${ht.pnl.toFixed(2)}` : '$0.00'}
+                          {ht.count > 0 ? money(ht.pnl, { decimals: 2 }) : money(0)}
                         </Text>
                       </View>
                     </View>
@@ -706,7 +709,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {st.count > 0 ? `${st.winRate.toFixed(1)}% WR` : '—'}
                       </Text>
                       <Text style={[s.subMuted, st.pnl >= 0 ? s.greenText : s.redText]}>
-                        {st.count > 0 ? `${st.pnl >= 0 ? '+' : ''}$${st.pnl.toFixed(2)}` : '$0.00'}
+                        {st.count > 0 ? money(st.pnl, { decimals: 2 }) : money(0)}
                       </Text>
                     </View>
                   </View>
@@ -729,7 +732,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {p.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, p.pnl >= 0 ? s.greenText : s.redText]}>
-                        {p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)}
+                        {money(p.pnl, { decimals: 2 })}
                       </Text>
                     </View>
                   </View>
@@ -752,7 +755,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {tf.winRate.toFixed(1)}% WR
                       </Text>
                       <Text style={[s.subMuted, tf.pnl >= 0 ? s.greenText : s.redText]}>
-                        {tf.pnl >= 0 ? '+' : ''}${tf.pnl.toFixed(2)}
+                        {money(tf.pnl, { decimals: 2 })}
                       </Text>
                     </View>
                   </View>
@@ -798,7 +801,7 @@ export const AnalyticsScreen: React.FC = () => {
                           {sb.count > 0 ? `${sb.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, sb.pnl >= 0 ? s.greenText : s.redText]}>
-                          {sb.count > 0 ? `${sb.pnl >= 0 ? '+' : ''}$${sb.pnl.toFixed(2)}` : '$0.00'}
+                          {sb.count > 0 ? money(sb.pnl, { decimals: 2 }) : money(0)}
                         </Text>
                       </View>
                     </View>
@@ -826,7 +829,7 @@ export const AnalyticsScreen: React.FC = () => {
                           {dw.count > 0 ? `${dw.winRate.toFixed(1)}% WR` : '—'}
                         </Text>
                         <Text style={[s.subMuted, dw.pnl >= 0 ? s.greenText : s.redText]}>
-                          {dw.count > 0 ? `${dw.pnl >= 0 ? '+' : ''}$${dw.pnl.toFixed(2)}` : '$0.00'}
+                          {dw.count > 0 ? money(dw.pnl, { decimals: 2 }) : money(0)}
                         </Text>
                       </View>
                     </View>
@@ -857,7 +860,7 @@ export const AnalyticsScreen: React.FC = () => {
                         {mb.winRate.toFixed(0)}% WR
                       </Text>
                       <Text style={[s.subMuted, mb.pnl >= 0 ? s.greenText : s.redText]}>
-                        {mb.pnl >= 0 ? '+' : ''}${mb.pnl.toFixed(2)}
+                        {money(mb.pnl, { decimals: 2 })}
                       </Text>
                     </View>
                   </View>
@@ -1041,7 +1044,7 @@ export const AnalyticsScreen: React.FC = () => {
                   progress={propFirmData.profitPct}
                   color={theme.colors.green}
                   label={t('target')}
-                  value={`$${totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(0)}`}
+                  value={money(totalPnL, { decimals: 0 })}
                   theme={theme}
                   delay={200}
                 />
@@ -1082,11 +1085,13 @@ export const AnalyticsScreen: React.FC = () => {
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('bestDay')}</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.greenText]}>+${propFirmData.bestDay.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.greenText]}>{money(propFirmData.bestDay, { decimals: 2 })}</Text>
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('worstDay')}</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>${propFirmData.worstDay.toFixed(2)}</Text>
+                  {/* worstDay est déjà signé (min des P&L journaliers) : le
+                      "${...}" précédent rendait "$-500" au lieu de "-$500". */}
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>{money(propFirmData.worstDay, { decimals: 2 })}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
@@ -1190,13 +1195,13 @@ export const AnalyticsScreen: React.FC = () => {
                 </View>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('projectionAvgDailyDD')}</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>-${ddProjection.avgDailyDd.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, { color: theme.colors.cyan }]}>{money(-ddProjection.avgDailyDd, { decimals: 2 })}</Text>
                 </View>
               </View>
               <View style={s.grid2}>
                 <View style={s.kpiBox}>
                   <Text style={s.kpiLabel}>{t('maxDrawdownLabel')} restant</Text>
-                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>-${ddProjection.remainingDd.toFixed(2)}</Text>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.kpiVal, s.redText]}>{money(-ddProjection.remainingDd, { decimals: 2 })}</Text>
                 </View>
                 <View style={[s.kpiBox, { backgroundColor: ddProjection.ddLevel === 'safe' ? 'rgba(43, 213, 118, 0.1)' : ddProjection.ddLevel === 'warning' ? 'rgba(212, 162, 76, 0.1)' : 'rgba(255, 77, 77, 0.1)' }]}>
                   <Text style={s.kpiLabel}>STATUS</Text>

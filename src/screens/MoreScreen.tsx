@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { BookMarked, Wallet, ChevronRight, Settings } from 'lucide-react-native';
+import { BookMarked, Wallet, ChevronRight, Settings, CalendarRange } from 'lucide-react-native';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -11,11 +11,12 @@ import { PressableScale } from '../components/ui/PressableScale';
 import { duration, stagger } from '../theme/motion';
 import { PlaybookScreen } from './PlaybookScreen';
 import { AccountsScreen } from './AccountsScreen';
+import { WeeklyReviewScreen } from './WeeklyReviewScreen';
 import { SettingsSheet } from '../components/settings/SettingsSheet';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 
-type Route = 'menu' | 'playbook' | 'accounts';
+type Route = 'menu' | 'playbook' | 'accounts' | 'weekly';
 
 /**
  * "More" — collapses Playbook, Accounts and Settings behind one tab.
@@ -60,7 +61,20 @@ export const MoreScreen: React.FC = () => {
     </SubScreen>;
   }
 
+  if (route === 'weekly') {
+    return <SubScreen title={t('weeklyReview')} onBack={() => setRoute('menu')} theme={theme}>
+      <WeeklyReviewScreen />
+    </SubScreen>;
+  }
+
   const entries = [
+    {
+      id: 'weekly' as const,
+      icon: <CalendarRange size={17} color={theme.colors.primary} strokeWidth={1.75} />,
+      title: t('weeklyReview'),
+      sub: t('moreWeeklySub'),
+      count: null as number | null,
+    },
     {
       id: 'playbook' as const,
       icon: <BookMarked size={17} color={theme.colors.primary} strokeWidth={1.75} />,
@@ -98,7 +112,7 @@ export const MoreScreen: React.FC = () => {
                 <Text style={styles.rowTitle}>{e.title}</Text>
                 <Text style={styles.rowSub}>{e.sub}</Text>
               </View>
-              <Text style={styles.rowCount}>{e.count}</Text>
+              {e.count !== null ? <Text style={styles.rowCount}>{e.count}</Text> : null}
               <ChevronRight size={15} color={theme.colors.textDark} strokeWidth={2} />
             </PressableScale>
             {i < entries.length - 1 ? <Hairline inset={48} /> : null}

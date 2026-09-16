@@ -386,6 +386,11 @@ export const translations = {
     tfSessionLocked: 'Session quotidienne verrouillée ! Respectez votre discipline.',
     tfRequiredFields: 'Veuillez renseigner tous les champs obligatoires (*).',
     tfSaveError: "Erreur lors de l'enregistrement de la position.",
+    twinPositive: (p: { count: number; wins: number; losses: number; pnl: string; r: string }) =>
+      `Vos ${p.count} trades jumeaux : ${p.wins}G / ${p.losses}P, ${p.pnl}${p.r ? ` (${p.r})` : ''}. Contexte favorable.`,
+    twinNegative: (p: { count: number; wins: number; losses: number; pnl: string; r: string }) =>
+      `Vos ${p.count} trades jumeaux : ${p.wins}G / ${p.losses}P, ${p.pnl}${p.r ? ` (${p.r})` : ''}. Ce contexte vous coûte.`,
+    twinBasis: 'Basé sur vos trades passés les plus similaires (paire, session, état mental).',
     tfPermissionRequired: 'Permission requise pour accéder aux images.',
     tfSection1: '1. PARAMÈTRES PRINCIPAUX & PRIX',
     tfAccountLabel: 'COMPTE *',
@@ -780,6 +785,27 @@ export const translations = {
     worstSetup: 'SETUP À REVOIR',
     bestSession: 'MEILLEURE SESSION',
     offlineBanner: 'Hors ligne — les modifications seront synchronisées',
+    offlineQueued: (n: number) => `Hors ligne — ${n} écriture${n > 1 ? 's' : ''} en file, rien n'est perdu`,
+    weeklyNet: 'RÉSULTAT NET DE LA SEMAINE',
+    weeklyVsPrevShort: 'vs semaine dernière',
+    weeklyTrades: 'TRADES',
+    weeklyAvgR: 'R MOYEN',
+    weeklyDaily: 'LA SEMAINE, JOUR PAR JOUR',
+    weeklyActionLabel: 'ACTION POUR LA SEMAINE PROCHAINE',
+    weeklyActionTilt: (p: { state: string; count: number }) =>
+      `L'état « ${p.state} » est apparu sur ${p.count} trades cette semaine. Fixez-vous une règle simple : après une perte, attendez 15 minutes avant le prochain trade.`,
+    weeklyActionSetup: (p: { setup: string; pnl: string }) =>
+      `« ${p.setup} » vous a coûté ${p.pnl} cette semaine. Réservez-le au simulateur jusqu'à ce que sa statistique se redresse, ou réduisez le risque de moitié.`,
+    weeklyActionBest: (p: { setup: string }) =>
+      `« ${p.setup} » paie. Augmentez légèrement la taille sur ce setup uniquement, à risque constant sinon.`,
+    weeklyEmptyTitle: 'PAS ENCORE DE SEMAINE',
+    weeklyEmptyMsg: 'Clôturez des trades cette semaine pour voir votre bilan dimanches prochain.',
+    moreWeeklySub: 'Cinq chiffres, un graphique, une action',
+    galleryTitle: (p: { count: number }) => `GALERIE — ${p.count} GRAPHIQUE${p.count > 1 ? 'S' : ''}`,
+    galleryEmpty: 'Aucun graphique attaché. Joignez des captures avant/après depuis le détail d\'un trade pour entraîner votre reconnaissance de patterns.',
+    galleryBefore: 'AVANT',
+    galleryAfter: 'APRÈS',
+    galleryOpen: 'Ouvrir la galerie des graphiques',
     syncPending: (n: number) => `${n} en attente de sync`,
     noSetupTrades: 'Aucun trade associé à ce setup.',
 
@@ -1268,6 +1294,11 @@ export const translations = {
     tfSessionLocked: 'Daily session locked! Respect your discipline.',
     tfRequiredFields: 'Please fill in all required fields (*).',
     tfSaveError: 'Error while saving the position.',
+    twinPositive: (p: { count: number; wins: number; losses: number; pnl: string; r: string }) =>
+      `Your ${p.count} twin trades: ${p.wins}W / ${p.losses}L, ${p.pnl}${p.r ? ` (${p.r})` : ''}. This context pays you.`,
+    twinNegative: (p: { count: number; wins: number; losses: number; pnl: string; r: string }) =>
+      `Your ${p.count} twin trades: ${p.wins}W / ${p.losses}L, ${p.pnl}${p.r ? ` (${p.r})` : ''}. This context costs you.`,
+    twinBasis: 'Based on your most similar past trades (pair, session, mental state).',
     tfPermissionRequired: 'Permission required to access images.',
     tfSection1: '1. MAIN PARAMETERS & PRICE',
     tfAccountLabel: 'ACCOUNT *',
@@ -1662,6 +1693,27 @@ export const translations = {
     worstSetup: 'SETUP TO REVIEW',
     bestSession: 'BEST SESSION',
     offlineBanner: 'Offline — changes will sync when back online',
+    offlineQueued: (n: number) => `Offline — ${n} write${n > 1 ? 's' : ''} queued, nothing lost`,
+    weeklyNet: 'WEEK NET RESULT',
+    weeklyVsPrevShort: 'vs last week',
+    weeklyTrades: 'TRADES',
+    weeklyAvgR: 'AVG R',
+    weeklyDaily: 'THE WEEK, DAY BY DAY',
+    weeklyActionLabel: 'ACTION FOR NEXT WEEK',
+    weeklyActionTilt: (p: { state: string; count: number }) =>
+      `"${p.state}" showed up on ${p.count} trades this week. Give yourself one rule: after a loss, wait 15 minutes before the next trade.`,
+    weeklyActionSetup: (p: { setup: string; pnl: string }) =>
+      `"${p.setup}" cost you ${p.pnl} this week. Keep it in the simulator until its stats recover, or halve the risk on it.`,
+    weeklyActionBest: (p: { setup: string }) =>
+      `"${p.setup}" pays. Size it up slightly — on that setup only, risk unchanged elsewhere.`,
+    weeklyEmptyTitle: 'NO WEEK YET',
+    weeklyEmptyMsg: 'Close trades this week and your Sunday review will build itself.',
+    moreWeeklySub: 'Five numbers, one chart, one action',
+    galleryTitle: (p: { count: number }) => `GALLERY — ${p.count} CHART${p.count > 1 ? 'S' : ''}`,
+    galleryEmpty: "No chart attached yet. Attach before/after screenshots from a trade's detail to train your pattern recognition.",
+    galleryBefore: 'BEFORE',
+    galleryAfter: 'AFTER',
+    galleryOpen: 'Open the chart gallery',
     syncPending: (n: number) => `${n} pending sync`,
     noSetupTrades: 'No trade associated with this setup.',
 

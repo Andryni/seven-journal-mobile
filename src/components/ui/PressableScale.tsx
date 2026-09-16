@@ -6,6 +6,7 @@ import {
   ViewStyle,
   StyleProp,
   GestureResponderEvent,
+  AccessibilityState,
 } from 'react-native';
 import { hapticLight } from '../../utils/haptics';
 
@@ -19,6 +20,8 @@ interface PressableScaleProps {
   pressedScale?: number;
   accessibilityLabel?: string;
   accessibilityRole?: 'button' | 'link' | 'tab';
+  /** Announce toggle state (selected/checked) to screen readers. */
+  accessibilityState?: AccessibilityState;
   hitSlop?: number;
 }
 
@@ -35,6 +38,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
   pressedScale = 0.96,
   accessibilityLabel,
   accessibilityRole = 'button',
+  accessibilityState,
   hitSlop,
 }) => {
   const scale = useRef(new Animated.Value(1)).current;
@@ -98,6 +102,7 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
       hitSlop={hitSlop ?? 8}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
       style={outerStyle}
     >
       <Animated.View
