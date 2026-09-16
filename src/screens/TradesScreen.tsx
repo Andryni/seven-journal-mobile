@@ -11,13 +11,12 @@ import {
   RefreshControl,
   ScrollView,
 } from 'react-native';
-import { Panel, Hairline } from '../components/ui/Panel';
+import { Hairline } from '../components/ui/Panel';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { duration, stagger } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
 import { X } from 'lucide-react-native';
 import { withAlpha } from '../theme';
-import { AssetGlyph } from '../components/ui/AssetGlyph';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { useQueryClient } from '@tanstack/react-query';
@@ -27,15 +26,14 @@ import { useUIStore } from '../store/uiStore';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
 import { collectTags, filterTrades } from '../utils/tradeTags';
 import type { Trade } from '../types/domain';
-import { formatSize, unitForMarket, INSTRUMENTS } from '../utils/positionSizing';
 import { useMoney } from '../features/accounts/useMoney';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useAccounts } from '../features/accounts/useAccounts';
-import { localeFor, useT } from '../i18n';
-import { Badge } from '../components/ui/Badge';
+import { useT } from '../i18n';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { TradeDetailModal } from '../components/trades/TradeDetailModal';
+import { TradeBlotterRow } from '../components/trades/TradeBlotterRow';
 import { QuickTradeSheet } from '../components/trades/QuickTradeSheet';
 import { Plus, Search, TrendingUp, Download, Upload, Zap, Info, Images } from 'lucide-react-native';
 import { ScreenshotGallery } from '../components/trades/ScreenshotGallery';
@@ -44,8 +42,6 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { parseMT4MT5Report, parseTradingViewExport, generateTradeCSV } from '../utils/importParsers';
 import { detectSession, detectTimeframe } from '../utils/sessionDetect';
-import { formatDuration } from '../utils/formatDate';
-import { outcomeVariant } from '../utils/tradeOutcome';
 
 type FilterType = 'ALL' | 'WIN' | 'LOSS' | 'OPEN';
 
@@ -75,15 +71,6 @@ export const TradesScreen: React.FC = () => {
     [allTrades, accounts, activeAccountId]
   );
 
-  /** Blotter sizes carry the unit of the account that traded them. */
-  const unitFor = React.useCallback(
-    (trade: Trade) => {
-      const acc = accounts.find(a => a.id === trade.account_id);
-      if (acc?.instrument_type) return unitForMarket(acc.instrument_type);
-      return INSTRUMENTS[trade.pair]?.unit ?? 'lot';
-    },
-    [accounts]
-  );
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
@@ -336,111 +323,16 @@ export const TradesScreen: React.FC = () => {
   }, [filteredTrades]);
 
   /**
-   * Blotter row — one trade per line, columns aligned in tabular-nums.
-   * Replaces the previous 3-row "trade card": at 5 visible trades per screen
-   * a journal is unusable. This fits ~11 and reads like an execution report.
+   * Blotter row — one trade per line. The row itself lives in
+   * TradeBlotterRow so the Dashboard's recent-trades preview renders the
+   * exact same execution-report line, not a diverging look-alike.
    */
-  const renderTradeItem = ({ item, index }: { item: Trade; index: number }) => {
-    const isOpen = item.pnl === null;
-    const pnlColor = isOpen
-      ? theme.colors.textSecondary
-      : (item.pnl || 0) >= 0
-      ? theme.colors.green
-      : theme.colors.red;
-
-    return (
-      <Animated.View entering={FadeIn.delay(stagger(index)).duration(duration.fast)}>
-        <PressableScale
-          style={styles.row}
-          onPress={() => handleViewTrade(item)}
-          accessibilityLabel={`${item.pair} ${item.direction}`}
-          pressedScale={0.995}
-        >
-          {/* Direction rail — the only colour cue needed for long/short */}
-          <View
-            style={[
-              styles.rail,
-              { backgroundColor: item.direction === 'BUY' ? theme.colors.green : theme.colors.red },
-            ]}
-          />
-
-          {/* Asset mark — lets a row be identified by shape and colour before
-              the ticker is read. Typographic, so no logo licensing. */}
-          <AssetGlyph symbol={item.pair} size={28} />
-
-          {/* Col 1 — instrument + context */}
-          <View style={styles.colMain}>
-            <View style={styles.pairLine}>
-              <Text style={styles.pair}>{item.pair}</Text>
-              <Text style={styles.dir}>{item.direction}</Text>
-            </View>
-            <Text style={styles.meta} numberOfLines={1}>
-              {new Date(item.entry_time).toLocaleDateString(localeFor(lang), {
-                day: '2-digit',
-                month: '2-digit',
-              })}
-              {'  '}
-              {new Date(item.entry_time).toLocaleTimeString(localeFor(lang), {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-              {item.timeframe ? `  ${item.timeframe}` : ''}
-              {item.size ? `  ${formatSize(item.size, unitFor(item))}` : ''}
-              {/* Holding time belongs on the row: scanning the blotter is how
-                  you notice a "scalp" that was actually held for two days. */}
-              {formatDuration(item.entry_time, item.exit_time, lang)
-                ? `  ${formatDuration(item.entry_time, item.exit_time, lang)}`
-                : ''}
-            </Text>
-          </View>
-
-          {/* Col 2 — R multiple */}
-          <Text
-            style={[
-              styles.colR,
-              {
-                color:
-                  item.r_multiple === null
-                    ? theme.colors.textDark
-                    : item.r_multiple >= 0
-                    ? theme.colors.textSecondary
-                    : theme.colors.textMuted,
-              },
-            ]}
-          >
-            {item.r_multiple !== null
-              ? `${item.r_multiple >= 0 ? '+' : ''}${item.r_multiple.toFixed(1)}R`
-              : '—'}
-          </Text>
-
-          {/* Col 3 — P&L + outcome */}
-          <View style={styles.colPnl}>
-            <Text style={[styles.pnl, { color: pnlColor }]} numberOfLines={1}>
-              {!isOpen ? money(item.pnl!) : t('openTradeStatus')}
-            </Text>
-            <Text
-              style={[
-                styles.result,
-                {
-                  // Driven by P&L, not by the label: a BE exit that banked a
-                  // partial gain was rendered in the same dead grey as a
-                  // scratch, hiding a winning trade in the blotter.
-                  color: {
-                    green: theme.colors.green,
-                    red: theme.colors.red,
-                    neutral: theme.colors.textDark,
-                  }[outcomeVariant(item)],
-                },
-              ]}
-            >
-              {item.result || (isOpen ? 'OPEN' : 'CLOSED')}
-            </Text>
-          </View>
-        </PressableScale>
-        <Hairline inset={14} />
-      </Animated.View>
-    );
-  };
+  const renderTradeItem = ({ item, index }: { item: Trade; index: number }) => (
+    <Animated.View entering={FadeIn.delay(stagger(index)).duration(duration.fast)}>
+      <TradeBlotterRow trade={item} onPress={handleViewTrade} />
+      <Hairline inset={14} />
+    </Animated.View>
+  );
 
   if (isLoading) {
     return (
@@ -905,75 +797,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: theme.type.micro,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 1.2,
-  },
-
-  // ── Blotter row ──
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: theme.spacing.sm,
-  },
-  rail: {
-    width: 2,
-    height: 26,
-    borderRadius: 1,
-  },
-  colMain: { flex: 1, marginLeft: 10 },
-  pairLine: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-  },
-  pair: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.type.body,
-    fontFamily: theme.fonts.monoBold,
-    letterSpacing: 0.4,
-  },
-  dir: {
-    color: theme.colors.textDark,
-    fontSize: theme.type.micro,
-    fontFamily: theme.fonts.monoMedium,
-    letterSpacing: 0.6,
-  },
-  meta: {
-    color: theme.colors.textMuted,
-    fontSize: theme.type.micro,
-    fontFamily: theme.fonts.mono,
-    fontVariant: ['tabular-nums'],
-    marginTop: 3,
-  },
-  colR: {
-    width: 54,
-    textAlign: 'right',
-    fontSize: theme.type.body,
-    fontFamily: theme.fonts.monoMedium,
-    fontVariant: ['tabular-nums'],
-  },
-  colPnl: {
-    width: 92,
-    alignItems: 'flex-end',
-  },
-  pnl: {
-    /**
-     * Same size as the instrument and the R multiple beside it.
-     *
-     * P&L was metricSm (15) against body (12) and label (10), a five-point
-     * spread inside one row, which made the blotter look ragged rather than
-     * hierarchical. These three are scanned together, so they share a size
-     * and are separated by weight and colour -- P&L stays extra-bold and
-     * coloured, and still reads first.
-     */
-    fontSize: theme.type.body,
-    fontFamily: theme.fonts.monoExtraBold,
-    fontVariant: ['tabular-nums'],
-  },
-  result: {
-    fontSize: theme.type.micro,
-    fontFamily: theme.fonts.monoBold,
-    letterSpacing: 0.8,
-    marginTop: 2,
   },
 
   listContent: {

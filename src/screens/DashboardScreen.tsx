@@ -7,16 +7,14 @@ import { useTrades } from '../features/trades/useTrades';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useDailyLock } from '../features/guard/useDailyLock';
 import { computeMetricTrends } from '../features/dashboard/metricTrends';
-import { outcomeVariant } from '../utils/tradeOutcome';
 import { usePerformanceMetrics } from '../features/dashboard/usePerformanceMetrics';
 import type { Trade } from '../types/domain';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
-import { localeFor, useT } from '../i18n';
+import { useT } from '../i18n';
 import { Panel, Hairline } from '../components/ui/Panel';
 import { LivePanel } from '../components/ui/LivePanel';
 import { Metric } from '../components/ui/Metric';
-import { Badge } from '../components/ui/Badge';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
@@ -25,6 +23,9 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { PressableScale } from '../components/ui/PressableScale';
 import { useUIStore } from '../store/uiStore';
+import { TradeBlotterRow } from '../components/trades/TradeBlotterRow';
+import { TradeDetailModal } from '../components/trades/TradeDetailModal';
+import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { Sparkline } from '../components/ui/Sparkline';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
@@ -58,6 +59,19 @@ export const DashboardScreen: React.FC = () => {
   const activeAccountId = useUIStore(s => s.activeAccountId);
 
   const [shareModalVisible, setShareModalVisible] = useState(false);
+
+  /**
+   * Tapping a recent trade opens the same detail modal as the Trades
+   * screen — the preview was read-only before, so the information a row
+   * carried stopped at its text.
+   */
+  const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [editVisible, setEditVisible] = useState(false);
+  const handleViewTrade = (tr: Trade) => {
+    setDetailTrade(tr);
+    setDetailVisible(true);
+  };
 
   const activeAccount = useMemo(
     () => accounts.find(a => a.id === activeAccountId) ?? accounts[0] ?? null,
@@ -391,49 +405,10 @@ export const DashboardScreen: React.FC = () => {
               key={tr.id}
               entering={FadeIn.delay(stagger(i)).duration(duration.fast)}
             >
-              <View style={styles.blotterRow}>
-                <View
-                  style={[
-                    styles.dirRail,
-                    { backgroundColor: tr.direction === 'BUY' ? theme.colors.green : theme.colors.red },
-                  ]}
-                />
-                <View style={styles.blotterLeft}>
-                  <Text style={styles.pair}>{tr.pair}</Text>
-                  <Text style={styles.time}>
-                    {new Date(tr.entry_time).toLocaleDateString(localeFor(lang), {
-                      day: '2-digit',
-                      month: '2-digit',
-                    })}{' '}
-                    {new Date(tr.entry_time).toLocaleTimeString(localeFor(lang), {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-                <View style={styles.blotterRight}>
-                  <Text
-                    style={[
-                      styles.pnl,
-                      {
-                        color:
-                          tr.pnl === null
-                            ? theme.colors.textSecondary
-                            : tr.pnl >= 0
-                            ? theme.colors.green
-                            : theme.colors.red,
-                      },
-                    ]}
-                  >
-                    {tr.pnl !== null ? money(tr.pnl) : '—'}
-                  </Text>
-                  <Badge
-                    label={tr.result}
-                    size="sm"
-                    variant={outcomeVariant(tr)}
-                  />
-                </View>
-              </View>
+              {/* Same row component as the Trades blotter — the preview can
+                  no longer drift from the list it links to. A tap opens the
+                  trade detail right here instead of forcing the hop. */}
+              <TradeBlotterRow trade={tr} onPress={handleViewTrade} style={styles.previewRow} />
               {i < m.recentTrades.length - 1 ? <Hairline inset={16} /> : null}
             </Animated.View>
           ))
@@ -445,6 +420,24 @@ export const DashboardScreen: React.FC = () => {
         onClose={() => setShareModalVisible(false)}
         trades={scopedTrades}
         accountName={activeAccount?.name || 'Compte Principal'}
+      />
+
+      {/* Same modals as the Trades screen, so edit/delete work from here too. */}
+      <TradeDetailModal
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        trade={detailTrade}
+        onEdit={tr => {
+          setDetailVisible(false);
+          setDetailTrade(tr);
+          setEditVisible(true);
+        }}
+        onDelete={() => setDetailVisible(false)}
+      />
+      <TradeFormModal
+        visible={editVisible}
+        onClose={() => setEditVisible(false)}
+        editingTrade={detailTrade}
       />
     </ScrollView>
   );
@@ -630,38 +623,10 @@ const createStyles = (theme: AppTheme) =>
       letterSpacing: 0.8,
     },
 
-    // Blotter
-    blotterRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 11,
+    // Blotter preview rows are the shared TradeBlotterRow; only the panel's
+    // side padding lives here, applied over the row's own layout.
+    previewRow: {
       paddingHorizontal: theme.spacing.lg,
-      gap: theme.spacing.md,
-    },
-    dirRail: {
-      width: 2,
-      height: 24,
-      borderRadius: 1,
-    },
-    blotterLeft: { flex: 1 },
-    pair: {
-      color: theme.colors.textPrimary,
-      fontSize: theme.type.body,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 0.5,
-    },
-    time: {
-      color: theme.colors.textMuted,
-      fontSize: theme.type.micro,
-      fontFamily: theme.fonts.mono,
-      fontVariant: ['tabular-nums'],
-      marginTop: 2,
-    },
-    blotterRight: { alignItems: 'flex-end', gap: 4 },
-    pnl: {
-      fontSize: theme.type.metricSm,
-      fontFamily: theme.fonts.monoExtraBold,
-      fontVariant: ['tabular-nums'],
     },
     emptyText: {
       color: theme.colors.textMuted,
