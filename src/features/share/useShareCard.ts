@@ -22,7 +22,27 @@ import { shareFileName, type SharePeriod } from '../../utils/shareScope';
  * whole screen down. Saving to the gallery degrades to "unavailable" instead.
  */
 
-type MediaLibraryModule = typeof import('expo-media-library');
+/**
+ * The LEGACY entry point, deliberately.
+ *
+ * expo-media-library 57 moved to a class-based API and turned the old
+ * functions into stubs that THROW at runtime:
+ *
+ *   export async function createAssetAsync() {
+ *     throw errorOnLegacyMethodUse('createAssetAsync');
+ *   }
+ *
+ * They still exist and still type-check from the package root, so nothing
+ * failed at build time -- the save simply threw on every press and the
+ * generic catch below reported "could not be saved". That is the reported
+ * bug, and it was invisible to tsc, to the tests and to the bundler.
+ *
+ * `expo-media-library/legacy` re-exports the real implementations. Migrating
+ * to Asset.create() is the eventual answer, but that API is native-backed and
+ * cannot be exercised here at all, so it would be an untested rewrite of a
+ * feature that is currently broken. The legacy path restores it today.
+ */
+type MediaLibraryModule = typeof import('expo-media-library/legacy');
 
 let mediaLibrary: MediaLibraryModule | null = null;
 let mediaLibraryChecked = false;
@@ -31,7 +51,7 @@ function getMediaLibrary(): MediaLibraryModule | null {
   if (mediaLibraryChecked) return mediaLibrary;
   mediaLibraryChecked = true;
   try {
-    mediaLibrary = require('expo-media-library') as MediaLibraryModule;
+    mediaLibrary = require('expo-media-library/legacy') as MediaLibraryModule;
   } catch {
     mediaLibrary = null;
   }
@@ -98,8 +118,12 @@ export function useShareCard() {
           UTI: 'public.png',
         });
       } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err ?? '');
         console.warn('share card failed', err);
-        Alert.alert(t('shareFailedTitle'), t('shareFailedBody'));
+        Alert.alert(
+          t('shareFailedTitle'),
+          reason ? `${t('shareFailedBody')}\n\n${reason.slice(0, 180)}` : t('shareFailedBody')
+        );
       } finally {
         setBusy(null);
       }
@@ -146,8 +170,20 @@ export function useShareCard() {
 
         setSavedAt(Date.now());
       } catch (err) {
+        /**
+         * Show the underlying reason, not just "it failed".
+         *
+         * The deprecated-API throw carried a precise message naming the
+         * method, and swallowing it behind a generic alert is what made this
+         * bug take a round trip to diagnose. The message is truncated because
+         * some native errors are a paragraph long.
+         */
+        const reason = err instanceof Error ? err.message : String(err ?? '');
         console.warn('save to gallery failed', err);
-        Alert.alert(t('saveFailedTitle'), t('saveFailedBody'));
+        Alert.alert(
+          t('saveFailedTitle'),
+          reason ? `${t('saveFailedBody')}\n\n${reason.slice(0, 180)}` : t('saveFailedBody')
+        );
       } finally {
         setBusy(null);
       }
