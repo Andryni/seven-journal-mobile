@@ -73,6 +73,20 @@ export function buildCoachPayload(
   const withR = closed.filter(t => t.r_multiple !== null);
   const onPlan = closed.filter(t => t.rule_40_percent !== true);
 
+  /**
+   * Zero findings is a valid state, not an error: a disciplined book with no
+   * behavioural leak triggers no rule, and the aggregate ratios alone give
+   * the model plenty for a briefing. The server accepts an empty findings
+   * array; findings are capped at 12 on both sides.
+   */
+  const findings = insights.slice(0, 12).map(i => ({
+    id: i.id,
+    severity: i.severity,
+    impactPct:
+      i.impact !== null && pnlVolume > 0 ? r2((i.impact / pnlVolume) * 100) : null,
+    sampleSize: i.sampleSize,
+  }));
+
   return {
     v: 1,
     locale,
@@ -84,12 +98,6 @@ export function buildCoachPayload(
         : null,
     planAdherence: r2((onPlan.length / closed.length) * 100),
     profitFactor: grossLoss > 0 ? r2(grossWin / grossLoss) : null,
-    findings: insights.map(i => ({
-      id: i.id,
-      severity: i.severity,
-      impactPct:
-        i.impact !== null && pnlVolume > 0 ? r2((i.impact / pnlVolume) * 100) : null,
-      sampleSize: i.sampleSize,
-    })),
+    findings,
   };
 }

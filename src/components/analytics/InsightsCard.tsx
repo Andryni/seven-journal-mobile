@@ -133,8 +133,11 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
 
       {/* Opt-in narrative layer. The findings above are already complete
           without it: this only turns them into prose, on demand, and the
-          request is never fired automatically. */}
-      {result.hasEnoughData && result.insights.length > 0 ? (
+          request is never fired automatically. Shown whenever there is enough
+          history — even with zero specific findings, because a disciplined
+          journal triggers no rule and the aggregate ratios alone still make
+          a briefing. Hiding the button there made the feature look broken. */}
+      {result.hasEnoughData ? (
         <>
           <Hairline />
           <View style={styles.coach}>
@@ -195,7 +198,6 @@ export const InsightsCard: React.FC<InsightsCardProps> = ({ trades, playbookSetu
     </Panel>
   );
 };
-
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     header: {

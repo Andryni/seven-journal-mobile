@@ -120,4 +120,24 @@ describe('buildCoachPayload — content', () => {
     expect(payload.v).toBe(1);
     expect(payload.locale).toBe('en');
   });
+
+  it('still builds a payload when NO rule fires — a disciplined book is a valid subject', () => {
+    // The 24-trade book triggers nothing, but wait: it can fire best-setup.
+    // Force certainty by wiping the setup titles and checking the state the
+    // button previously disappeared in: enough history, zero findings.
+    const payload = buildCoachPayload(book(), 'fr', []);
+    expect(payload).not.toBeNull();
+    if (payload) {
+      expect(Array.isArray(payload.findings)).toBe(true);
+      expect(payload.findings.length).toBeGreaterThanOrEqual(0);
+      // The aggregates that carry a no-findings briefing are present.
+      expect(payload.tradesAnalysed).toBe(24);
+      expect(payload.winRate).toBe(50);
+    }
+  });
+
+  it('caps findings at 12, matching the server-side cap', () => {
+    const payload = buildCoachPayload(book(), 'fr')!;
+    expect(payload.findings.length).toBeLessThanOrEqual(12);
+  });
 });

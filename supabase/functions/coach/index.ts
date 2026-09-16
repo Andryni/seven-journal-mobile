@@ -88,7 +88,12 @@ function sanitize(input: unknown): Record<string, unknown> | null {
   const p = input as Record<string, unknown>;
   if (p.v !== 1) return null;
   if (typeof p.tradesAnalysed !== 'number' || p.tradesAnalysed < 20) return null;
-  if (!Array.isArray(p.findings) || p.findings.length === 0) return null;
+  /**
+   * An EMPTY findings array is valid: a disciplined book with no behavioural
+   * leak triggers no rule, and the aggregate ratios alone are enough for a
+   * briefing. Only a non-array is rejected. Findings stay capped at 12.
+   */
+  if (!Array.isArray(p.findings)) return null;
 
   const num = (x: unknown) => (typeof x === 'number' && isFinite(x) ? x : null);
 
@@ -104,7 +109,8 @@ function sanitize(input: unknown): Record<string, unknown> | null {
       sampleSize: num(f.sampleSize),
     }));
 
-  if (findings.length === 0) return null;
+  // No "findings.length === 0" rejection here: empty is the disciplined-book
+  // case, valid by design (see the Array.isArray check above).
 
   return {
     locale: typeof p.locale === 'string' ? p.locale.slice(0, 8) : 'en',
