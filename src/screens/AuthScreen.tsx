@@ -233,14 +233,16 @@ export const AuthScreen: React.FC = () => {
               style={styles.topHighlight}
             />
 
-            {/* Logo */}
+            {/* Logo — the shipped artwork, keyed to transparency. It floats on
+                the card like on the boot and lock screens: framing it in a
+                rounded plate cropped a scene that already carries its own. */}
             <View style={styles.logoSection}>
               <Animated.View style={[styles.logoGlow, { opacity: glowPulse }]} />
-              <Animated.View style={[styles.logoCard, { transform: [{ scale: logoScale }] }]}>
+              <Animated.View style={[styles.logoWrap, { transform: [{ scale: logoScale }] }]}>
                 <Image
                   source={require('../assets/seven_tracking_logo.png')}
                   style={styles.logoImage}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               </Animated.View>
               <View style={styles.brandRow}>
@@ -523,25 +525,17 @@ const createStyles = (theme: AppTheme) =>
     },
     logoGlow: {
       position: 'absolute',
-      width: 140,
-      height: 140,
-      borderRadius: 70,
-      backgroundColor: 'rgba(255, 159, 28, 0.25)',
-      top: -14,
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      backgroundColor: 'rgba(255, 159, 28, 0.22)',
+      top: -20,
     },
-    logoCard: {
-      width: 84,
-      height: 84,
-      borderRadius: 22,
-      overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: 'rgba(255, 183, 77, 0.6)',
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.7,
-      shadowRadius: 16,
-      elevation: 12,
-      backgroundColor: theme.colors.backgroundElevated,
+    logoWrap: {
+      width: 104,
+      height: 104,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 14,
     },
     logoImage: {

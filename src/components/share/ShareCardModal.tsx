@@ -3,6 +3,7 @@ import {
   Modal,
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
@@ -16,7 +17,6 @@ import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { PressableScale } from '../ui/PressableScale';
 import { Sparkline } from '../ui/Sparkline';
-import { SevenMark } from '../brand/SevenMark';
 import { useShareCard } from '../../features/share/useShareCard';
 import {
   selectTrades,
@@ -125,7 +125,11 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
 
               <View style={styles.cardHead}>
                 <View style={styles.brandRow}>
-                  <SevenMark size={22} />
+                  <Image
+                    source={require('../../assets/seven_tracking_logo.png')}
+                    style={styles.brandMark}
+                    resizeMode="contain"
+                  />
                   <View>
                     <Text style={styles.brandName}>SEVEN JOURNAL</Text>
                     <Text style={styles.brandAccount} numberOfLines={1}>
@@ -372,6 +376,7 @@ const createStyles = (theme: AppTheme) =>
       marginBottom: 20,
     },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1 },
+    brandMark: { width: 22, height: 22 },
     brandName: {
       color: theme.colors.textPrimary,
       fontSize: 10,

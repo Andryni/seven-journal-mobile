@@ -132,13 +132,14 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onPass
               style={styles.topHighlight}
             />
 
-            {/* Logo */}
+            {/* Logo — same presentation as the auth screen: the artwork
+                floats on the card, no plate around it. */}
             <View style={styles.logoSection}>
-              <View style={styles.logoCard}>
+              <View style={styles.logoWrap}>
                 <Image
                   source={require('../assets/seven_tracking_logo.png')}
                   style={styles.logoImage}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               </View>
               <View style={styles.brandRow}>
@@ -315,19 +316,11 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       marginBottom: theme.spacing.xl,
     },
-    logoCard: {
-      width: 74,
-      height: 74,
-      borderRadius: 20,
-      overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: 'rgba(255, 183, 77, 0.6)',
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 5 },
-      shadowOpacity: 0.7,
-      shadowRadius: 14,
-      elevation: 11,
-      backgroundColor: theme.colors.backgroundElevated,
+    logoWrap: {
+      width: 104,
+      height: 104,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 14,
     },
     logoImage: {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { BootScreen } from './BootScreen';
@@ -22,12 +22,15 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const opacity = useRef(new Animated.Value(0)).current;
+  const { width } = useWindowDimensions();
+
+  // Same scale rule as BootScreen, so the mark never jumps between the two.
+  const markSize = Math.max(72, Math.min(120, width * 0.2));
 
   useEffect(() => {
     Animated.sequence([
       Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      // Long enough for the equity curve to finish drawing itself; cutting at
-      // 260ms showed a half-drawn line and looked like a glitch.
+      // Long enough to read the mark and wordmark; short enough to not stall.
       Animated.delay(900),
       Animated.timing(opacity, { toValue: 0, duration: 280, useNativeDriver: true }),
     ]).start(() => onAnimationFinish());
@@ -51,23 +54,5 @@ const createStyles = (theme: AppTheme) =>
       backgroundColor: theme.colors.background,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    logo: {
-      width: 76,
-      height: 76,
-      marginBottom: theme.spacing.lg,
-    },
-    wordmark: {
-      color: theme.colors.textPrimary,
-      fontSize: theme.type.title,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 4,
-    },
-    rule: {
-      width: 28,
-      height: 2,
-      backgroundColor: theme.colors.primary,
-      marginTop: theme.spacing.md,
-      borderRadius: 1,
     },
   });

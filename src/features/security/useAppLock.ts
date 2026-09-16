@@ -42,6 +42,21 @@ export function useAppLock() {
   const [isUnlocked, setIsUnlocked] = useState(!enabled);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [backgroundedAt, setBackgroundedAt] = useState<number | null>(null);
+  // Persisted prefs hydrate asynchronously: before that, `enabled` is the
+  // default false and must not be trusted for gating decisions.
+  const [ready, setReady] = useState(() => useAppLockPrefs.persist.hasHydrated());
+
+  useEffect(() => {
+    if (ready) return;
+    const unsub = useAppLockPrefs.persist.onFinishHydration(() => {
+      setReady(true);
+      // Arm the gate from the hydrated value. Without this, `isUnlocked`
+      // kept its pre-hydration `!false` and a persisted lock never engaged
+      // on cold start — only on background-return.
+      setIsUnlocked(!useAppLockPrefs.getState().enabled);
+    });
+    return unsub;
+  }, [ready]);
 
   const authenticate = useCallback(async (): Promise<boolean> => {
     setIsAuthenticating(true);
@@ -106,6 +121,7 @@ export function useAppLock() {
   }, [enabled, backgroundedAt]);
 
   return {
+    ready,
     enabled,
     isUnlocked,
     isAuthenticating,

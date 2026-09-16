@@ -1,6 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
+import {
+  DarkTheme,
+  ThemeProvider,
+  type Theme as NavigationTheme,
+} from '@react-navigation/native';
+
+// The root view's background colour. Native renders it before React mounts —
+// it was never set, so every first frame, rotation and cold-start gap flashed
+// the OS default (white) between the splash and our first dark screen.
+SystemUI.setBackgroundColorAsync('#0A0A0B');
 
 // Prevent the native splash screen from auto-hiding
 // It stays visible until we explicitly call hideAsync()
@@ -32,6 +43,17 @@ import { LayoutGrid, BookOpen, Calendar, BarChart2, MoreHorizontal } from 'lucid
 import { ToastContainer } from './src/components/ui/ToastContainer';
 import type { RootTabParamList } from './src/types/navigation';
 import type { Session } from '@supabase/supabase-js';
+
+// NavigationContainer ignores our theme and renders its own light background,
+// another white frame that showed through while screens mounted.
+const navTheme: NavigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#0A0A0B',
+    card: '#0A0A0B',
+  },
+};
 
 import {
   useFonts,
@@ -105,10 +127,10 @@ export default function App() {
     );
   }
 
-  if (loading) {
-    // Was a bare spinner on an empty background, which read as a white flash
-    // between the splash and the first screen. Same wait, but it now looks
-    // like the product instead of a stall.
+  if (loading || !appLock.ready) {
+    // Session restore + biometric bootstrap: same wait as before, but the
+    // BootScreen keeps the brand on screen instead of a white flash (and the
+    // lock must not render before its state is settled, or the gate flickers).
     return (
       <SafeAreaProvider>
         <BootScreen />
@@ -158,7 +180,7 @@ export default function App() {
           <ToastContainer />
           <OfflineBanner />
           {session && <TopAccountBar />}
-          <NavigationContainer>
+          <NavigationContainer theme={navTheme}>
             <ErrorBoundary screenName="Navigation">
             {!session ? (
               <AuthScreen />

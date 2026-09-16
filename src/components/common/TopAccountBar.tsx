@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   Modal,
@@ -12,7 +13,6 @@ import { useUIStore } from '../../store/uiStore';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { SettingsSheet } from '../settings/SettingsSheet';
 import { useTheme } from '../../theme';
-import { SevenMark } from '../brand/SevenMark';
 import type { AppTheme } from '../../theme';
 import { accountTypeLabel, useT } from '../../i18n';
 import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
@@ -37,9 +37,13 @@ export const TopAccountBar: React.FC = () => {
       {/* Brand Logo & Name */}
       <View style={styles.brandRow}>
         <View style={styles.logoWrapper}>
-          {/* Vector, not the PNG that was here: it takes the theme's colours
-              and stays sharp at any density. */}
-          <SevenMark size={36} plate />
+          {/* The shipped artwork, keyed to transparency — one identity across
+              launcher, splash and dashboard. */}
+          <Image
+            source={require('../../assets/seven_tracking_logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
         <View>
           <View style={styles.flexRow}>
@@ -221,6 +225,10 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   flexRow: {
     flexDirection: 'row',
