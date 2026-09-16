@@ -48,14 +48,45 @@ export function useAppLock() {
 
   useEffect(() => {
     if (ready) return;
+
+    /**
+     * Hydration can finish between the initial state read and this effect
+     * running, in which case onFinishHydration never fires and the gate stays
+     * closed forever -- another way to hang on the boot screen. Re-check
+     * first, and keep a timeout as a floor: a lock we cannot read is not a
+     * reason to make the app unusable.
+     */
+    if (useAppLockPrefs.persist.hasHydrated()) {
+      setReady(true);
+      setIsUnlocked(!useAppLockPrefs.getState().enabled);
+      return;
+    }
+
+    // Guarded so a pending timer cannot set state after unmount -- in tests
+    // that is a "Jest environment torn down" warning, in the app a React
+    // update on a dead component.
+    let live = true;
+
+    const failsafe = setTimeout(() => {
+      if (!live) return;
+      setReady(true);
+      setIsUnlocked(!useAppLockPrefs.getState().enabled);
+    }, 3000);
+
     const unsub = useAppLockPrefs.persist.onFinishHydration(() => {
+      if (!live) return;
+      clearTimeout(failsafe);
       setReady(true);
       // Arm the gate from the hydrated value. Without this, `isUnlocked`
       // kept its pre-hydration `!false` and a persisted lock never engaged
       // on cold start — only on background-return.
       setIsUnlocked(!useAppLockPrefs.getState().enabled);
     });
-    return unsub;
+    return () => {
+      live = false;
+      clearTimeout(failsafe);
+      unsub();
+    };
   }, [ready]);
 
   const authenticate = useCallback(async (): Promise<boolean> => {

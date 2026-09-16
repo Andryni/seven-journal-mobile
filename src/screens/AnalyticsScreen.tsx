@@ -663,7 +663,8 @@ export const AnalyticsScreen: React.FC = () => {
             <Card title={t('rollingWinRate')}>
               {winRateTrend.length > 0 ? (
                 <BicolorBarChart
-                yAxisPrefix={sym}
+                  /* Percentage points away from break-even, not an amount. */
+                  yAxisSuffix="%"
                   data={winRateTrend.map(wr => ({ label: wr.label, value: wr.value - 50 }))}
                   height={170}
                 />
@@ -1241,7 +1242,8 @@ export const AnalyticsScreen: React.FC = () => {
               {/* Mini bar chart of daily contributions */}
               {consistencyData.dailyContributions.length > 0 && (
                 <BicolorBarChart
-                yAxisPrefix={sym}
+                  /* Each bar is a share of total P&L, not an amount. */
+                  yAxisSuffix="%"
                   data={consistencyData.dailyContributions.map(d => ({ label: d.date, value: d.pct }))}
                   height={140}
                 />

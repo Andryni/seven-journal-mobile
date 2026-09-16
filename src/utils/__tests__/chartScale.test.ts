@@ -167,3 +167,54 @@ describe('smoothPath', () => {
     expect(d).not.toMatch(/NaN|Infinity/);
   });
 });
+
+/**
+ * Tick label precision.
+ *
+ * Reported from the APK: the prop-firm drawdown curve read
+ * "-$1 / -$1 / +$1 / +$1". Every drawdown point is small and negative, so the
+ * axis steps land on halves (-1.5, -1, -0.5, 0) while the chart printed them
+ * with zero decimals -- two gridlines carrying the same label, and a top tick
+ * claiming 2 where the value is 1.5.
+ */
+describe('buildAxis — decimals track the step', () => {
+  it('needs no decimals when the step is a whole number', () => {
+    expect(buildAxis([0, 40, 120]).decimals).toBe(0);
+    expect(buildAxis([0, -300, -1200]).decimals).toBe(0);
+  });
+
+  it('gives one decimal to a half-unit step', () => {
+    const axis = buildAxis([0, -0.3, -0.9, -1.4]);
+    expect(axis.decimals).toBeGreaterThanOrEqual(1);
+  });
+
+  it('never prints the same label on two adjacent ticks', () => {
+    // The exact reported series shape: a handful of sub-unit drawdowns.
+    for (const series of [
+      [0, -0.3, -0.9, -1.4, -0.6],
+      [0, -0.05, -0.12, -0.2],
+      [0, -2.4, -1.6, -0.8],
+      [0, 0.25, 0.5, 0.75],
+    ]) {
+      const axis = buildAxis(series);
+      const labels = axis.ticks.map(t => t.toFixed(axis.decimals));
+      expect(new Set(labels).size).toBe(labels.length);
+    }
+  });
+
+  it('keeps labels faithful to the tick value', () => {
+    const axis = buildAxis([0, -0.3, -0.9, -1.4]);
+    for (const tick of axis.ticks) {
+      // Rounding must not move a label onto a different number.
+      expect(Math.abs(Number(tick.toFixed(axis.decimals)) - tick)).toBeLessThan(0.001);
+    }
+  });
+
+  it('caps decimals so a tiny scale cannot produce unreadable labels', () => {
+    expect(buildAxis([0, -0.00001]).decimals).toBeLessThanOrEqual(4);
+  });
+
+  it('reports decimals on the empty-series fallback too', () => {
+    expect(buildAxis([]).decimals).toBe(0);
+  });
+});

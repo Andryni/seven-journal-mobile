@@ -112,9 +112,26 @@ async function main() {
   console.log('  splash alpha bbox', JSON.stringify(alphaBBox(splash)));
   await save(splash, path.join('assets', 'splash-icon.png'));
 
-  // Android adaptive foreground: keyed, full-bleed. The launcher mask crops
-  // the outer ~17% per side; the keyed bbox above confirms the mark survives.
-  await save(keyAlpha(master.clone()), path.join('assets', 'android-icon-foreground.png'));
+  /**
+   * Android adaptive foreground: keyed, and scaled INTO the safe zone.
+   *
+   * It used to ship full-bleed, on the assumption that the mark survived the
+   * mask. Measured on the built APK it does not: the artwork spans 71% of the
+   * canvas and reaches x=150..874, while the launcher only guarantees the
+   * central 66% (roughly 174..850). The outer edge was being cropped, which
+   * is exactly what "the icon looks zoomed in" means -- the launcher was
+   * showing a magnified crop rather than the whole logo.
+   *
+   * Drawing the mark at 60% of the canvas leaves the whole thing inside the
+   * mask on a circle, a squircle or a rounded square alike.
+   */
+  const SAFE_FRACTION = 0.6;
+  const fgInner = Math.round(1024 * SAFE_FRACTION);
+  const foreground = new Jimp(1024, 1024, 0x00000000);
+  const fgMark = keyAlpha(master.clone()).autocrop().contain(fgInner, fgInner, Jimp.RESIZE_BICUBIC);
+  foreground.composite(fgMark, Math.round((1024 - fgInner) / 2), Math.round((1024 - fgInner) / 2));
+  console.log('  adaptive fg bbox', JSON.stringify(alphaBBox(foreground)));
+  await save(foreground, path.join('assets', 'android-icon-foreground.png'));
 
   // Android 13+ themed icon: single-colour silhouette the OS can tint.
   await save(toSilhouette(master.clone()), path.join('assets', 'android-icon-monochrome.png'));

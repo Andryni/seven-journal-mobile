@@ -196,8 +196,15 @@ export const GlowingEquityAreaChart: React.FC<GlowingEquityAreaChartProps> = ({
     }
   }
 
+  // Decimals come from the axis step, not a constant: on a sub-unit scale
+  // (a small drawdown curve) rounding to 0 made adjacent ticks print the
+  // same label. Compact mode still collapses thousands to "12k".
   const formatCompact = (val: number) =>
-    formatCurrency(val, { symbol, compact: true, decimals: 0 });
+    formatCurrency(val, {
+      symbol,
+      compact: true,
+      decimals: Math.abs(val) >= 1000 ? 0 : axis.decimals,
+    });
 
   return (
     <View style={{ width }}>

@@ -108,10 +108,41 @@ export default function App() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    /**
+     * getSession() can hang.
+     *
+     * With persistSession + autoRefreshToken it may attempt a token refresh
+     * over the network, and on a cold start with a slow or half-open
+     * connection that promise neither resolves nor rejects. setLoading(false)
+     * lived only in .then(), so the app sat on the boot logo forever -- the
+     * intermittent freeze reported on device.
+     *
+     * The session is restored from AsyncStorage regardless; onAuthStateChange
+     * below delivers it as soon as it lands. So the safe behaviour is to stop
+     * blocking after a short wait and let the auth listener correct us.
+     */
+    const stopWaiting = () => {
+      if (!cancelled) setLoading(false);
+    };
+    const timeout = setTimeout(stopWaiting, 4000);
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        setSession(session);
+      })
+      .catch(err => {
+        // A failed restore is not a fatal error: the user simply sees the
+        // sign-in screen instead of being stuck on the splash.
+        console.warn('[Seven Journal] session restore failed', err);
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        stopWaiting();
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
@@ -121,7 +152,11 @@ export default function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Hide native splash once our AnimatedSplashScreen component has mounted

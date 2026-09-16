@@ -118,6 +118,18 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                     />
                   }
                 />
+                {notifications.prefs.journalReminder ? (
+                  <ChipRow
+                    theme={theme}
+                    options={JOURNAL_HOURS.map(h => ({
+                      value: h,
+                      label: `${String(h).padStart(2, '0')}h`,
+                    }))}
+                    selected={notifications.prefs.journalHour}
+                    onSelect={v => notifications.prefs.set({ journalHour: v })}
+                    accessibilityLabel={t('journalReminder')}
+                  />
+                ) : null}
                 <Hairline inset={38} />
                 <Row
                   icon={<Bell size={15} color={theme.colors.textMuted} strokeWidth={1.75} />}
@@ -137,6 +149,15 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                     />
                   }
                 />
+                {notifications.prefs.riskAlerts ? (
+                  <ChipRow
+                    theme={theme}
+                    options={RISK_THRESHOLDS.map(v => ({ value: v, label: `${v}%` }))}
+                    selected={notifications.prefs.riskThresholdPct}
+                    onSelect={v => notifications.prefs.set({ riskThresholdPct: v })}
+                    accessibilityLabel={t('riskAlerts')}
+                  />
+                ) : null}
                 <Hairline inset={38} />
                 <Row
                   icon={<Clock size={15} color={theme.colors.textMuted} strokeWidth={1.75} />}
@@ -156,6 +177,30 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                     />
                   }
                 />
+                {notifications.prefs.weeklyReview ? (
+                  <>
+                    <ChipRow
+                      theme={theme}
+                      options={WEEKDAYS.map((labelKey, i) => ({
+                        value: i + 1,
+                        label: t(labelKey as never),
+                      }))}
+                      selected={notifications.prefs.weeklyDay}
+                      onSelect={v => notifications.prefs.set({ weeklyDay: v })}
+                      accessibilityLabel={t('weeklyReview')}
+                    />
+                    <ChipRow
+                      theme={theme}
+                      options={WEEKLY_HOURS.map(h => ({
+                        value: h,
+                        label: `${String(h).padStart(2, '0')}h`,
+                      }))}
+                      selected={notifications.prefs.weeklyHour}
+                      onSelect={v => notifications.prefs.set({ weeklyHour: v })}
+                      accessibilityLabel={t('weeklyReview')}
+                    />
+                  </>
+                ) : null}
               </>
             ) : null}
 
@@ -215,6 +260,59 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
   );
 };
 
+/**
+ * Offered times, rather than a free numeric input.
+ *
+ * A wheel picker for an hour is a native dependency and a modal for a value
+ * with about six sensible answers. Journaling happens after the session
+ * closes; the weekly review before the week opens.
+ */
+const JOURNAL_HOURS = [17, 18, 19, 20, 21, 22, 23];
+const WEEKLY_HOURS = [8, 10, 12, 17, 18, 19, 20, 21];
+const RISK_THRESHOLDS = [50, 60, 70, 80, 90];
+/** Sunday-first, matching the WEEKLY trigger's weekday numbering (1 = Sun). */
+const WEEKDAYS = [
+  'daySunShort',
+  'dayMonShort',
+  'dayTueShort',
+  'dayWedShort',
+  'dayThuShort',
+  'dayFriShort',
+  'daySatShort',
+];
+
+/** Horizontal single-choice chips, indented to sit under a settings row. */
+const ChipRow: React.FC<{
+  theme: AppTheme;
+  options: { value: number; label: string }[];
+  selected: number;
+  onSelect: (value: number) => void;
+  accessibilityLabel: string;
+}> = ({ theme, options, selected, onSelect, accessibilityLabel }) => {
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipRow}
+    >
+      {options.map(opt => {
+        const active = opt.value === selected;
+        return (
+          <PressableScale
+            key={opt.value}
+            onPress={() => onSelect(opt.value)}
+            style={[styles.chip, active && styles.chipActive]}
+            accessibilityLabel={`${accessibilityLabel} ${opt.label}`}
+          >
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
+          </PressableScale>
+        );
+      })}
+    </ScrollView>
+  );
+};
+
 const Row: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -260,6 +358,32 @@ const Row: React.FC<{
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
+    chipRow: {
+      // Aligned with the row text above, which clears the icon gutter.
+      paddingLeft: 38,
+      paddingRight: 14,
+      paddingBottom: 10,
+      gap: 6,
+    },
+    chip: {
+      paddingHorizontal: 11,
+      paddingVertical: 6,
+      borderRadius: 7,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
+    },
+    chipActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: withAlpha(theme.colors.primary, 0.14),
+    },
+    chipText: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.4,
+    },
+    chipTextActive: { color: theme.colors.primary },
     overlay: { flex: 1, backgroundColor: withAlpha(theme.colors.scrim, 0.6), justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: theme.colors.modalBg,

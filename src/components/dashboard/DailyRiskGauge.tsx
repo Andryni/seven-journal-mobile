@@ -71,18 +71,20 @@ export const DailyRiskGauge: React.FC<DailyRiskGaugeProps> = ({ trades, account 
    * the daily allowance — the point where the decision to stop is still theirs
    * rather than the lock's. Deduplicated per day via a ref.
    */
-  const { notifyRiskThreshold } = useNotifications();
+  const { notifyRiskThreshold, prefs: notifPrefs } = useNotifications();
+  // User-set, not a constant: see NotificationPrefs.riskThresholdPct.
+  const riskTrigger = Math.min(99, Math.max(10, notifPrefs.riskThresholdPct)) / 100;
   const notifiedForDay = useRef<string | null>(null);
   useEffect(() => {
     const today = new Date().toDateString();
-    if (ratio >= 0.7 && ratio < 1 && notifiedForDay.current !== today) {
+    if (ratio >= riskTrigger && ratio < 1 && notifiedForDay.current !== today) {
       notifiedForDay.current = today;
       void notifyRiskThreshold(ratio * 100, money(limit - Math.abs(todayPnL)));
     }
     if (ratio < 0.7 && notifiedForDay.current === today) {
       notifiedForDay.current = null;
     }
-  }, [ratio, limit, todayPnL, notifyRiskThreshold]);
+  }, [ratio, limit, todayPnL, notifyRiskThreshold, riskTrigger]);
 
   const alarm = useSharedValue(1);
   const isDanger = ratio >= 0.8;

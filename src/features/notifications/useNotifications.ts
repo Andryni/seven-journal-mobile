@@ -29,7 +29,19 @@ export interface NotificationPrefs {
   /** Local hour (0-23) for the journaling reminder. */
   journalHour: number;
   riskAlerts: boolean;
+  /**
+   * Share of the daily loss limit that triggers the alert, as a percentage.
+   *
+   * Was hardcoded at 70. A trader risking 1% a day and one risking 5% do not
+   * want to be warned at the same point, and the whole value of the alert is
+   * that it fires while there is still room to stop.
+   */
+  riskThresholdPct: number;
   weeklyReview: boolean;
+  /** Local day (1 = Sunday ... 7 = Saturday) for the weekly review. */
+  weeklyDay: number;
+  /** Local hour (0-23) for the weekly review. */
+  weeklyHour: number;
 }
 
 interface NotificationState extends NotificationPrefs {
@@ -43,7 +55,10 @@ export const useNotificationPrefs = create<NotificationState>()(
       journalReminder: true,
       journalHour: 21,
       riskAlerts: true,
+      riskThresholdPct: 70,
       weeklyReview: true,
+      weeklyDay: 1,
+      weeklyHour: 19,
       set: patch => set(patch),
     }),
     {
@@ -120,13 +135,20 @@ export function useNotifications() {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          weekday: 1, // Sunday
-          hour: 19,
+          weekday: prefs.weeklyDay,
+          hour: prefs.weeklyHour,
           minute: 0,
         },
       });
     }
-  }, [prefs.enabled, prefs.journalReminder, prefs.journalHour, prefs.weeklyReview]);
+  }, [
+    prefs.enabled,
+    prefs.journalReminder,
+    prefs.journalHour,
+    prefs.weeklyReview,
+    prefs.weeklyDay,
+    prefs.weeklyHour,
+  ]);
 
   useEffect(() => {
     void sync();

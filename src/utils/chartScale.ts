@@ -29,6 +29,17 @@ export interface AxisScale {
   ticks: number[];
   /** Maps a data value to a 0..1 position, 0 being `min`. */
   normalize: (value: number) => number;
+  /**
+   * Decimals a tick label needs so that two adjacent ticks never print the
+   * same text.
+   *
+   * A chart hardcoding 0 decimals on a sub-unit axis rendered the steps
+   * -1.5, -1, -0.5, 0 as "-$2, -$1, -$1, $0": two different gridlines
+   * carrying one label, and a top tick reading 2 when the value is 1.5. On a
+   * drawdown curve, where every point is small and negative, that made the
+   * axis unreadable. Derived from the step, so it is right at any scale.
+   */
+  decimals: number;
 }
 
 /**
@@ -41,7 +52,7 @@ export interface AxisScale {
 export function buildAxis(values: number[], targetTicks = 4): AxisScale {
   const finite = values.filter(v => Number.isFinite(v));
   if (finite.length === 0) {
-    return { min: 0, max: 1, ticks: [0, 1], normalize: () => 0 };
+    return { min: 0, max: 1, ticks: [0, 1], normalize: () => 0, decimals: 0 };
   }
 
   let lo = Math.min(...finite, 0);
@@ -67,11 +78,17 @@ export function buildAxis(values: number[], targetTicks = 4): AxisScale {
   }
 
   const span = max - min || 1;
+
+  // A step of 0.5 needs one decimal, 0.25 needs two, 1 or more needs none.
+  const decimals =
+    step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step)));
+
   return {
     min,
     max,
     ticks,
     normalize: (value: number) => (value - min) / span,
+    decimals,
   };
 }
 

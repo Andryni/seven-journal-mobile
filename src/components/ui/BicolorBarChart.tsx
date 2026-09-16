@@ -18,6 +18,14 @@ interface BicolorBarChartProps {
   height?: number;
   width?: number;
   yAxisPrefix?: string;
+  /**
+   * Unit written AFTER the number, for axes that are not money.
+   *
+   * The prop-firm consistency chart plots each day's share of total P&L --
+   * a percentage -- but had no way to say so, so it borrowed the account's
+   * currency symbol and rendered "$18" where the value means 18%.
+   */
+  yAxisSuffix?: string;
 }
 
 const MIN_BAR_WIDTH = 28; // minimum px per bar (bar + gap)
@@ -28,6 +36,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   height = 160,
   width = MIN_CHART_WIDTH,
   yAxisPrefix = '$',
+  yAxisSuffix,
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -82,7 +91,14 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
   const activeItem = safeIdx !== null ? data[safeIdx] : data[data.length - 1];
 
   const formatCompact = (val: number) =>
-    formatCurrency(val, { symbol: yAxisPrefix, compact: true, showPlus: false, decimals: 0 });
+    yAxisSuffix
+      ? `${Math.round(Math.abs(val))}${yAxisSuffix}`
+      : formatCurrency(val, {
+          symbol: yAxisPrefix,
+          compact: true,
+          showPlus: false,
+          decimals: 0,
+        });
 
   const chartContent = (
     <View style={[styles.container, { height: totalHeight, width: effectiveChartWidth + yAxisWidth }]}>
@@ -93,7 +109,7 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
             +{formatCompact(maxVal)}
           </Text>
           <Text style={[styles.yAxisLabel, styles.yAxisMid, { top: zeroY - 7 }]}>
-            {yAxisPrefix}0
+            {yAxisSuffix ? `0${yAxisSuffix}` : `${yAxisPrefix}0`}
           </Text>
           <Text style={[styles.yAxisLabel, styles.yAxisBottom, styles.redText]}>
             -{formatCompact(maxVal)}
@@ -210,7 +226,9 @@ export const BicolorBarChart: React.FC<BicolorBarChartProps> = ({
         adjustsFontSizeToFit
         minimumFontScale={0.8}
       >
-        {formatCurrency(activeItem.value, { symbol: yAxisPrefix })}
+        {yAxisSuffix
+          ? `${activeItem.value.toFixed(1)}${yAxisSuffix}`
+          : formatCurrency(activeItem.value, { symbol: yAxisPrefix })}
       </Text>
     </View>
   ) : null;
