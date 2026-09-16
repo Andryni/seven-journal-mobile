@@ -22,6 +22,8 @@ import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { duration } from '../theme/motion';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react-native';
@@ -146,11 +148,13 @@ export const CalendarScreen: React.FC = () => {
         />
       }
     >
-      {/* ── HEADER ── */}
-      <View style={styles.header}>
+      {/* ── HEADER ──
+          Staggered like the dashboard: the screen assembles top-down instead
+          of appearing whole, which is the only motion cue this screen had. */}
+      <Animated.View entering={FadeInDown.duration(duration.base)} style={styles.header}>
         <Text style={styles.screenTitle}>{t('screenTitleCalendar')}</Text>
         <Text style={styles.screenSubtitle}>{t('screenSubtitleCalendar')}</Text>
-      </View>
+      </Animated.View>
 
       {mixedCurrencies ? (
         <View style={styles.warnBanner}>
@@ -164,7 +168,10 @@ export const CalendarScreen: React.FC = () => {
       ) : null}
 
       {/* ── MONTHLY HERO METRICS ── */}
-      <View style={styles.heroMonthCard}>
+      <Animated.View
+        entering={FadeInDown.delay(70).duration(duration.base)}
+        style={styles.heroMonthCard}
+      >
         <LinearGradient
           colors={[theme.colors.surface, theme.colors.background]}
           start={{ x: 0, y: 0 }}
@@ -191,7 +198,7 @@ export const CalendarScreen: React.FC = () => {
             </View>
           </View>
         </LinearGradient>
-      </View>
+      </Animated.View>
 
       {/* ── FRAMED CALENDAR SECTION ── */}
       <View style={styles.calendarFrame}>

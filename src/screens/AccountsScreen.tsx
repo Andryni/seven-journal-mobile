@@ -20,6 +20,8 @@ import { formatCurrency, currencySymbol, CURRENCIES } from '../utils/formatCurre
 import { useUIStore } from '../store/uiStore';
 import type { TradingAccount, AccountType, Trade, MarketType } from '../types/domain';
 import { MARKET_TYPES } from '../utils/positionSizing';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { duration, stagger } from '../theme/motion';
 import { useMarketUnitLabel } from '../features/accounts/useMarket';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { withAlpha } from '../theme';
@@ -186,7 +188,7 @@ export const AccountsScreen: React.FC = () => {
     );
   };
 
-  const renderAccountItem = ({ item }: { item: TradingAccount }) => {
+  const renderAccountItem = ({ item, index }: { item: TradingAccount; index: number }) => {
     const isSelected = activeAccountId === item.id;
     const isProp = item.type === 'challenge' || item.type === 'funded';
 
@@ -207,6 +209,9 @@ export const AccountsScreen: React.FC = () => {
     const money = (v: number, o = {}) => formatCurrency(v, { symbol: sym, ...o });
 
     return (
+      /* Staggered entrance, matching the blotter: the list assembles rather
+         than appearing all at once, which also makes the order readable. */
+      <Animated.View entering={FadeInDown.delay(stagger(index)).duration(duration.fast)}>
       <TouchableOpacity
         style={[styles.accountCard, isSelected && styles.selectedCard]}
         onPress={() => setActiveAccountId(isSelected ? null : item.id)}
@@ -344,6 +349,7 @@ export const AccountsScreen: React.FC = () => {
           </View>
         )}
       </TouchableOpacity>
+      </Animated.View>
     );
   };
 
