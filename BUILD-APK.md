@@ -27,9 +27,36 @@ C'est aussi le seul build qui affiche la vraie icône sur le lanceur.
 
 ```
 npx eas login
+npx eas whoami
 ```
 
 Compte Expo gratuit : <https://expo.dev/signup>.
+
+---
+
+## Étape 1 bis — Rattacher le projet à VOTRE compte
+
+`app.json` est arrivé avec un `projectId` hérité du dépôt d'origine, qui
+pointait vers le compte Expo de quelqu'un d'autre. Toute commande EAS
+répondait alors :
+
+```
+You don't have the required permissions to perform this operation.
+Entity not authorized: AppEntity[e7d3541d-...]
+```
+
+Ce n'était donc **pas** un problème de connexion. Le `projectId` a été retiré ;
+la commande suivante en crée un neuf sur votre compte et le réécrit dans
+`app.json` :
+
+```
+npx eas init
+```
+
+Répondez **oui** à la création du projet. À faire une seule fois.
+
+> Le nouveau `projectId` sera commité dans `app.json`. C'est voulu : ce n'est
+> pas un secret, juste l'identifiant du projet, et il doit suivre le dépôt.
 
 ---
 
@@ -45,8 +72,8 @@ l'APK se construit sans erreur, s'installe, puis reste bloqué à la connexion
 Ouvrez votre `.env` et recopiez les deux valeurs :
 
 ```
-npx eas env:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://VOTRE_REF.supabase.co" --visibility plaintext --environment preview
-npx eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "VOTRE_ANON_KEY" --visibility plaintext --environment preview
+npx eas env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://VOTRE_REF.supabase.co" --visibility plaintext --environment preview
+npx eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "VOTRE_ANON_KEY" --visibility plaintext --environment preview
 ```
 
 Vérifiez :
@@ -54,6 +81,10 @@ Vérifiez :
 ```
 npx eas env:list --environment preview
 ```
+
+> `env:create` existait dans les anciennes versions du CLI et affiche
+> aujourd'hui « This command is deprecated. Use env:set instead. » — c'est un
+> simple avertissement, mais autant utiliser `env:set`.
 
 Les deux variables doivent apparaître.
 
