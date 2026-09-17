@@ -28,6 +28,8 @@ import { TradeDetailModal } from '../components/trades/TradeDetailModal';
 import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { Sparkline } from '../components/ui/Sparkline';
+import { MorningBriefCard } from '../components/dashboard/MorningBriefCard';
+import { usePlaybook } from '../features/playbook/usePlaybook';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { duration, stagger } from '../theme/motion';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -102,6 +104,8 @@ export const DashboardScreen: React.FC = () => {
   );
 
   const { refreshing, onRefresh } = useRefresh();
+  // The morning brief reads yesterday's debrief (objective, mental, mistakes).
+  const { debriefs } = usePlaybook();
 
   const m = usePerformanceMetrics(scopedTrades, lang);
 
@@ -169,6 +173,10 @@ export const DashboardScreen: React.FC = () => {
         />
       }
     >
+      {/* The morning brief rides above the hero: it is the one panel
+          addressed to the trader, not to their data. */}
+      <MorningBriefCard trades={scopedTrades} debriefs={debriefs} />
+
       {/* A combined total across currencies is not a quantity. Say so rather
           than stamping one symbol on a sum of euros and dollars. */}
       {mixedCurrencies ? (
