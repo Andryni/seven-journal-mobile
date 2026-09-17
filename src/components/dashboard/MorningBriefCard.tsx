@@ -1,11 +1,10 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Sunrise, Target, CalendarDays, Brain } from 'lucide-react-native';
+import { Target, CalendarDays, Brain } from 'lucide-react-native';
 import { Panel } from '../ui/Panel';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
-import { mentalStateLabel } from '../../i18n';
 import {
   buildMorningBrief,
   isBriefEmpty,
@@ -49,7 +48,7 @@ export const MorningBriefCard: React.FC<{ trades: Trade[]; debriefs: DailyDebrie
   ] as const;
 
   return (
-    <Panel>
+    <Panel title={t('mbTitle')}>
       {/* Line 1 — the objective the trader set themselves */}
       {brief.objective ? (
         <View style={styles.objective}>
@@ -116,40 +115,17 @@ export const MorningBriefCard: React.FC<{ trades: Trade[]; debriefs: DailyDebrie
           </Text>
         </View>
       ) : null}
-
-      {/* Header last so flex order stays: lines first, kicker on top via
-          absolute — actually placed first in DOM below. */}
-      <View style={styles.kickerRow} pointerEvents="none">
-        <Sunrise size={12} color={theme.colors.gold} />
-        <Text style={styles.kicker}>{t('mbTitle')}</Text>
-      </View>
     </Panel>
   );
 };
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
-    kickerRow: {
-      position: 'absolute',
-      top: -9,
-      left: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 8,
-      backgroundColor: theme.colors.card,
-    },
-    kicker: {
-      color: theme.colors.gold,
-      fontSize: theme.type.micro,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 1.2,
-    },
     objective: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 8,
-      paddingVertical: 8,
+      paddingVertical: 6,
       borderLeftWidth: 2,
       borderLeftColor: theme.colors.primary,
       paddingLeft: 10,
