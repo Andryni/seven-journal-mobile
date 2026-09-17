@@ -110,8 +110,34 @@ describe('buildMorningBrief', () => {
       trade({ setup_structures: ['FVG retest'] }),
       trade({ setup_structures: ['Liquidity sweep'] }),
     ];
-    const b = buildMorningBrief(trades, [], WEDNESDAY);
+    const b = buildMorningBrief(trades, [], WEDNESDAY, [
+      'FVG retest',
+      'Liquidity sweep',
+    ]);
     expect(b.stats.favouriteSetup).toBe('FVG retest');
+  });
+
+  it('matches playbook titles case-insensitively, on a trimmed string', () => {
+    const trades = [trade({ setup_structures: ['  fvg Retest  '] })];
+    const b = buildMorningBrief(trades, [], WEDNESDAY, ['FVG Retest']);
+    expect(b.stats.favouriteSetup).toBe('FVG Retest');
+  });
+
+  it('never names a setup outside the playbook (legacy BOS tag)', () => {
+    // Reported as "surtout en BOS" to a trader whose playbook has no BOS:
+    // setup_structures still holds fixed ICT labels from an older app
+    // version. Only the user's own strategies may be named.
+    const trades = [
+      trade({ setup_structures: ['BOS'] }),
+      trade({ setup_structures: ['BOS'] }),
+      trade({ setup_structures: ['BOS'] }),
+      trade({ setup_structures: ['FVG retest'] }),
+    ];
+    const noPlaybook = buildMorningBrief(trades, [], WEDNESDAY);
+    expect(noPlaybook.stats.favouriteSetup).toBeNull();
+
+    const withPlaybook = buildMorningBrief(trades, [], WEDNESDAY, ['FVG retest']);
+    expect(withPlaybook.stats.favouriteSetup).toBe('FVG retest');
   });
 
   it('hands over yesterday\'s mental score and mistakes', () => {
@@ -131,6 +157,11 @@ describe('buildMorningBrief', () => {
     expect(isBriefEmpty(b)).toBe(true);
     const b2 = buildMorningBrief([trade()], [], WEDNESDAY);
     expect(isBriefEmpty(b2)).toBe(false);
+  });
+
+  it('aggregates history, never today: trades logged today are excluded', () => {
+    const b = buildMorningBrief([trade({ entry_time: '2026-09-16T10:00:00' })], [], WEDNESDAY);
+    expect(b.stats.dayTrades).toBe(0);
   });
 });
 

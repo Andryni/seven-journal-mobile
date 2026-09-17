@@ -12,11 +12,13 @@ import { duration, stagger } from '../theme/motion';
 import { PlaybookScreen } from './PlaybookScreen';
 import { AccountsScreen } from './AccountsScreen';
 import { WeeklyReviewScreen } from './WeeklyReviewScreen';
+import { MonthlyReviewScreen } from './MonthlyReviewScreen';
+import { YearlyReviewScreen } from './YearlyReviewScreen';
 import { SettingsSheet } from '../components/settings/SettingsSheet';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 
-type Route = 'menu' | 'playbook' | 'accounts' | 'weekly';
+type Route = 'menu' | 'playbook' | 'accounts' | 'weekly' | 'monthly' | 'yearly';
 
 /**
  * "More" — collapses Playbook, Accounts and Settings behind one tab.
@@ -67,12 +69,38 @@ export const MoreScreen: React.FC = () => {
     </SubScreen>;
   }
 
+  if (route === 'monthly') {
+    return <SubScreen title={t('monthlyReview')} onBack={() => setRoute('menu')} theme={theme}>
+      <MonthlyReviewScreen />
+    </SubScreen>;
+  }
+
+  if (route === 'yearly') {
+    return <SubScreen title={t('yearlyReview')} onBack={() => setRoute('menu')} theme={theme}>
+      <YearlyReviewScreen />
+    </SubScreen>;
+  }
+
   const entries = [
     {
       id: 'weekly' as const,
       icon: <CalendarRange size={17} color={theme.colors.primary} strokeWidth={1.75} />,
       title: t('weeklyReview'),
       sub: t('moreWeeklySub'),
+      count: null as number | null,
+    },
+    {
+      id: 'monthly' as const,
+      icon: <CalendarRange size={17} color={theme.colors.primary} strokeWidth={1.75} />,
+      title: t('monthlyReview'),
+      sub: t('moreMonthlySub'),
+      count: null as number | null,
+    },
+    {
+      id: 'yearly' as const,
+      icon: <CalendarRange size={17} color={theme.colors.primary} strokeWidth={1.75} />,
+      title: t('yearlyReview'),
+      sub: t('moreYearlySub'),
       count: null as number | null,
     },
     {

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Trade } from '../../types/domain';
+import { startOfDay } from './periodReview';
 
 export interface Breakdown {
   key: string;
@@ -12,6 +13,10 @@ export interface WeeklyReview {
   hasData: boolean;
   rangeStart: Date;
   rangeEnd: Date;
+  /** Local midnight, Monday of the week before the reviewed one. */
+  prevStart: Date;
+  /** False when the week is empty and there is no earlier week to show. */
+  canGoPrev: boolean;
   netPnL: number;
   /** Change vs the previous week, in currency. */
   deltaPnL: number;
@@ -27,6 +32,12 @@ export interface WeeklyReview {
   recurringMistake: { state: string; count: number } | null;
   /** Per-day P&L for the week, Monday-first. */
   dailyPnL: { label: string; value: number }[];
+  /** Previous week's net, for comparison displays. */
+  prevPnL: number;
+  /** Previous week's trade count. */
+  prevTrades: number;
+  /** Cumulative P&L per trading day of the week, for the mini curve. */
+  cumPnL: number[];
 }
 
 const DAY_MS = 86_400_000;
@@ -75,8 +86,10 @@ function setupKey(t: Trade): string | null {
  * Weekly Review — turns the journal from an archive into a feedback loop.
  *
  * A trader rarely reads 200 rows looking for a pattern. This answers, for the
- * last 7 days: did I improve, which setup paid, which one bled, when do I
- * trade best, and which emotional state keeps showing up.
+ * anchored week (the live one by default): did I improve, which setup paid,
+ * which one bled, when do I trade best, and which emotional state keeps
+ * showing up. `now` is an anchor, so callers can page back week by week and
+ * every figure — including "vs last week" — recomputes around that week.
  */
 export function useWeeklyReview(trades: Trade[], now: Date = new Date()): WeeklyReview {
   return useMemo(() => {
@@ -128,10 +141,38 @@ export function useWeeklyReview(trades: Trade[], now: Date = new Date()): Weekly
       };
     });
 
+    // Navigation guard: offer the prev arrow only when an earlier week
+    // exists in the journal, so paging never lands on a week of zeros.
+    const earliest = closed.reduce<number | null>((min, t) => {
+      const d = startOfDay(new Date(t.exit_time || t.entry_time));
+      if (Number.isNaN(d.getTime())) return min;
+      const ts = startOfWeek(d).getTime();
+      return min === null || ts < min ? ts : min;
+    }, null);
+    const canGoPrev = earliest !== null && prevStart.getTime() >= earliest;
+
+    // Comparison and mini-curve data, mirroring the monthly review.
+    const prevPnL = Math.round(sum(prev) * 100) / 100;
+    const perDayMap = new Map<number, number>();
+    for (const t of week) {
+      const d = startOfDay(new Date(t.exit_time || t.entry_time));
+      if (Number.isNaN(d.getTime())) continue;
+      perDayMap.set(d.getTime(), (perDayMap.get(d.getTime()) ?? 0) + (t.pnl || 0));
+    }
+    let acc = 0;
+    const cumPnL = [...perDayMap.keys()]
+      .sort((a, b) => a - b)
+      .map(ts => {
+        acc += perDayMap.get(ts) || 0;
+        return Math.round(acc * 100) / 100;
+      });
+
     return {
       hasData: week.length > 0,
       rangeStart,
       rangeEnd,
+      prevStart,
+      canGoPrev,
       netPnL,
       deltaPnL,
       trades: week.length,
@@ -143,6 +184,9 @@ export function useWeeklyReview(trades: Trade[], now: Date = new Date()): Weekly
       bestSession: sessions.length ? sessions[0] : null,
       recurringMistake: topTilt ? { state: topTilt[0], count: topTilt[1] } : null,
       dailyPnL,
+      prevPnL,
+      prevTrades: prev.length,
+      cumPnL,
     };
   }, [trades, now]);
 }

@@ -312,10 +312,15 @@ export function useAnalytics({
   }, [closed, lang]);
 
   // 9. HOLDING TIME ANALYSIS
+  // Bucketed on exit_time - entry_time, the same two timestamps the trade
+  // detail shows. Trades with no exit timestamp are excluded, not bucketed
+  // as "0 minutes": an open or half-logged position has no duration, and
+  // counting it at zero flattened the <5m bucket with phantom scalps.
   const holdingTimeData = useMemo(() => {
-    const getMinutes = (t: Trade): number => {
-      if (!t.entry_time || !t.exit_time) return 0;
-      return (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / 60000;
+    const getMinutes = (t: Trade): number | null => {
+      if (!t.entry_time || !t.exit_time) return null;
+      const ms = new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime();
+      return Number.isFinite(ms) && ms >= 0 ? ms / 60000 : null;
     };
     const buckets = [
       { label: '<5m', min: 0, max: 5 },
@@ -328,7 +333,7 @@ export function useAnalytics({
     return buckets.map(b => {
       const inBucket = closed.filter(t => {
         const mins = getMinutes(t);
-        return mins >= b.min && mins < b.max;
+        return mins !== null && mins >= b.min && mins < b.max;
       });
       const winsInBucket = inBucket.filter(t => (t.pnl || 0) > 0);
       // Win rate alone lies about a bucket: 65% WR at -0.4R average is a

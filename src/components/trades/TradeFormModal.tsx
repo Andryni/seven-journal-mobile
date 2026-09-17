@@ -56,12 +56,25 @@ import {
   TriangleAlert,
 } from 'lucide-react-native';
 import { estimatePnl } from '../../utils/positionSizing';
+import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { isOutcomeInconsistent } from '../../utils/tradeOutcome';
 import { parseTagInput, normalizeTags } from '../../utils/tradeTags';
 import { TwinTradeHint } from './TwinTradeHint';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
 const SESSION_IDS = ['', 'Asia', 'London', 'New York', 'Over Session'] as const;
+
+/**
+ * Session guessed from the entry hour, in the phone's local time. Windows are
+ * generous approximations of the form's own session picker (Asia / London /
+ * New York); the guess seeds the field, a manual pick always wins.
+ */
+function detectSession(
+  d: Date
+): 'Asia' | 'London' | 'New York' | 'Over Session' {
+  const h = d.getHours();
+  return h < 7 ? 'Asia' : h < 13 ? 'London' : h < 22 ? 'New York' : 'Over Session';
+}
 
 const MENTAL_STATE_IDS: MentalState[] = ['focused', 'anxious', 'greedy', 'revenge', 'fomo', 'tired'];
 
@@ -115,10 +128,17 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   // Calculated / Manual Overwrite
   const [manualPnl, setManualPnl] = useState('');
+  // Costs are opt-in: many brokers / prop firms charge no commission, and
+  // swap only applies to positions held overnight. Both default to OFF so
+  // the fields stay out of the way, and enabling one blank (never "0.00",
+  // which would read as a recorded zero cost).
   const [commission, setCommission] = useState('');
   const [swap, setSwap] = useState('');
+  const [costsEnabled, setCostsEnabled] = useState(false);
+
   const [maePrice, setMaePrice] = useState('');
   const [mfePrice, setMfePrice] = useState('');
+  const [excursionsEnabled, setExcursionsEnabled] = useState(false);
   const [tagsInput, setTagsInput] = useState('');
 
   /**
@@ -180,6 +200,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     return Number.isFinite(r) ? r : null;
   }, [direction, entryPrice, exitPrice, stopLoss]);
 
+  /**
+   * Excursion fields: optional by default, revealed behind a toggle, and
+   * labelled in plain language — "MAE/MFE" are chart-platform jargon, the
+   * worst/best price the trade reached is what the trader actually has on
+   * screen. Still fully computed (R preview, excursion analytics) whenever
+   * they are filled in.
+   */
+
   // Section 2: Strategy & Setup (Playbook Only)
   const [selectedSetupTitle, setSelectedSetupTitle] = useState('');
 
@@ -208,6 +236,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setDirection(editingTrade.direction);
       setTimeframe(editingTrade.timeframe);
       setSession(editingTrade.session || '');
+      // The stored session is ground truth while editing; auto-detect must
+      // not silently rewrite an already-recorded trade's session.
+      setSessionTouched(true);
       setSize(editingTrade.size.toString());
       setEntryPrice(editingTrade.entry_price.toString());
       setStopLoss(editingTrade.stop_loss.toString());
@@ -220,12 +251,20 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         setExitDateObj(null);
       }
       setResult(editingTrade.result);
+      setResultTouched(true); // editing: keep the recorded outcome as-is
       setManualPnl(editingTrade.pnl !== null ? editingTrade.pnl.toString() : '');
       // 0 is a meaningful value ("no cost"), so only blank out null/undefined.
+      // A recorded non-zero cost reopens its section enabled; absent costs
+      // start collapsed, exactly like a fresh entry.
       setCommission(editingTrade.commission != null ? String(editingTrade.commission) : '');
       setSwap(editingTrade.swap != null ? String(editingTrade.swap) : '');
+      setCostsEnabled(
+        (editingTrade.commission != null && editingTrade.commission !== 0) ||
+        (editingTrade.swap != null && editingTrade.swap !== 0)
+      );
       setMaePrice(editingTrade.mae_price != null ? String(editingTrade.mae_price) : '');
       setMfePrice(editingTrade.mfe_price != null ? String(editingTrade.mfe_price) : '');
+      setExcursionsEnabled(editingTrade.mae_price != null || editingTrade.mfe_price != null);
       setTagsInput(normalizeTags(editingTrade.tags ?? []).join(', '));
       setManualRMultiple(editingTrade.r_multiple !== null ? editingTrade.r_multiple.toString() : '');
       setSelectedSetupTitle(
@@ -252,7 +291,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setShowTimePicker(false);
     setDirection('BUY');
     setTimeframe('M5');
-    setSession('London');
+    setSession(detectSession(new Date()));
+    setSessionTouched(false);
     setSize('1.0');
     setEntryPrice('');
     setStopLoss('');
@@ -262,13 +302,16 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setShowExitDatePicker(false);
     setShowExitTimePicker(false);
     setResult('OPEN');
+    setResultTouched(false);
     setRiskType('percent');
     setRiskValue('1');
     setManualPnl('');
     setCommission('');
     setSwap('');
+    setCostsEnabled(false);
     setMaePrice('');
     setMfePrice('');
+    setExcursionsEnabled(false);
     setTagsInput('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
@@ -311,6 +354,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     [accountMarket],
   );
   const sizeUnit = unitForMarket(accountMarket);
+  // Localised noun for the size field (lots / contracts / units) — the label
+  // must follow the account's market, not a hard-coded CFD vocabulary.
+  const sizeUnitLabel = useSizeUnitLabel(sizeUnit);
 
   // Switching to an account of another market leaves the old symbol selected,
   // which would be saved against a spec that does not apply to it.
@@ -426,6 +472,55 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     }
   }, [entryPrice, stopLoss, takeProfit, exitPrice, direction, result, size, riskValue, riskType, accountId, accounts, pair]);
 
+  // ── Session auto-detect ──
+  // The session is a function of the entry time, so asking for it was a
+  // question the form already had the answer to. The field follows the clock
+  // while untouched — including over the placeholder default — and a manual
+  // pick stops the following for good until the form resets.
+  const [sessionTouched, setSessionTouched] = useState(false);
+  const detectedSession = useMemo(() => detectSession(entryDateObj), [entryDateObj]);
+
+  useEffect(() => {
+    if (!sessionTouched) setSession(detectedSession);
+  }, [detectedSession, sessionTouched]);
+
+  // ── Result auto-detect from the exit price ──
+  // Typing an exit price is the moment the outcome is known; the result pill
+  // followed it. A manual pick still wins, except when the exit price changes
+  // and the previously chosen pill no longer matches it — then the pill
+  // follows the price, because a stale TP label on an SL exit is exactly the
+  // kind of quiet data error a journal exists to catch. BE: exit within
+  // 10% of the stop distance from entry, which is what "scratched near
+  // entry" means to a trader (see calculateRMultiple for the same maths).
+  const autoResult = useMemo<null | 'TP' | 'SL' | 'BE'>(() => {
+    const entry = Number(entryPrice);
+    const exit = Number(exitPrice);
+    const sl = Number(stopLoss);
+    if (!entry || !exit || !sl || entry === sl) return null;
+    const riskDist = Math.abs(entry - sl);
+    const r = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
+    if (!Number.isFinite(r)) return null;
+    if (Math.abs(exit - entry) <= riskDist * 0.1) return 'BE';
+    return (direction === 'BUY' ? exit > entry : exit < entry) ? 'TP' : 'SL';
+  }, [entryPrice, exitPrice, stopLoss, direction]);
+
+  const [resultTouched, setResultTouched] = useState(false);
+
+  useEffect(() => {
+    if (autoResult === null) return;
+    setResult(prev => {
+      if (resultTouched && prev !== 'OPEN') {
+        // Manual choice, but does it still agree with the exit price?
+        const agrees =
+          (prev === 'TP' && autoResult === 'TP') ||
+          (prev === 'SL' && autoResult === 'SL') ||
+          (prev === 'BE' && autoResult === 'BE');
+        if (agrees) return prev;
+      }
+      return autoResult;
+    });
+  }, [autoResult, resultTouched]);
+
   // Image Picker Handler
   const pickImage = async (target: 'before' | 'after') => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -488,9 +583,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const exit = exitPrice ? Number(exitPrice) : null;
     const finalPnl = manualPnl ? Number(manualPnl) : null;
     // Costs are stored as positive magnitudes whatever the user typed, so the
-    // rest of the app never has to guess a sign convention.
-    const finalCommission = commission ? Math.abs(Number(commission)) : 0;
-    const finalSwap = swap ? Math.abs(Number(swap)) : 0;
+    // rest of the app never has to guess a sign convention. Disabled sections
+    // store an explicit 0 — "no commission / no swap on this trade" is real
+    // information, and hasCost() then hides the cost breakdown in the detail.
+    const finalCommission = costsEnabled && commission ? Math.abs(Number(commission)) : 0;
+    const finalSwap = costsEnabled && swap ? Math.abs(Number(swap)) : 0;
     // Excursions stay null when blank: "not recorded" must never become a
     // price of 0, which would read as a trade that collapsed to zero.
     const finalMae = maePrice ? Number(maePrice) : null;
@@ -607,10 +704,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
             {/* ── SECTION 1 : PARAMÈTRES PRINCIPAUX & DATE ── */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>                <Target color={theme.colors.primaryLight} size={13} style={{ marginRight: 6 }} />
-                {t('tfSection1')}
-
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <Target color={theme.colors.primaryLight} size={13} />
+                <Text style={styles.sectionTitle}>{t('tfSection1')}</Text>
+              </View>
 
               {/* Compte & Instrument / Paire */}
               <View style={styles.row2}>
@@ -855,9 +952,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
               <View style={styles.row2}>
                 <View style={styles.col}>
                   {/* Unit follows the account's market: lots for CFD, whole
-                      contracts for futures, coins for crypto. */}
+                      contracts for futures, coins for crypto. Both the
+                      translated noun and the hard-coded "LOTS" in the label
+                      key are gone — the unit_* keys were never defined, so the
+                      fallback printed LOTS on every market, contracts
+                      included. */}
                   <Text style={styles.fieldLabel}>
-                    {t('tfVolume')} ({t(`unit_${sizeUnit}` as never)})
+                    {t('tfVolume')} ({sizeUnitLabel}) *
                   </Text>
                   <TextInput
                     style={styles.input}
@@ -997,7 +1098,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               ) : null}
 
-              {/* Résultat & Prix de Sortie */}
+              {/* Résultat & Prix de Sortie. The auto badge tells the trader
+                  the pill now follows the exit price they typed; it is
+                  informational only and stays until they override. */}
               <View style={styles.row2}>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>{t('tfResult')}</Text>
@@ -1006,12 +1109,18 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                       <TouchableOpacity
                         key={res}
                         style={[styles.pill, result === res && styles.pillActive]}
-                        onPress={() => setResult(res)}
+                        onPress={() => {
+                          setResultTouched(true);
+                          setResult(res);
+                        }}
                       >
                         <Text style={[styles.pillText, result === res && styles.whiteText]}>{res}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
+                  {autoResult && !resultTouched ? (
+                    <Text style={styles.autoDetectedHint}>{t('tfAutoDetected', autoResult)}</Text>
+                  ) : null}
                 </View>
                 <View style={styles.col}>
                   <Text style={styles.fieldLabel}>{t('tfExitPrice')}</Text>
@@ -1140,61 +1249,133 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 </View>
               </View>
 
-              <View style={styles.row2}>
-                <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfCommission')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={`0.00 ${sym}`}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={commission}
-                    onChangeText={setCommission}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-                <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfSwap')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={`0.00 ${sym}`}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={swap}
-                    onChangeText={setSwap}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
+              {/* ── Coûts (optionnel) ── Off by default: most prop firms
+                  charge no commission, and swap only exists on positions held
+                  overnight. Enabling reveals the fields pre-blank — never a
+                  fake "0.00". */}
+              <View style={styles.optionalBox}>
+                <TouchableOpacity
+                  style={styles.optionalHeader}
+                  onPress={() =>
+                    setCostsEnabled(prev => {
+                      // Toggling off clears the hidden fields: what the form
+                      // shows is exactly what will be saved.
+                      if (prev) {
+                        setCommission('');
+                        setSwap('');
+                      }
+                      return !prev;
+                    })
+                  }
+                  activeOpacity={0.8}
+                  accessibilityRole="switch"
+                  accessibilityState={{ selected: costsEnabled }}
+                  accessibilityLabel={t('tfCostsToggle')}
+                >
+                  <Wallet size={13} color={theme.colors.textMuted} />
+                  <Text style={styles.optionalTitle}>{t('tfCostsToggle')}</Text>
+                  <View style={styles.optionalSpace} />
+                  <View style={[styles.switchTrack, costsEnabled && styles.switchTrackOn]}>
+                    <View style={[styles.switchKnob, costsEnabled && styles.switchKnobOn]} />
+                  </View>
+                </TouchableOpacity>
+                {costsEnabled ? (
+                  <>
+                    <View style={styles.row2}>
+                      <View style={styles.col}>
+                        <Text style={styles.fieldLabel}>{t('tfCommission')}</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder={`0.00 ${sym}`}
+                          placeholderTextColor={theme.colors.textMuted}
+                          value={commission}
+                          onChangeText={setCommission}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <View style={styles.col}>
+                        <Text style={styles.fieldLabel}>{t('tfSwap')}</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder={`0.00 ${sym}`}
+                          placeholderTextColor={theme.colors.textMuted}
+                          value={swap}
+                          onChangeText={setSwap}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                    </View>
+                    <Text style={styles.fieldHint}>{t('tfCostsHint')}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.fieldHint}>{t('tfCostsOffHint')}</Text>
+                )}
               </View>
-              <Text style={styles.fieldHint}>{t('tfCostsHint')}</Text>
 
-              <View style={styles.row2}>
-                <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfMaePrice')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('tfMaePlaceholder')}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={maePrice}
-                    onChangeText={setMaePrice}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-                <View style={styles.col}>
-                  <Text style={styles.fieldLabel}>{t('tfMfePrice')}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={t('tfMfePlaceholder')}
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={mfePrice}
-                    onChangeText={setMfePrice}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
+              {/* ── Excursions (optionnel) ── Named in trading language, not
+                  chart-platform jargon: MAE is the worst price the trade
+                  reached, MFE the best. Optional — but they are what expose
+                  stops that are too wide and targets given back. */}
+              <View style={styles.optionalBox}>
+                <TouchableOpacity
+                  style={styles.optionalHeader}
+                  onPress={() =>
+                    setExcursionsEnabled(prev => {
+                      if (prev) {
+                        setMaePrice('');
+                        setMfePrice('');
+                      }
+                      return !prev;
+                    })
+                  }
+                  activeOpacity={0.8}
+                  accessibilityRole="switch"
+                  accessibilityState={{ selected: excursionsEnabled }}
+                  accessibilityLabel={t('tfExcursionsToggle')}
+                >
+                  <Timer size={13} color={theme.colors.textMuted} />
+                  <Text style={styles.optionalTitle}>{t('tfExcursionsToggle')}</Text>
+                  <View style={styles.optionalSpace} />
+                  <View style={[styles.switchTrack, excursionsEnabled && styles.switchTrackOn]}>
+                    <View style={[styles.switchKnob, excursionsEnabled && styles.switchKnobOn]} />
+                  </View>
+                </TouchableOpacity>
+                {excursionsEnabled ? (
+                  <>
+                    <View style={styles.row2}>
+                      <View style={styles.col}>
+                        <Text style={styles.fieldLabel}>{t('tfMaePrice')}</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('tfMaePlaceholder')}
+                          placeholderTextColor={theme.colors.textMuted}
+                          value={maePrice}
+                          onChangeText={setMaePrice}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <View style={styles.col}>
+                        <Text style={styles.fieldLabel}>{t('tfMfePrice')}</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder={t('tfMfePlaceholder')}
+                          placeholderTextColor={theme.colors.textMuted}
+                          value={mfePrice}
+                          onChangeText={setMfePrice}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                    </View>
+                    {excursionPreview ? (
+                      <Text style={styles.fieldHint}>{excursionPreview}</Text>
+                    ) : (
+                      <Text style={styles.fieldHint}>{t('tfExcursionHint')}</Text>
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.fieldHint}>{t('tfExcursionsOffHint')}</Text>
+                )}
               </View>
-              {excursionPreview ? (
-                <Text style={styles.fieldHint}>{excursionPreview}</Text>
-              ) : (
-                <Text style={styles.fieldHint}>{t('tfExcursionHint')}</Text>
-              )}
 
               <Text style={styles.fieldLabel}>{t('tfTags')}</Text>
               <TextInput
@@ -1220,10 +1401,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
             {/* ── SECTION 2 : STRATÉGIE PLAYBOOK ── */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>
-                <Layers color={theme.colors.greenLight} size={13} style={{ marginRight: 6 }} />
-                {t('tfSection2')}
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <Layers color={theme.colors.greenLight} size={13} />
+                <Text style={styles.sectionTitle}>{t('tfSection2')}</Text>
+              </View>
 
               {playbookSetups.length > 0 ? (
                 <View style={{ gap: 6 }}>
@@ -1255,10 +1436,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
             {/* ── SECTION 3 : SCREENSHOTS DU GRAPHIQUE ── */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>
-                <ImageIcon color={theme.colors.cyanLight} size={13} style={{ marginRight: 6 }} />
-                {t('tfSection3')}
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <ImageIcon color={theme.colors.cyanLight} size={13} />
+                <Text style={styles.sectionTitle}>{t('tfSection3')}</Text>
+              </View>
 
               {/* Screenshot Avant */}
               <View style={styles.screenshotBox}>
@@ -1351,10 +1532,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
             {/* ── SECTION 4 : PSYCHOLOGIE & NOTES ── */}
             <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>
-                <Target color={theme.colors.goldLight} size={13} style={{ marginRight: 6 }} />
-                {t('tfSection4')}
-              </Text>
+              <View style={styles.sectionTitleRow}>
+                <Target color={theme.colors.goldLight} size={13} />
+                <Text style={styles.sectionTitle}>{t('tfSection4')}</Text>
+              </View>
 
               <Text style={styles.fieldLabel}>{t('tfPsychology')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
@@ -1446,6 +1627,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
         selectedId={session}
         onSelect={id => {
           setSession(id as any);
+          setSessionTouched(true);
           setSessionPickerVisible(false);
         }}
         onClose={() => setSessionPickerVisible(false)}
@@ -1568,17 +1750,26 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     padding: theme.spacing.md,
     marginBottom: theme.spacing.md,
   },
+  // Section headers: icon and number sit on one aligned row. The old
+  // markup put the icon inside the <Text>, which on Android rendered it
+  // shifted up and glued to the "1." (your red markup on the screenshot).
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
   sectionTitle: {
     color: theme.colors.primaryLight,
     fontSize: 11,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.cardBorder,
-    paddingBottom: 8,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    // Keeps the whole row on one line on narrow screens instead of pushing
+    // the number onto its own line.
+    flexShrink: 1,
   },
   outcomeWarn: {
     flexDirection: 'row',
@@ -1624,6 +1815,61 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontFamily: theme.fonts.mono,
     marginTop: 6,
     lineHeight: 13,
+  },
+  // Optional collapsible sections (costs, excursions): the header row is the
+  // whole tap target, the switch is decorative but mirrors the state.
+  optionalBox: {
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  optionalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 32,
+  },
+  optionalTitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.5,
+  },
+  optionalSpace: { flex: 1 },
+  switchTrack: {
+    width: 34,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.inputBg,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  switchTrackOn: {
+    backgroundColor: withAlpha(theme.colors.primary, 0.25),
+    borderColor: theme.colors.primary,
+  },
+  switchKnob: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: theme.colors.textMuted,
+    alignSelf: 'flex-start',
+  },
+  switchKnobOn: {
+    backgroundColor: theme.colors.primary,
+    alignSelf: 'flex-end',
+  },
+  autoDetectedHint: {
+    color: theme.colors.greenLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+    marginTop: 5,
   },
   fieldLabel: {
     color: theme.colors.textSecondary,

@@ -3,7 +3,6 @@ import { ViewStyle } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetModalProps,
-  BottomSheetView,
 } from '@gorhom/bottom-sheet';
 import { useTheme } from '../../theme';
 
@@ -44,9 +43,13 @@ export const Sheet = React.forwardRef<BottomSheetModal, SheetProps>(
         style={style as ViewStyle | undefined}
         {...rest}
       >
-        <BottomSheetView style={style as ViewStyle | undefined}>
-          {children as React.ReactNode}
-        </BottomSheetView>
+        {/* Children render directly. They used to be wrapped in a
+            BottomSheetView, which made every sheet that owns a
+            BottomSheetScrollView (quick entry, trade detail) measure a
+            scroll height of zero: the sheet opened on its handle with the
+            content invisible. Nested scrollables inside a bottom sheet are
+            not supported — the sheet itself already measures its children. */}
+        {children as React.ReactNode}
       </BottomSheetModal>
     );
   }

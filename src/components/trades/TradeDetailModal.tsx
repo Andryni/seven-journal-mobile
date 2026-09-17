@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,9 @@ import {
   StyleSheet,
   Image,
   Linking,
+  Modal,
+  ScrollView,
 } from 'react-native';
-import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { Sheet, useSheetVisible } from '../ui/Sheet';
 import { ScreenshotViewer } from './ScreenshotViewer';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
@@ -47,10 +47,6 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   onDelete,
 }) => {
   const { theme } = useTheme();
-
-  /** Themed bottom sheet, driven from the `visible` prop. */
-  const sheetRef = useRef<BottomSheetModal>(null);
-  useSheetVisible(sheetRef, visible);
   const { accounts } = useAccounts();
 
   // A size means nothing without its unit, and the unit comes from the account
@@ -111,15 +107,13 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
 
   return (
     <>
-      {/* Bottom sheet version of the detail: drag-to-dismiss, rubber-banding,
-          same themed surface as QuickTradeSheet. The nested ShareCard and
-          ScreenshotViewer stay classic modals — they stack above sheets. */}
-      <Sheet
-        ref={sheetRef}
-        snapPoints={['90%']}
-        onDismiss={onClose}
-        enablePanDownToClose
-      >
+      {/* A native transparent Modal with the card centred on screen. It used
+          to be a gesture bottom-sheet, which on some devices (Reanimated 4)
+          failed to open at all, or opened pinned to the bottom edge with an
+          unmeasured, invisible body. The RN Modal is what the trade form and
+          the pickers already use, and it always shows. */}
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlay}>
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
@@ -142,7 +136,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <BottomSheetScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {/* P&L & R-Multiple Highlight */}
             <View style={styles.pnlBanner}>
               <View>
@@ -361,7 +355,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <Text style={styles.notesText}>"{trade.notes}"</Text>
               ) : null}
             </View>
-          </BottomSheetScrollView>
+          </ScrollView>
 
           {/* Action Buttons: Modifier / Supprimer */}
           <View style={styles.actionRow}>
@@ -397,7 +391,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </Sheet>
+        </View>
+      </Modal>
       <ShareCardModal
         visible={sharing}
         onClose={() => setSharing(false)}
@@ -427,7 +422,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderWidth: 1,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
-    maxHeight: '85%',
+    maxHeight: '80%',
+    alignSelf: 'stretch',
   },
   header: {
     flexDirection: 'row',
@@ -453,6 +449,8 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   scroll: {
     marginBottom: theme.spacing.md,
+    // A ScrollView inside a constrained parent needs this to actually scroll.
+    flexGrow: 0,
   },
   tagRow: {
     flexDirection: 'row',

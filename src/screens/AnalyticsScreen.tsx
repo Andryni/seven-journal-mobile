@@ -56,6 +56,7 @@ import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
 import { InsightsCard } from '../components/analytics/InsightsCard';
 import { ResultSplitCard } from '../components/analytics/ResultSplitCard';
+import { MonthlyPerformanceCard } from '../components/analytics/MonthlyPerformanceCard';
 import { HBarBreakdown } from '../components/ui/HBarBreakdown';
 import type { HBreakdownItem } from '../components/ui/HBarBreakdown';
 import { RDistributionChart } from '../components/ui/RDistributionChart';
@@ -488,6 +489,14 @@ export const AnalyticsScreen: React.FC = () => {
               ) : (
                 <Text style={s.emptyText}>{t('noDrawdownData')}</Text>
               )}
+            </Card>
+          </Animated.View>
+
+          {/* Gains per calendar month since the first trade: the long-horizon
+              view the equity curve cannot give (it plots trades, not months). */}
+          <Animated.View entering={FadeIn.delay(200).duration(350)}>
+            <Card>
+              <MonthlyPerformanceCard trades={closed} lang={lang} formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })} />
             </Card>
           </Animated.View>
         </Animated.View>

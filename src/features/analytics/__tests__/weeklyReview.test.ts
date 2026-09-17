@@ -171,4 +171,42 @@ describe('useWeeklyReview', () => {
     expect(r.winRate).toBe(50);
     expect(r.avgR).toBe(0.5);
   });
+
+  it('exposes the previous week net, trade count and the cumulative curve', () => {
+    const r = useWeeklyReview(
+      [
+        mk('1', '2026-01-13T09:00:00', 100),
+        mk('2', '2026-01-15T09:00:00', -30),
+        mk('3', '2026-01-06T09:00:00', 220), // previous week (Mon 5 - Sun 11)
+        mk('4', '2026-01-08T09:00:00', 20),
+      ],
+      NOW
+    );
+    expect(r.prevPnL).toBe(240);
+    expect(r.prevTrades).toBe(2);
+    // Cumulative per trading day: Mon +100, Thu closes at +70.
+    expect(r.cumPnL).toEqual([100, 70]);
+    expect(r.prevStart.getFullYear()).toBe(2026);
+    expect(r.prevStart.getMonth()).toBe(0);
+    expect(r.prevStart.getDate()).toBe(5);
+  });
+
+  it('hides the prev arrow when the journal starts in the reviewed week', () => {
+    const r = useWeeklyReview([mk('1', '2026-01-13T09:00:00', 100)], NOW);
+    expect(r.canGoPrev).toBe(false);
+  });
+
+  it('recomputes everything against an anchored week', () => {
+    const r = useWeeklyReview(
+      [
+        mk('1', '2026-01-06T09:00:00', 150), // week of Jan 5
+        mk('2', '2025-12-30T09:00:00', 90), // week of Dec 29
+        mk('3', '2026-01-14T09:00:00', 999), // live week, must be ignored
+      ],
+      new Date('2026-01-06T12:00:00') // reviewing the week of Jan 5
+    );
+    expect(r.netPnL).toBe(150);
+    expect(r.prevPnL).toBe(90);
+    expect(r.canGoPrev).toBe(true);
+  });
 });

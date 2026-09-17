@@ -9,6 +9,7 @@ import { useDailyLock } from '../features/guard/useDailyLock';
 import { computeMetricTrends } from '../features/dashboard/metricTrends';
 import { usePerformanceMetrics } from '../features/dashboard/usePerformanceMetrics';
 import type { Trade } from '../types/domain';
+import type { SharePeriod } from '../utils/shareScope';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -29,13 +30,16 @@ import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { Sparkline } from '../components/ui/Sparkline';
 import { MorningBriefCard } from '../components/dashboard/MorningBriefCard';
-import { usePlaybook } from '../features/playbook/usePlaybook';
+import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
+import { PinnedMonthCard, PinnedWeekCard } from '../components/dashboard/PinnedMonthCard';
 import { duration, stagger } from '../theme/motion';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useMoney, useCurrencySymbol } from '../features/accounts/useMoney';
 import { isSameLocalDay } from '../utils/formatDate';
 import { scopeTrades, hasMixedCurrencies } from '../features/accounts/accountScope';
+import { usePinnedMonth } from '../features/dashboard/usePinnedMonth';
+import { usePinnedWeek } from '../features/dashboard/usePinnedWeek';
 
 /**
  * Dashboard — "Trading Desk" rebuild.
@@ -61,6 +65,14 @@ export const DashboardScreen: React.FC = () => {
   const activeAccountId = useUIStore(s => s.activeAccountId);
 
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  /**
+   * The pinned-card shortcuts reuse the share card: opening it with the
+   * pinned period preselected keeps ONE export surface in the app instead of
+   * a second, drifting copy of it. The anchor keeps the card honest when the
+   * month card is paged back — the export must show THAT month.
+   */
+  const [shareInitialPeriod, setShareInitialPeriod] = useState<SharePeriod | undefined>(undefined);
+  const [shareAnchor, setShareAnchor] = useState<Date | undefined>(undefined);
 
   /**
    * Tapping a recent trade opens the same detail modal as the Trades
@@ -74,6 +86,9 @@ export const DashboardScreen: React.FC = () => {
     setDetailTrade(tr);
     setDetailVisible(true);
   };
+
+  const { pinned, toggle: toggleMonth } = usePinnedMonth();
+  const { pinned: pinnedWeek, toggle: toggleWeek } = usePinnedWeek();
 
   const activeAccount = useMemo(
     () => accounts.find(a => a.id === activeAccountId) ?? accounts[0] ?? null,
@@ -104,8 +119,16 @@ export const DashboardScreen: React.FC = () => {
   );
 
   const { refreshing, onRefresh } = useRefresh();
-  // The morning brief reads yesterday's debrief (objective, mental, mistakes).
-  const { debriefs } = usePlaybook();
+  // The morning brief reads yesterday's debrief (objective, mental, mistakes)
+  // and names only strategies from the playbook — never legacy setup tags.
+  const { debriefs, isLoading: debriefsLoading } = usePlaybook();
+  const { setups: playbookSetups, isLoading: setupsLoading } = usePlaybookSetups();
+
+  /** Same eligibility rule as InsightsCard: own titles, non-empty. */
+  const playbookTitles = useMemo(
+    () => playbookSetups.map(p => p.title).filter(Boolean),
+    [playbookSetups]
+  );
 
   const m = usePerformanceMetrics(scopedTrades, lang);
 
@@ -175,7 +198,11 @@ export const DashboardScreen: React.FC = () => {
     >
       {/* The morning brief rides above the hero: it is the one panel
           addressed to the trader, not to their data. */}
-      <MorningBriefCard trades={scopedTrades} debriefs={debriefs} />
+      <MorningBriefCard
+        trades={scopedTrades}
+        debriefs={debriefs}
+        playbookTitles={debriefsLoading || setupsLoading ? [] : playbookTitles}
+      />
 
       {/* A combined total across currencies is not a quantity. Say so rather
           than stamping one symbol on a sum of euros and dollars. */}
@@ -196,7 +223,11 @@ export const DashboardScreen: React.FC = () => {
           <Text style={styles.heroLabel}>{t('netPnlTotal')}</Text>
           <PressableScale
             style={styles.shareBtn}
-            onPress={() => setShareModalVisible(true)}
+            onPress={() => {
+              setShareInitialPeriod(undefined);
+              setShareAnchor(undefined);
+              setShareModalVisible(true);
+            }}
             accessibilityLabel={t('sharePnl')}
             hitSlop={8}
           >
@@ -383,6 +414,34 @@ export const DashboardScreen: React.FC = () => {
         </Panel>
       ) : null}
 
+      {/* ── 5bis. PINNED MONTH — the export shortcut, when armed ── */}
+      {pinned ? (
+        <PinnedMonthCard
+          trades={scopedTrades}
+          formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })}
+          onShare={anchor => {
+            setShareInitialPeriod('month');
+            setShareAnchor(anchor);
+            setShareModalVisible(true);
+          }}
+          onUnpin={toggleMonth}
+        />
+      ) : null}
+
+      {/* ── 5ter. PINNED WEEK — the week export shortcut, when armed ── */}
+      {pinnedWeek ? (
+        <PinnedWeekCard
+          trades={scopedTrades}
+          formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })}
+          onShare={() => {
+            setShareInitialPeriod('week');
+            setShareAnchor(new Date());
+            setShareModalVisible(true);
+          }}
+          onUnpin={toggleWeek}
+        />
+      ) : null}
+
       {/* ── 6. EQUITY ──
           One chart, not two. The daily P&L bars told the same story as this
           curve; keeping both cost a screen of scroll for no extra insight. */}
@@ -450,6 +509,8 @@ export const DashboardScreen: React.FC = () => {
         onClose={() => setShareModalVisible(false)}
         trades={scopedTrades}
         accountName={activeAccount?.name || 'Compte Principal'}
+        initialPeriod={shareInitialPeriod}
+        anchor={shareAnchor}
       />
 
       {/* Same modals as the Trades screen, so edit/delete work from here too. */}

@@ -24,7 +24,7 @@ export interface BriefStats {
   dayAvgR: number | null;
   /** Win rate on this weekday, percent. */
   dayWinRate: number;
-  /** Most traded setup on this weekday, if the title is known. */
+  /** Most traded playbook strategy on this weekday, if the title is known. */
   favouriteSetup: string | null;
 }
 
@@ -46,7 +46,9 @@ export interface MorningBrief {
 export function buildMorningBrief(
   trades: Trade[],
   debriefs: DailyDebrief[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** Titles of the user's own strategies; only these can be named as favourite. */
+  playbookTitles: string[] = []
 ): MorningBrief {
   const weekdayIndex = now.getDay();
 
@@ -61,9 +63,14 @@ export function buildMorningBrief(
     debriefs.find(d => d.date === yesterdayKey) ?? null;
 
   // ── Weekday history ──
-  const sameWeekday = trades.filter(
-    t => !t.entry_time ? false : new Date(t.entry_time).getDay() === weekdayIndex
-  );
+  // Strictly the past: a trade logged today shares this weekday and would
+  // otherwise pollute the aggregate the same morning it was taken, which the
+  // "historically" wording excludes.
+  const sameWeekday = trades.filter(t => {
+    if (!t.entry_time) return false;
+    if (isSameLocalDay(t.entry_time, now)) return false;
+    return new Date(t.entry_time).getDay() === weekdayIndex;
+  });
   const closed = sameWeekday.filter(t => t.pnl !== null && t.pnl !== undefined);
   const wins = closed.filter(t => (t.pnl ?? 0) > 0).length;
   const decided = closed.filter(t => (t.pnl ?? 0) !== 0).length;
@@ -72,12 +79,27 @@ export function buildMorningBrief(
     .map(t => t.r_multiple)
     .filter((r): r is number => r !== null && r !== undefined && Number.isFinite(r));
 
-  // Most traded setup title on this weekday — the playbook linkage lives in
-  // setup_structures[0] (see TradeFormModal), so that is what is counted.
+  // Most traded playbook strategy on this weekday — the playbook linkage
+  // lives in setup_structures[0] (see TradeFormModal), so that is what is
+  // counted.
+  //
+  // Only titles from the user's own playbook are eligible. setup_structures
+  // is a free-form string array that still holds fixed ICT labels written by
+  // an older version of the app — 'BOS', 'FVG', 'OB' — and naming one of
+  // those surfaced "Jeudi : ... surtout en BOS" to a trader whose playbook
+  // contains no such strategy, which is advice about a name they never
+  // chose and cannot act on. Same fix as computeInsights.bestSetup: with no
+  // playbook defined there is nothing to name, so the slot stays empty.
+  const allowed = new Map(
+    playbookTitles.map(p => [p.toLowerCase().trim(), p.trim()])
+  );
   const setupCount = new Map<string, number>();
   for (const t of sameWeekday) {
-    const s = t.setup_structures?.[0];
-    if (s) setupCount.set(s, (setupCount.get(s) ?? 0) + 1);
+    const raw = t.setup_structures?.[0];
+    if (!raw) continue;
+    const canonical = allowed.get(raw.toLowerCase().trim());
+    if (!canonical) continue;
+    setupCount.set(canonical, (setupCount.get(canonical) ?? 0) + 1);
   }
   let favouriteSetup: string | null = null;
   let best = 0;

@@ -36,6 +36,18 @@ interface ShareCardModalProps {
    * and the "this trade" option is offered.
    */
   trade?: Trade | null;
+  /**
+   * Preselected scope when the caller already knows what is being shared
+   * (e.g. the dashboard's pinned-month shortcut opens on "month"). Purely
+   * an initial state: the user can still switch periods freely.
+   */
+  initialPeriod?: SharePeriod;
+  /**
+   * Anchors every period window to a moment other than now — the pinned
+   * month card pages back months, and its export must show THAT month, not
+   * the live one. `null`/`undefined` keeps the clock as the anchor.
+   */
+  anchor?: Date | null;
 }
 
 const PERIODS: { id: SharePeriod; labelKey: TranslationKey }[] = [
@@ -52,6 +64,8 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   accountName = 'Seven Journal',
   trades,
   trade = null,
+  initialPeriod,
+  anchor,
 }) => {
   const { theme } = useTheme();
   const money = useMoney();
@@ -59,8 +73,9 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { cardRef, busy, savedAt, share, saveToGallery } = useShareCard();
 
-  // A card opened from one trade defaults to that trade; otherwise to the day.
-  const [period, setPeriod] = useState<SharePeriod>(trade ? 'trade' : 'day');
+  // A card opened from one trade defaults to that trade; an explicit initial
+  // period (pinned shortcut) wins next; otherwise the day.
+  const [period, setPeriod] = useState<SharePeriod>(initialPeriod ?? (trade ? 'trade' : 'day'));
 
   const options = useMemo(
     () => (trade ? PERIODS : PERIODS.filter(p => p.id !== 'trade')),
@@ -68,15 +83,15 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
   );
 
   const scoped = useMemo(
-    () => selectTrades(trades, period, { tradeId: trade?.id ?? null }),
-    [trades, period, trade]
+    () => selectTrades(trades, period, { tradeId: trade?.id ?? null, now: anchor ?? undefined }),
+    [trades, period, trade, anchor]
   );
 
   const stats = useMemo(() => computeShareStats(scoped), [scoped]);
 
   const subtitle = useMemo(
-    () => periodLabel(period, localeFor(lang), new Date(), trade),
-    [period, lang, trade]
+    () => periodLabel(period, localeFor(lang), anchor ?? new Date(), trade),
+    [period, lang, trade, anchor]
   );
 
   const isPositive = stats.netPnl >= 0;

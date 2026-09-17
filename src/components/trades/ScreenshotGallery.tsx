@@ -97,6 +97,19 @@ export const ScreenshotGallery: React.FC<ScreenshotGalleryProps> = ({ visible, o
                 accessibilityLabel={`${item.trade.pair} ${rLabel(item.trade)}`}
               >
                 <Image source={{ uri: item.uri }} style={styles.image} resizeMode="cover" />
+                {/* Phase badge, top-left: a pair can carry a before AND an
+                    after shot; without the tag the two tiles were
+                    indistinguishable in the grid. */}
+                <View
+                  style={[
+                    styles.phaseBadge,
+                    item.phase === 'before' ? styles.phaseBefore : styles.phaseAfter,
+                  ]}
+                >
+                  <Text style={styles.phaseBadgeText}>
+                    {item.phase === 'before' ? t('galleryBefore') : t('galleryAfter')}
+                  </Text>
+                </View>
                 <View style={styles.tileMeta}>
                   <Text style={styles.tilePair}>{item.trade.pair}</Text>
                   <Text
@@ -187,6 +200,29 @@ const createStyles = (theme: AppTheme) =>
       borderColor: theme.colors.cardBorder,
     },
     image: { width: '100%', height: '100%' },
+    phaseBadge: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    phaseBefore: {
+      backgroundColor: withAlpha(theme.colors.card, 0.85),
+      borderColor: withAlpha(theme.colors.primary, 0.7),
+    },
+    phaseAfter: {
+      backgroundColor: withAlpha(theme.colors.card, 0.85),
+      borderColor: withAlpha(theme.colors.green, 0.7),
+    },
+    phaseBadgeText: {
+      color: theme.colors.textPrimary,
+      fontSize: 8,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.8,
+    },
     tileMeta: {
       position: 'absolute',
       left: 0,

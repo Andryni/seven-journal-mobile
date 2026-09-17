@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
-import { X, Bell, Fingerprint, Languages, Clock, Calculator } from 'lucide-react-native';
+import { X, Bell, Fingerprint, Languages, Clock, Calculator, Pin } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
@@ -11,6 +11,8 @@ import { PressableScale } from '../ui/PressableScale';
 import { duration } from '../../theme/motion';
 import { useNotifications } from '../../features/notifications/useNotifications';
 import { useAppLock } from '../../features/security/useAppLock';
+import { usePinnedMonth } from '../../features/dashboard/usePinnedMonth';
+import { usePinnedWeek } from '../../features/dashboard/usePinnedWeek';
 import { PositionCalculator } from '../trades/PositionCalculator';
 
 /**
@@ -28,6 +30,8 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
   const { lang, toggleLang } = useI18nStore();
   const notifications = useNotifications();
   const appLock = useAppLock();
+  const { pinned, toggle } = usePinnedMonth();
+  const { pinned: pinnedWeek, toggle: toggleWeek } = usePinnedWeek();
   const [busy, setBusy] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
 
@@ -219,6 +223,39 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                   disabled={busy}
                   trackColor={trackColor}
                   thumbColor={appLock.enabled ? theme.colors.primary : theme.colors.textMuted}
+                />
+              }
+            />
+
+            <View style={styles.sectionGap} />
+
+            {/* Pinned month card — the dashboard's export shortcut. One shared
+                store with the dashboard, whose × unhooks it here too. */}
+            <Row
+              icon={<Pin size={15} color={theme.colors.primary} strokeWidth={1.75} />}
+              title={t('pinnedMonthSetting')}
+              sub={t('pinnedMonthDesc')}
+              theme={theme}
+              right={
+                <Switch
+                  value={pinned}
+                  onValueChange={toggle}
+                  trackColor={trackColor}
+                  thumbColor={pinned ? theme.colors.primary : theme.colors.textMuted}
+                />
+              }
+            />
+            <Row
+              icon={<Pin size={15} color={theme.colors.primary} strokeWidth={1.75} />}
+              title={t('pinnedWeekSetting')}
+              sub={t('pinnedWeekDesc')}
+              theme={theme}
+              right={
+                <Switch
+                  value={pinnedWeek}
+                  onValueChange={toggleWeek}
+                  trackColor={trackColor}
+                  thumbColor={pinnedWeek ? theme.colors.primary : theme.colors.textMuted}
                 />
               }
             />

@@ -23,17 +23,26 @@ import type { DailyDebrief } from '../../features/playbook/usePlaybook';
  *      emotional handoff: a tired, mistake-ridden yesterday is exactly the
  *      thing to see before opening today's chart).
  *
+ * Line 2 speaks in the past tense on purpose: it aggregates every trade ever
+ * logged on this weekday, not today's activity. And the setup it names is
+ * always one of the user's own playbook strategies — never a legacy ICT tag.
+ *
  * The card hides entirely when there is nothing honest to say.
  */
-export const MorningBriefCard: React.FC<{ trades: Trade[]; debriefs: DailyDebrief[] }> = ({
-  trades,
-  debriefs,
-}) => {
+export const MorningBriefCard: React.FC<{
+  trades: Trade[];
+  debriefs: DailyDebrief[];
+  /** The user's own strategies; only these can be named as favourite setup. */
+  playbookTitles?: string[];
+}> = ({ trades, debriefs, playbookTitles = [] }) => {
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const brief = useMemo(() => buildMorningBrief(trades, debriefs), [trades, debriefs]);
+  const brief = useMemo(
+    () => buildMorningBrief(trades, debriefs, new Date(), playbookTitles),
+    [trades, debriefs, playbookTitles]
+  );
 
   if (isBriefEmpty(brief)) return null;
 
@@ -62,10 +71,7 @@ export const MorningBriefCard: React.FC<{ trades: Trade[]; debriefs: DailyDebrie
         <View style={styles.row}>
           <CalendarDays size={12} color={theme.colors.textMuted} />
           <Text style={styles.rowText}>
-            {t('mbWeekdayIntro', t(WEEKDAY_KEYS[brief.weekdayIndex]))}{' '}
-            <Text style={styles.rowStrong}>
-              {brief.stats.dayTrades} {t('positions').toLowerCase()}
-            </Text>
+            {t('mbWeekdayHistory', t(WEEKDAY_KEYS[brief.weekdayIndex]), String(brief.stats.dayTrades))}{' '}
             {brief.stats.dayAvgR !== null ? (
               <>
                 {', '}

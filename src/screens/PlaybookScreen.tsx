@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMoney } from '../features/accounts/useMoney';
 import type { PlaybookSetup } from '../features/playbook/usePlaybook';
 import { useTrades } from '../features/trades/useTrades';
@@ -100,6 +103,13 @@ function ruleLabel(t: TFunction, id: string): string {
 
 // Émotions : ids stables stockés en DB (compat : anciennes valeurs FR acceptées à la lecture)
 const EMOTION_IDS = ['calm', 'confident', 'anxious', 'euphoric', 'frustrated', 'tired'] as const;
+
+/** localDayKey() inverse: parses YYYY-MM-DD into a local Date at midnight. */
+function parseDayKey(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
 
 function emotionLabel(t: TFunction, id: string): string {
   switch (id) {
@@ -209,6 +219,7 @@ export const PlaybookScreen: React.FC = () => {
 
   // Debrief Form State
   const [selectedDate, setSelectedDate] = useState(() => localDayKey());
+  const [debriefPickerVisible, setDebriefPickerVisible] = useState(false);
   const [editingDebriefId, setEditingDebriefId] = useState<string | null>(null);
   const [marketSentiment, setMarketSentiment] = useState('');
   const [htfAnalysis, setHtfAnalysis] = useState('');
@@ -240,6 +251,7 @@ export const PlaybookScreen: React.FC = () => {
     setSetupTimeframes('M5, M15');
     setSetupRules('');
     setSetupTags('#Forex, #Indices');
+    setRulesLines(['']);
     setSetupModalVisible(true);
   };
 
@@ -250,8 +262,50 @@ export const PlaybookScreen: React.FC = () => {
     setSetupTimeframes(s.timeframes.join(', '));
     setSetupRules(s.validation_rules.join('\n'));
     setSetupTags(s.tags.join(', '));
+    // A stored rule may still carry an old hand-typed "1." prefix; the
+    // editor adds its own numbering, so strip it on load.
+    setRulesLines(
+      s.validation_rules.length > 0
+        ? s.validation_rules.map(r => r.replace(/^\s*\d+\.\s*/, ''))
+        : ['']
+    );
     setSetupModalVisible(true);
   };
+
+  // ── Auto-numbered rules editor ──
+  // One line per rule, numbered by position. "Enter" adds the next row, the
+  // numbering follows on its own, and empty trailing lines are dropped on
+  // save — the trader types rules, not list formatting.
+  const [rulesLines, setRulesLines] = useState<string[]>(['']);
+  const setRulesLineAt = useCallback((index: number) => (text: string) => {
+    setRulesLines(prev => {
+      // Typing a newline inside a row is the same gesture as "next rule".
+      const parts = text.split('\n');
+      if (parts.length > 1) {
+        const next = [...prev];
+        next.splice(index, 1, ...parts);
+        return next.filter((l, i) => l.trim() !== '' || i < index + parts.length - 1);
+      }
+      const next = [...prev];
+      next[index] = text;
+      return next;
+    });
+  }, []);
+  const addRulesLine = useCallback(() => {
+    setRulesLines(prev => {
+      // Enter on the last row grows the list; on a middle row it is just a
+      // dismiss-keyboard guard, so nothing changes.
+      const trimmedLast = prev[prev.length - 1]?.trim() !== '';
+      return trimmedLast ? [...prev, ''] : prev;
+    });
+  }, []);
+  const removeRulesLineAt = useCallback(
+    (index: number) => () =>
+      setRulesLines(prev =>
+        prev.length <= 1 ? [''] : prev.filter((_, i) => i !== index)
+      ),
+    []
+  );
 
   const handleSaveSetup = async () => {
     if (!setupTitle.trim()) {
@@ -262,7 +316,7 @@ export const PlaybookScreen: React.FC = () => {
       title: setupTitle.trim(),
       description: setupDesc.trim() || null,
       timeframes: setupTimeframes.split(',').map(s => s.trim()).filter(Boolean),
-      validation_rules: setupRules.split('\n').map(s => s.trim()).filter(Boolean),
+      validation_rules: rulesLines.map(s => s.trim()).filter(Boolean),
       tags: setupTags.split(',').map(s => s.trim()).filter(Boolean),
       image_url: null,
     };
@@ -713,7 +767,10 @@ export const PlaybookScreen: React.FC = () => {
                     {st.validation_rules.length > 0 && (
                       <View style={styles.rulesBlock}>
                         {st.validation_rules.map((rule, i) => (
-                          <Text key={i} style={styles.ruleItem}>• {rule}</Text>
+                          <View key={i} style={styles.ruleItemRow}>
+                            <Text style={styles.ruleItemNum}>{i + 1}.</Text>
+                            <Text style={styles.ruleItem}>{rule}</Text>
+                          </View>
                         ))}
                       </View>
                     )}
@@ -825,14 +882,32 @@ export const PlaybookScreen: React.FC = () => {
           </Card>
 
           <Card title={t('debriefTitle')}>
+            {/* Date picker, not a raw YYYY-MM-DD text input: typing an
+                unparseable date silently wrote a debrief no calendar view
+                could ever find. */}
             <Text style={styles.fieldLabel}>{t('debriefDate')}</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.input}
-              value={selectedDate}
-              onChangeText={setSelectedDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.colors.textMuted}
-            />
+              onPress={() => setDebriefPickerVisible(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t('debriefDate')}
+            >
+              <Text style={styles.debriefDateText}>{selectedDate}</Text>
+            </TouchableOpacity>
+            {debriefPickerVisible && (
+              <DateTimePicker
+                value={parseDayKey(selectedDate)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                themeVariant="dark"
+                onDismiss={() => setDebriefPickerVisible(false)}
+                onValueChange={(_e: any, d?: Date) => {
+                  setDebriefPickerVisible(false);
+                  if (d) setSelectedDate(localDayKey(d));
+                }}
+              />
+            )}
 
             <Text style={styles.fieldLabel}>{t('marketSentiment')}</Text>
             <TextInput
@@ -1106,58 +1181,93 @@ export const PlaybookScreen: React.FC = () => {
         />
       )}
 
-      {/* Modal Ajout / Modification Stratégie */}
+      {/* Modal Ajout / Modification Stratégie.
+          Validation rules are numbered as you type: every new line gets the
+          next "1. 2. 3." prefix automatically, so the saved list reads as an
+          ordered checklist everywhere it is shown. A hand-typed prefix is
+          stripped on save — the display adds its own. */}
       <Modal visible={setupModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingSetup ? t('editSetup') : t('newSetup')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setSetupModalVisible(false)}
-                accessibilityRole="button"
-                accessibilityLabel={t('a11yCloseSetupForm')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <X size={20} color={theme.colors.textPrimary} />
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderRow}>
+                  <View style={styles.modalAccentBar} />
+                  <Text style={styles.modalTitle}>
+                    {editingSetup ? t('editSetup') : t('newSetup')}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setSetupModalVisible(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('a11yCloseSetupForm')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={20} color={theme.colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={styles.fieldLabel}>{t('setupTitleLabel')}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('phSetupTitle')}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupTitle}
+                  onChangeText={setSetupTitle}
+                />
+
+                <Text style={styles.fieldLabel}>{t('setupTimeframesLabel')}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="M5, M15, H1"
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={setupTimeframes}
+                  onChangeText={setSetupTimeframes}
+                />
+
+                <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
+                <View style={styles.rulesEditor}>
+                  {rulesLines.map((line, i) => (
+                    <View key={i} style={styles.rulesLineRow}>
+                      <Text style={[styles.ruleNum, !line.trim() && styles.ruleNumEmpty]}>{i + 1}.</Text>
+                      <TextInput
+                        style={styles.ruleLineInput}
+                        value={line}
+                        placeholder={i === 0 ? t('phSetupRules') : undefined}
+                        placeholderTextColor={theme.colors.textMuted}
+                        onChangeText={setRulesLineAt(i)}
+                        onSubmitEditing={addRulesLine}
+                        blurOnSubmit={false}
+                        returnKeyType="next"
+                        accessibilityLabel={`${t('setupRulesLabel')} ${i + 1}`}
+                      />
+                      {rulesLines.length > 1 ? (
+                        <TouchableOpacity
+                          onPress={removeRulesLineAt(i)}
+                          style={styles.ruleRemoveBtn}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${t('setupRulesLabel')}: ${i + 1}`}
+                        >
+                          <X size={12} color={theme.colors.textMuted} />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.fieldHint}>{t('setupRulesAutoHint')}</Text>
+
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveSetup}>
+                  <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
-
-            <Text style={styles.fieldLabel}>{t('setupTitleLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={t('phSetupTitle')}
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupTitle}
-              onChangeText={setSetupTitle}
-            />
-
-            <Text style={styles.fieldLabel}>{t('setupTimeframesLabel')}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="M5, M15, H1"
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupTimeframes}
-              onChangeText={setSetupTimeframes}
-            />
-
-            <Text style={styles.fieldLabel}>{t('setupRulesLabel')}</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder={t('phSetupRules')}
-              placeholderTextColor={theme.colors.textMuted}
-              value={setupRules}
-              onChangeText={setSetupRules}
-              multiline
-              numberOfLines={3}
-            />
-
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveSetup}>
-              <Text style={styles.saveBtnText}>{t('saveSetup')}</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
@@ -1577,6 +1687,19 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 9,
     fontFamily: theme.fonts.monoMedium,
     lineHeight: 14,
+    flex: 1,
+  },
+  ruleItemRow: {
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'flex-start',
+  },
+  ruleItemNum: {
+    color: theme.colors.primaryLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+    lineHeight: 14,
+    minWidth: 12,
   },
   setupActions: {
     flexDirection: 'row',
@@ -1684,6 +1807,13 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   whiteText: { color: theme.colors.textPrimary },
   greenText: { color: theme.colors.greenLight },
+  debriefDateText: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontFamily: theme.fonts.monoBold,
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 10,
+  },
   redText: { color: theme.colors.redLight },
   saveBtn: {
     backgroundColor: theme.colors.primary,
@@ -1821,17 +1951,81 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     borderWidth: 1,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
+    // The rules editor and its keyboard need room: the modal scrolls, so a
+    // fixed ceiling keeps the title and the save button reachable.
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.cardBorder,
+    paddingBottom: theme.spacing.sm,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalAccentBar: {
+    width: 3,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: theme.colors.primary,
   },
   modalTitle: {
     color: theme.colors.textPrimary,
     fontSize: 14,
     fontFamily: theme.fonts.sansBold,
+  },
+  fieldHint: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+    marginTop: 5,
+    lineHeight: 13,
+  },
+  // Numbered rules editor: one row per rule, the number is positional and
+  // read-only — the trader never types list formatting again.
+  rulesEditor: {
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    gap: 2,
+  },
+  rulesLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.cardBorder,
+    paddingVertical: 2,
+  },
+  ruleNum: {
+    color: theme.colors.primaryLight,
+    fontSize: 11,
+    fontFamily: theme.fonts.monoBold,
+    minWidth: 16,
+  },
+  ruleNumEmpty: {
+    color: theme.colors.textMuted,
+  },
+  ruleLineInput: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontFamily: theme.fonts.sansMedium,
+    paddingVertical: 8,
+    minHeight: 34,
+  },
+  ruleRemoveBtn: {
+    padding: 5,
+    borderRadius: 6,
   },
   searchBarRow: { marginBottom: theme.spacing.sm },
   searchInput: { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: theme.borderRadius.md, height: 38, paddingHorizontal: 12, color: theme.colors.textPrimary, fontSize: 11, fontFamily: theme.fonts.sansMedium, marginBottom: 6 },

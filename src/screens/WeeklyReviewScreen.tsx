@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { BarChart3 } from 'lucide-react-native';
+import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -13,6 +13,8 @@ import { Panel, Hairline } from '../components/ui/Panel';
 import { Metric } from '../components/ui/Metric';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
+import { SeriesStrip } from '../components/ui/SeriesStrip';
+import { PressableScale } from '../components/ui/PressableScale';
 import { duration, stagger } from '../theme/motion';
 import { mentalStateLabel } from '../i18n';
 import { scopeTrades } from '../features/accounts/accountScope';
@@ -35,7 +37,20 @@ export const WeeklyReviewScreen: React.FC = () => {
 
   const { trades: allTrades, isLoading } = useTrades();
   const trades = useMemo(() => scopeTrades(allTrades, activeAccountId), [allTrades, activeAccountId]);
-  const w = useWeeklyReview(trades);
+
+  /**
+   * Period navigation, in weeks back from the live week — the same paging
+   * model as the monthly review. The arrows move the anchor; the hook
+   * recomputes every figure against the anchored week and its predecessor,
+   * so "vs semaine dernière" always compares the week on screen with the
+   * one before it, not with the live one.
+   */
+  const [weeksBack, setWeeksBack] = useState(0);
+  const anchor = useMemo(
+    () => new Date(new Date().getTime() - weeksBack * 7 * 86_400_000),
+    [weeksBack]
+  );
+  const w = useWeeklyReview(trades, anchor);
 
   /** The one action: the clearest weakness in the week's own data. */
   const action = useMemo<string | null>(() => {
@@ -78,6 +93,10 @@ export const WeeklyReviewScreen: React.FC = () => {
     w.rangeEnd.getTime() - 1
   ).toLocaleDateString(localeFor(lang), { day: 'numeric', month: 'short' })}`;
 
+  const prevRangeLabel = `${w.prevStart.toLocaleDateString(localeFor(lang), { day: 'numeric', month: 'short' })} – ${new Date(
+    w.rangeEnd.getTime() - 1 - 7 * 86_400_000
+  ).toLocaleDateString(localeFor(lang), { day: 'numeric', month: 'short' })}`;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Hero: the week's net result and the verdict vs last week. */}
@@ -91,10 +110,55 @@ export const WeeklyReviewScreen: React.FC = () => {
           {money(w.deltaPnL, { decimals: 0 })} {t('weeklyVsPrevShort')}
         </Text>
         <Text style={styles.heroRange}>{rangeLabel}</Text>
+        {/* The affordance for moving the whole review between weeks. Shown
+            while an earlier week exists OR the view is navigated: stepping
+            back to the journal's first week must still leave a way forward. */}
+        {w.canGoPrev || weeksBack > 0 ? (
+          <View style={styles.navRow}>
+            {w.canGoPrev ? (
+              <PressableScale
+                onPress={() => setWeeksBack(b => b + 1)}
+                hitSlop={8}
+                style={styles.navBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('a11yPrevWeek')}
+                testID="weekly-prev"
+              >
+                <ChevronLeft size={14} color={theme.colors.textPrimary} strokeWidth={2.2} />
+              </PressableScale>
+            ) : null}
+            {weeksBack > 0 ? (
+              <PressableScale
+                onPress={() => setWeeksBack(b => Math.max(0, b - 1))}
+                hitSlop={8}
+                style={styles.navBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('a11yNextWeek')}
+                testID="weekly-next"
+              >
+                <ChevronRight size={14} color={theme.colors.textPrimary} strokeWidth={2.2} />
+              </PressableScale>
+            ) : null}
+          </View>
+        ) : null}
+      </Animated.View>
+
+      {/* Week vs previous week: cumulative mini-curves side by side. */}
+      <Animated.View entering={FadeIn.delay(stagger(1)).duration(duration.base)}>
+        <SeriesStrip
+          title={t('seriesWeekVsPrevWeek')}
+          leftCaption={`${t('weeklyCaptionShort')} — ${rangeLabel.toUpperCase()}`}
+          rightCaption={`${t('weeklyPrevCaptionShort')} — ${prevRangeLabel.toUpperCase()}`}
+          current={w.cumPnL}
+          previous={prevWeekCumulative(trades, w.prevStart, w.rangeEnd.getTime() - 7 * 86_400_000)}
+          currentNet={money(w.netPnL, { decimals: 0, thousandsSeparator: true })}
+          previousNet={money(w.prevPnL, { decimals: 0, thousandsSeparator: true })}
+          currentPositive={w.netPnL >= 0}
+        />
       </Animated.View>
 
       {/* Five numbers. */}
-      <Animated.View entering={FadeIn.delay(stagger(1)).duration(duration.base)}>
+      <Animated.View entering={FadeIn.delay(stagger(2)).duration(duration.base)}>
         <Panel title={t('weeklyReview')}>
           <View style={styles.metricGrid}>
             <Metric label={t('weeklyTrades')} value={String(w.trades)} size="small" />
@@ -131,7 +195,7 @@ export const WeeklyReviewScreen: React.FC = () => {
       </Animated.View>
 
       {/* The week, Monday-first, bars from a zero baseline. */}
-      <Animated.View entering={FadeIn.delay(stagger(2)).duration(duration.base)}>
+      <Animated.View entering={FadeIn.delay(stagger(3)).duration(duration.base)}>
         <Panel title={t('weeklyDaily')}>
           <View style={styles.barsRow}>
             {w.dailyPnL.map(d => {
@@ -163,7 +227,7 @@ export const WeeklyReviewScreen: React.FC = () => {
 
       {/* The conclusion: ONE action, from the week's weakest signal. */}
       {action ? (
-        <Animated.View entering={FadeIn.delay(stagger(3)).duration(duration.base)}>
+        <Animated.View entering={FadeIn.delay(stagger(4)).duration(duration.base)}>
           <View style={[styles.actionBox, { borderColor: theme.colors.primary }]}>
             <Text style={[styles.actionTitle, { color: theme.colors.primary }]}>{t('weeklyActionLabel')}</Text>
             <Text style={styles.actionText}>{action}</Text>
@@ -173,6 +237,28 @@ export const WeeklyReviewScreen: React.FC = () => {
     </ScrollView>
   );
 };
+
+/**
+ * Cumulative per-day curve for the PREVIOUS week. The hook exposes the
+ * current week's curve; the comparison half of the strip needs its mirror,
+ * computed from the same journaled data.
+ */
+function prevWeekCumulative(trades: import('../types/domain').Trade[], from: Date, toMs: number): number[] {
+  const perDay = new Map<number, number>();
+  for (const t of trades) {
+    if (t.pnl === null || t.pnl === undefined) continue;
+    const d = new Date(t.exit_time || t.entry_time);
+    if (Number.isNaN(d.getTime())) continue;
+    const ts = new Date(d).setHours(0, 0, 0, 0);
+    if (ts < from.getTime() || ts >= toMs) continue;
+    perDay.set(ts, (perDay.get(ts) ?? 0) + (t.pnl || 0));
+  }
+  let acc = 0;
+  return [...perDay.keys()].sort((a, b) => a - b).map(ts => {
+    acc += perDay.get(ts) || 0;
+    return Math.round(acc * 100) / 100;
+  });
+}
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
@@ -184,6 +270,21 @@ const createStyles = (theme: AppTheme) =>
       paddingBottom: theme.spacing.xxl,
     },
     hero: { alignItems: 'center', paddingVertical: theme.spacing.lg },
+    navRow: {
+      flexDirection: 'row',
+      gap: 6,
+      marginTop: 10,
+    },
+    navBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     heroLabel: {
       color: theme.colors.textMuted,
       fontSize: theme.type.label,

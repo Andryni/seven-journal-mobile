@@ -1,12 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, {
-  FadeIn,
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -52,52 +46,36 @@ interface HBarBreakdownProps {
 }
 
 /**
- * One bar, grown from the centre line with a spring instead of appearing at
- * full width. The delay follows the row's entrance, so the card reads top to
- * bottom; the spring's slight overshoot is what makes the winner feel like it
- * *lands*. Static width render is preserved for tests (isAnimated=false).
+ * One bar, anchored to the centre line: growing right for gains, left for
+ * losses. Rendered at final width with a fade — it used to animate its width
+ * through Reanimated's withSpring, and on some devices the shared value kept
+ * its initial 0: every row labelled, every value coloured, but NO BAR AT ALL
+ * (session/weekday/timeframe breakdowns all read as empty rows). A width
+ * animation cannot be trusted to run; an opacity entrance cannot fail that
+ * way, and the column of coloured bars is the preattentive read these cards
+ * exist for.
  */
  const GrowingBar: React.FC<{
   widthPct: number;
   positive: boolean;
   color: string;
   index: number;
-  isAnimated: boolean;
-}> = ({ widthPct, positive, color, index, isAnimated }) => {
-  const progress = useSharedValue(isAnimated ? 0 : 1);
-
-  useEffect(() => {
-    if (!isAnimated) {
-      progress.value = 1;
-      return;
-    }
-    progress.value = withDelay(
-      60 + index * 50,
-      withSpring(1, { damping: 16, stiffness: 150, mass: 0.9 })
-    );
-  }, [progress, isAnimated, index]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    width: `${progress.value * widthPct}%`,
-  }));
-
-  if (!isAnimated) {
-    return (
-      <View
-        style={[
-          { width: `${widthPct}%`, backgroundColor: color, opacity: 0.85 },
-          positive ? { left: '50%' } : { right: '50%' },
-        ]}
-      />
-    );
-  }
-
+}> = ({ widthPct, positive, color, index }) => {
   return (
     <Animated.View
+      entering={FadeIn.delay(index * 50).duration(280)}
       style={[
-        { backgroundColor: color, opacity: 0.85 },
+        {
+          width: `${widthPct}%`,
+          backgroundColor: color,
+          opacity: 0.85,
+          position: 'absolute',
+          top: 2,
+          bottom: 2,
+          minWidth: 2,
+          borderRadius: 2,
+        },
         positive ? { left: '50%' } : { right: '50%' },
-        animatedStyle,
       ]}
     />
   );
@@ -180,7 +158,6 @@ export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
                       positive={positive}
                       color={color}
                       index={i}
-                      isAnimated={true}
                     />
                   </View>
                 </View>
