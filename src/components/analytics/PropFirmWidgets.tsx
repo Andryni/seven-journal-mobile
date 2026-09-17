@@ -149,10 +149,10 @@ export const AnimatedProgressBar: React.FC<{
         />
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontFamily: theme.fonts.mono }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.mono }}>
           {invert ? (pct > 0.9 ? t('progressAlert') : pct > 0.7 ? t('progressWarning') : t('progressSafe')) : (pct > 0.95 ? t('progressAlmost') : pct > 0.85 ? t('progressOngoing') : t('progressAdvancing'))}
         </Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 8, fontFamily: theme.fonts.mono, fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontFamily: theme.fonts.mono, fontVariant: ['tabular-nums'] }}>
           {(pct * 100).toFixed(1)}%
         </Text>
       </View>
@@ -183,7 +183,7 @@ export const StatusChip: React.FC<{
     }}
   >
     {icon}
-    <Text style={{ color: t.colors.textMuted, fontSize: 8, fontFamily: t.fonts.monoBold, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
+    <Text style={{ color: t.colors.textMuted, fontSize: 9, fontFamily: t.fonts.monoBold, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
     <Text style={{ color, fontSize: 14, fontFamily: t.fonts.monoBold, fontVariant: ['tabular-nums'] }}>{value}</Text>
   </Animated.View>
 );

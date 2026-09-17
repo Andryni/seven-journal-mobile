@@ -166,7 +166,7 @@ const createStyles = (theme: AppTheme) =>
     },
     dayText: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
     },
     hourCell: {
@@ -174,7 +174,7 @@ const createStyles = (theme: AppTheme) =>
     },
     hourText: {
       color: theme.colors.textMuted,
-      fontSize: 7,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
     },
     cell: {
@@ -186,7 +186,7 @@ const createStyles = (theme: AppTheme) =>
     },
     cellCount: {
       color: theme.colors.textSecondary,
-      fontSize: 7,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
     },
     legend: {
@@ -200,7 +200,7 @@ const createStyles = (theme: AppTheme) =>
     },
     legendLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
     },
     legendGroup: {
@@ -215,13 +215,13 @@ const createStyles = (theme: AppTheme) =>
     },
     legendText: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       marginLeft: 4,
     },
     legendCount: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       marginLeft: 'auto',
     },

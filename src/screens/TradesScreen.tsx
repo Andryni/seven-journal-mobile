@@ -430,7 +430,7 @@ export const TradesScreen: React.FC = () => {
             </Text>
             <PressableScale
               onPress={clearDrill}
-              hitSlop={8}
+              hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel={t('filterClear')}
             >

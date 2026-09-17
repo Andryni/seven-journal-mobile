@@ -401,7 +401,7 @@ const createStyles = (theme: AppTheme) =>
     },
     brandAccount: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.6,
       marginTop: 2,
@@ -437,7 +437,7 @@ const createStyles = (theme: AppTheme) =>
     stat: { flex: 1, alignItems: 'center' },
     statLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.7,
       marginBottom: 4,

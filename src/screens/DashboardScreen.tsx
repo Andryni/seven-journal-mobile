@@ -30,6 +30,7 @@ import { TradeFormModal } from '../components/trades/TradeFormModal';
 import { ShareCardModal } from '../components/share/ShareCardModal';
 import { Sparkline } from '../components/ui/Sparkline';
 import { MorningBriefCard } from '../components/dashboard/MorningBriefCard';
+import { ExecutiveSummaryCard } from '../components/dashboard/ExecutiveSummaryCard';
 import { usePlaybook, usePlaybookSetups } from '../features/playbook/usePlaybook';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { PinnedMonthCard, PinnedWeekCard } from '../components/dashboard/PinnedMonthCard';
@@ -204,6 +205,13 @@ export const DashboardScreen: React.FC = () => {
         playbookTitles={debriefsLoading || setupsLoading ? [] : playbookTitles}
       />
 
+      {/* ── 0bis. EXECUTIVE SUMMARY — the three-line brief: where I stand,
+          what works, what bleeds. Rendered only with closed trades. ── */}
+      <ExecutiveSummaryCard
+        metrics={m}
+        formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })}
+      />
+
       {/* A combined total across currencies is not a quantity. Say so rather
           than stamping one symbol on a sum of euros and dollars. */}
       {mixedCurrencies ? (
@@ -229,7 +237,7 @@ export const DashboardScreen: React.FC = () => {
               setShareModalVisible(true);
             }}
             accessibilityLabel={t('sharePnl')}
-            hitSlop={8}
+            hitSlop={10}
           >
             <Share2 size={13} color={theme.colors.textSecondary} strokeWidth={1.75} />
           </PressableScale>
@@ -479,7 +487,7 @@ export const DashboardScreen: React.FC = () => {
             style={styles.viewAll}
             onPress={() => navigation.navigate('Trades')}
             accessibilityLabel={t('viewAll')}
-            hitSlop={8}
+            hitSlop={10}
           >
             <Text style={styles.viewAllText}>{t('viewAll')}</Text>
             <ChevronRight size={12} color={theme.colors.primary} strokeWidth={2} />

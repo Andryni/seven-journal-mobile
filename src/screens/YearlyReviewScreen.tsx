@@ -85,7 +85,7 @@ export const YearlyReviewScreen: React.FC = () => {
             style={styles.shareBtn}
             onPress={() => setShareModalVisible(true)}
             accessibilityLabel={t('sharePnl')}
-            hitSlop={8}
+            hitSlop={10}
           >
             <Share2 size={13} color={theme.colors.textSecondary} strokeWidth={1.75} />
           </PressableScale>
@@ -101,7 +101,7 @@ export const YearlyReviewScreen: React.FC = () => {
             {y.canGoPrev ? (
               <PressableScale
                 onPress={() => setYearsBack(b => b + 1)}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yPrevYear')}
@@ -113,7 +113,7 @@ export const YearlyReviewScreen: React.FC = () => {
             {yearsBack > 0 ? (
               <PressableScale
                 onPress={() => setYearsBack(b => Math.max(0, b - 1))}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yNextYear')}
@@ -144,6 +144,10 @@ export const YearlyReviewScreen: React.FC = () => {
             {y.monthlyPnL.map((m, i) => {
               const h = (Math.abs(m.value) / maxAbs) * 44;
               const up = m.value >= 0;
+              // The verdicts name the best/worst month; the axis keeps those
+              // two lit and dims the rest so the eye lands there first.
+              const isExtreme =
+                (y.bestMonth?.month === i || y.worstMonth?.month === i) && m.trades > 0;
               return (
                 <View key={m.label} style={styles.barCol}>
                   <View style={styles.barSlot}>
@@ -159,7 +163,11 @@ export const YearlyReviewScreen: React.FC = () => {
                       />
                     )}
                   </View>
-                  <Text style={styles.barLabel}>{monthName(i).toUpperCase()}</Text>
+                  <Text
+                    style={[styles.barLabel, isExtreme && styles.barLabelStrong]}
+                  >
+                    {monthName(i).toUpperCase()}
+                  </Text>
                 </View>
               );
             })}
@@ -205,7 +213,7 @@ export const YearlyReviewScreen: React.FC = () => {
           <Hairline />
           <View style={styles.metricGrid}>
             <Metric
-              label={t('bestSetup')}
+              label={t('yearlyBestMonthLabel')}
               value={y.bestMonth ? monthName(y.bestMonth.month) : '—'}
               sub={y.bestMonth ? money(y.bestMonth.value, { decimals: 0 }) : undefined}
               size="small"
@@ -214,7 +222,7 @@ export const YearlyReviewScreen: React.FC = () => {
               pnlValue={y.bestMonth?.value ?? 0}
             />
             <Metric
-              label={t('worstSetup')}
+              label={t('yearlyWorstMonthLabel')}
               value={y.worstMonth ? monthName(y.worstMonth.month) : '—'}
               sub={y.worstMonth ? money(y.worstMonth.value, { decimals: 0 }) : undefined}
               size="small"
@@ -316,9 +324,13 @@ const createStyles = (theme: AppTheme) =>
     barSlot: { height: 44, justifyContent: 'flex-end', alignItems: 'center' },
     barLabel: {
       color: theme.colors.textMuted,
-      fontSize: 7,
+      fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0,
+    },
+    barLabelStrong: {
+      color: theme.colors.textSecondary,
+      fontFamily: theme.fonts.monoBold,
     },
     zeroLine: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline, marginTop: 6 },
     verdicts: { marginTop: 10, gap: 3 },

@@ -121,6 +121,27 @@ describe('PinnedMonthCard navigation', () => {
   });
 });
 
+describe('ExecutiveSummaryCard on DashboardScreen', () => {
+  it('renders the three-line brief from seeded metrics', () => {
+    const { queryByText } = renderScreen(<DashboardScreen />, {
+      trades: [makeTrade({ entry_time: thisMonthISO(), exit_time: thisMonthISO(6) })],
+      accounts: [makeAccount()],
+    });
+    // Line 1 interpolates (net · win rate · count) — the very bug class the
+    // yearly review shipped with, asserted here so it cannot return.
+    expect(queryByText(/\$180 de net|\$180 net/)).toBeTruthy();
+    expect(queryByText(/de réussite sur|win rate over/)).toBeTruthy();
+  });
+
+  it('stays hidden for an empty journal', () => {
+    const { queryByText } = renderScreen(<DashboardScreen />, {
+      trades: [],
+      accounts: [makeAccount()],
+    });
+    expect(queryByText(/de réussite sur|win rate over/)).toBeNull();
+  });
+});
+
 describe('MonthlyPerformanceCard in AnalyticsScreen', () => {
   it('mounts the performance tab with monthly rows', () => {
     const { getAllByText } = renderScreen(<AnalyticsScreen />, {

@@ -110,6 +110,12 @@ export const ScreenshotGallery: React.FC<ScreenshotGalleryProps> = ({ visible, o
                     {item.phase === 'before' ? t('galleryBefore') : t('galleryAfter')}
                   </Text>
                 </View>
+                {/* Trade date, top-right — the phase badge's opposite corner,
+                    so each overlay answers exactly one question: what shot is
+                    this, and when was it taken. */}
+                <View style={styles.dateBadge}>
+                  <Text style={styles.dateBadgeText}>{dateOf(item.trade).toUpperCase()}</Text>
+                </View>
                 <View style={styles.tileMeta}>
                   <Text style={styles.tilePair}>{item.trade.pair}</Text>
                   <Text
@@ -219,7 +225,24 @@ const createStyles = (theme: AppTheme) =>
     },
     phaseBadgeText: {
       color: theme.colors.textPrimary,
-      fontSize: 8,
+      fontSize: 9,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.8,
+    },
+    dateBadge: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: withAlpha(theme.colors.card, 0.85),
+      borderWidth: 1,
+      borderColor: withAlpha(theme.colors.textMuted, 0.35),
+    },
+    dateBadgeText: {
+      color: theme.colors.textSecondary,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
     },

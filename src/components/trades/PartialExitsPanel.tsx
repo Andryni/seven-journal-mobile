@@ -93,7 +93,7 @@ export const PartialExitsPanel: React.FC<{ trade: Trade }> = ({ trade }) => {
               </Text>
               <TouchableOpacity
                 onPress={() => deleteExit(e.id)}
-                hitSlop={8}
+                hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={t('delete')}
               >

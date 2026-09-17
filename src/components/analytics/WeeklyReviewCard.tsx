@@ -194,7 +194,7 @@ const Stat: React.FC<{
       <Text
         style={{
           color: theme.colors.textMuted,
-          fontSize: 8,
+          fontSize: 9,
           fontFamily: theme.fonts.mono,
           marginTop: 2,
         }}
@@ -228,7 +228,7 @@ const Insight: React.FC<{
       <Text
         style={{
           color: theme.colors.textMuted,
-          fontSize: 8,
+          fontSize: 9,
           fontFamily: theme.fonts.monoBold,
           letterSpacing: 1,
         }}
@@ -261,7 +261,7 @@ const Insight: React.FC<{
       <Text
         style={{
           color: theme.colors.textMuted,
-          fontSize: 8,
+          fontSize: 9,
           fontFamily: theme.fonts.mono,
           marginTop: 2,
         }}

@@ -636,7 +636,7 @@ const createStyles = (theme: AppTheme) =>
     },
     guardLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
     },

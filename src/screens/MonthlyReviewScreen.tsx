@@ -125,7 +125,7 @@ export const MonthlyReviewScreen: React.FC = () => {
             style={styles.shareBtn}
             onPress={() => setShareModalVisible(true)}
             accessibilityLabel={t('sharePnl')}
-            hitSlop={8}
+            hitSlop={10}
           >
             <Share2 size={13} color={theme.colors.textSecondary} strokeWidth={1.75} />
           </PressableScale>
@@ -146,7 +146,7 @@ export const MonthlyReviewScreen: React.FC = () => {
             {m.canGoPrev ? (
               <PressableScale
                 onPress={() => setMonthsBack(b => b + 1)}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yPrevMonth')}
@@ -158,7 +158,7 @@ export const MonthlyReviewScreen: React.FC = () => {
             {monthsBack > 0 ? (
               <PressableScale
                 onPress={() => setMonthsBack(b => Math.max(0, b - 1))}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yNextMonth')}
@@ -268,6 +268,11 @@ export const MonthlyReviewScreen: React.FC = () => {
             {m.dailyPnL.map(d => {
               const h = (Math.abs(d.value) / maxAbs) * 44;
               const up = d.value >= 0;
+              // Extremes stay lit, the rest dims: the verdicts below name the
+              // best/worst day, the chart should point at the same ones.
+              const isExtreme =
+                (m.bestDay && d.label === m.bestDay.label) ||
+                (m.worstDay && d.label === m.worstDay.label);
               return (
                 <View key={d.label} style={styles.barCol}>
                   <View style={styles.barSlot}>
@@ -283,8 +288,14 @@ export const MonthlyReviewScreen: React.FC = () => {
                       />
                     )}
                   </View>
-                  {/* Day numbers: shown at a stride so 31 slots stay readable. */}
-                  <Text style={[styles.barLabel, Number(d.label) % 5 !== 0 && styles.barLabelDim]}>
+                  {/* Day numbers at a stride; extremes keep full opacity. */}
+                  <Text
+                    style={[
+                      styles.barLabel,
+                      Number(d.label) % 5 !== 0 && !isExtreme && styles.barLabelDim,
+                      isExtreme && styles.barLabelStrong,
+                    ]}
+                  >
                     {d.label}
                   </Text>
                 </View>
@@ -427,11 +438,15 @@ const createStyles = (theme: AppTheme) =>
     barSlot: { height: 44, justifyContent: 'flex-end', alignItems: 'center' },
     barLabel: {
       color: theme.colors.textMuted,
-      fontSize: 7,
+      fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0,
     },
     barLabelDim: { color: 'transparent' },
+    barLabelStrong: {
+      color: theme.colors.textSecondary,
+      fontFamily: theme.fonts.monoBold,
+    },
     zeroLine: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.hairline, marginTop: 6 },
     dayVerdicts: { marginTop: 10, gap: 3 },
     dayVerdict: {

@@ -287,7 +287,7 @@ const createStyles = (theme: AppTheme) =>
     },
     pickerLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
       marginBottom: 4,
@@ -302,7 +302,7 @@ const createStyles = (theme: AppTheme) =>
     },
     fieldLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
       marginBottom: 4,
@@ -354,7 +354,7 @@ const createStyles = (theme: AppTheme) =>
     },
     resultLabel: {
       color: theme.colors.goldLight,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 1,
       marginBottom: 4,
@@ -389,7 +389,7 @@ const createStyles = (theme: AppTheme) =>
     },
     resultItemLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       letterSpacing: 0.5,
       marginBottom: 2,
     },
@@ -400,7 +400,7 @@ const createStyles = (theme: AppTheme) =>
     },
     resultItemSub: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
     },
     infoBox: {
       flexDirection: 'row',

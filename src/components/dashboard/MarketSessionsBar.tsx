@@ -200,7 +200,7 @@ const createStyles = (theme: AppTheme) =>
     },
     alertMini: {
       color: theme.colors.gold,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
     },
   });

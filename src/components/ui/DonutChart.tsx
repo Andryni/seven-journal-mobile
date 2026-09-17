@@ -202,7 +202,7 @@ const createStyles = (theme: AppTheme) =>
     },
     centerSub: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 1,
       textTransform: 'uppercase',

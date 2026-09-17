@@ -1514,7 +1514,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   },
   edgeStatLabel: {
     color: theme.colors.textMuted,
-    fontSize: 8,
+    fontSize: 9,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.6,
   },

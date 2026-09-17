@@ -458,7 +458,7 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   xAxisLabel: {
     position: 'absolute',
     color: theme.colors.textMuted,
-    fontSize: 7,
+    fontSize: 9,
     fontFamily: theme.fonts.monoBold,
     textAlign: 'center',
     width: 42,

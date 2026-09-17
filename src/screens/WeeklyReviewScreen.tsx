@@ -118,7 +118,7 @@ export const WeeklyReviewScreen: React.FC = () => {
             {w.canGoPrev ? (
               <PressableScale
                 onPress={() => setWeeksBack(b => b + 1)}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yPrevWeek')}
@@ -130,7 +130,7 @@ export const WeeklyReviewScreen: React.FC = () => {
             {weeksBack > 0 ? (
               <PressableScale
                 onPress={() => setWeeksBack(b => Math.max(0, b - 1))}
-                hitSlop={8}
+                hitSlop={10}
                 style={styles.navBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11yNextWeek')}

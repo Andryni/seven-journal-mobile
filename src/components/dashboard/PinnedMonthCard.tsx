@@ -112,7 +112,7 @@ export const PinnedMonthCard: React.FC<{
               onPress={() => onShare(anchor)}
               accessibilityRole="button"
               accessibilityLabel={t('scExportShare')}
-              hitSlop={8}
+              hitSlop={10}
               testID="pinned-month-share"
             >
               <Share2 size={13} color={theme.colors.primary} strokeWidth={1.9} />
@@ -122,7 +122,7 @@ export const PinnedMonthCard: React.FC<{
               onPress={onUnpin}
               accessibilityRole="button"
               accessibilityLabel={t('pinnedMonthUnpin')}
-              hitSlop={8}
+              hitSlop={10}
             >
               <Text style={styles.unpinText}>×</Text>
             </PressableScale>
@@ -145,7 +145,7 @@ export const PinnedMonthCard: React.FC<{
                   <PressableScale
                     style={styles.navBtn}
                     onPress={() => setMonthsBack(b => b + 1)}
-                    hitSlop={8}
+                    hitSlop={10}
                     accessibilityRole="button"
                     accessibilityLabel={t('a11yPrevMonth')}
                     testID="pinned-month-prev"
@@ -157,7 +157,7 @@ export const PinnedMonthCard: React.FC<{
                   <PressableScale
                     style={styles.navBtn}
                     onPress={() => setMonthsBack(b => Math.max(0, b - 1))}
-                    hitSlop={8}
+                    hitSlop={10}
                     accessibilityRole="button"
                     accessibilityLabel={t('a11yNextMonth')}
                     testID="pinned-month-next"
@@ -250,7 +250,7 @@ export const PinnedWeekCard: React.FC<{
               onPress={onShare}
               accessibilityRole="button"
               accessibilityLabel={t('scExportShare')}
-              hitSlop={8}
+              hitSlop={10}
               testID="pinned-week-share"
             >
               <Share2 size={13} color={theme.colors.primary} strokeWidth={1.9} />
@@ -260,7 +260,7 @@ export const PinnedWeekCard: React.FC<{
               onPress={onUnpin}
               accessibilityRole="button"
               accessibilityLabel={t('pinnedWeekUnpin')}
-              hitSlop={8}
+              hitSlop={10}
             >
               <Text style={styles.unpinText}>×</Text>
             </PressableScale>
@@ -357,7 +357,7 @@ const createStyles = (theme: AppTheme) =>
     stat: { flex: 1, alignItems: 'center', gap: 3 },
     statLabel: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.mono,
       letterSpacing: 0.7,
     },

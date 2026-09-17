@@ -558,7 +558,7 @@ const createStyles = (theme: AppTheme) =>
     },
     tagline: {
       color: theme.colors.textMuted,
-      fontSize: 8,
+      fontSize: 9,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 1.5,
     },

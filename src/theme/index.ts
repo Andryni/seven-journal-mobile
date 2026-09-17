@@ -165,6 +165,18 @@ const type = {
   micro: 9,
 };
 
+/**
+ * Elevation — the three documented depths.
+ *
+ * The contract, in one place because five greys coexisted without a rule:
+ *   depth 0 · `background`          — the screen itself, nothing floats on it
+ *   depth 1 · `card` / `surface`    — panels and cards sitting on the screen
+ *   depth 2 · `backgroundElevated`  — things that float OVER cards (modals,
+ *                                      sheets, toasts, pickers)
+ * `inputBg`/`chartBg`/`modalBg` are situational variants of these depths, not
+ * a fourth depth. `elevation.raised` is the shadow reserved for depth-2
+ * surfaces only — depth-1 cards are separated by borders, never shadows.
+ */
 const elevation = {
   flat: {},
   raised: {
@@ -231,9 +243,11 @@ const darkColors: Theme['colors'] = {
   cyanGlow: withAlpha(CYAN, 0.14),
 
   // Warm-tinted text ramp (slightly off-white, easier on OLED at night).
+  // Contrast on `surface` (#161618): textPrimary ≈15.9:1, textSecondary ≈7.7:1,
+  // textMuted ≈4.7:1 — muted is the FLOOR for readable text, never lower.
   textPrimary: '#F5F3F0',
   textSecondary: '#A3A09B',
-  textMuted: '#6E6B67',
+  textMuted: '#82807B',
   textDark: '#4A4845',
 };
 
