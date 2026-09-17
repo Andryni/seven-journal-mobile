@@ -55,11 +55,15 @@ export const TopAccountBar: React.FC = () => {
             letterSpacing={0.8}
             primaryColor={theme.colors.textPrimary}
             accentColor={theme.colors.primaryLight}
-          />
-          <View style={styles.liveIndicatorRow}>
-            <View style={styles.liveDot} />
-            <Text style={styles.terminalSub}>FINTECH TERMINAL</Text>
-          </View>
+          />            <View style={styles.liveIndicatorRow}>
+              <View style={styles.liveDot} />
+              {/* numberOfLines: between the 36px logo and the account selector
+                  there is no slack; a wrapped "TERMINAL" would be clipped by
+                  the row height instead of ellipsizing visibly. */}
+              <Text style={styles.terminalSub} numberOfLines={1}>
+                FINTECH TERMINAL
+              </Text>
+            </View>
         </View>
       </View>
 

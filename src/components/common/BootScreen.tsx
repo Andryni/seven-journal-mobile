@@ -42,7 +42,11 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
           letterSpacing={3.4}
           style={styles.wordmark}
         />
-        <Text style={styles.tagline}>{caption ?? 'FINTECH TERMINAL'}</Text>
+        {/* numberOfLines: an over-wide tagline must ellipsize, never wrap --
+            a second line would push the loader off the boot frame. */}
+        <Text style={styles.tagline} numberOfLines={1}>
+          {caption ?? 'FINTECH TERMINAL'}
+        </Text>
 
         {/* Candles printing left to right: the same loader the rest of the
             app uses, so waiting always looks like the same thing. */}

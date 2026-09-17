@@ -71,7 +71,8 @@ export const WeeklyReviewCard: React.FC<{ trades: Trade[] }> = ({ trades }) => {
           <View style={styles.deltaRow}>
             <DeltaIcon size={11} color={deltaColor} strokeWidth={2} />
             <Text style={[styles.deltaText, { color: deltaColor }]}>
-              {w.deltaPnL >= 0 ? '+' : ''}
+              {/* No manual '+': the formatter already signs positives, and
+                  this line used to read "++$400". */}
               {money(w.deltaPnL, { decimals: 0 })}
             </Text>
             <Text style={styles.deltaLabel}>{t('weeklyVsPrev')}</Text>

@@ -52,7 +52,9 @@ export const MonthlyReviewScreen: React.FC = () => {
     () => new Date(new Date().getFullYear(), new Date().getMonth() - monthsBack, 1),
     [monthsBack]
   );
-  const m = useMonthlyReview(trades, anchor);  /**
+  const m = useMonthlyReview(trades, anchor);
+
+  /**
    * Gains per month since the first trade, through the END of the anchored
    * month: the bound is exclusive, so passing the anchor's start would drop
    * the very month under review — the live month-to-date included.
@@ -134,7 +136,9 @@ export const MonthlyReviewScreen: React.FC = () => {
           {money(m.netPnL, { decimals: 0, thousandsSeparator: true })}
         </Text>
         <Text style={[styles.heroDelta, { color: m.deltaPnL >= 0 ? theme.colors.green : theme.colors.red }]}>
-          {m.deltaPnL >= 0 ? '▲ +' : '▼ '}
+          {/* The sign travels with the money format; a manual '+' here doubled
+              it -- same bug as the weekly review's "++$1550". */}
+          {m.deltaPnL >= 0 ? '▲ ' : '▼ '}
           {money(m.deltaPnL, { decimals: 0 })} {t('monthlyVsPrevShort')}
         </Text>
         <Text style={styles.heroRange}>{monthLabel}</Text>

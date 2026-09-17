@@ -194,7 +194,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: theme.colors.background }} onLayout={onSplashLayout}>
-          <AnimatedSplashScreen onAnimationFinish={finishSplash} />
+          <AnimatedSplashScreen onAnimationFinish={finishSplash} fontsReady={fontsLoaded} />
         </View>
       </SafeAreaProvider>
     );

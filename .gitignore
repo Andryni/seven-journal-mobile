@@ -62,3 +62,4 @@ yarn-error.*
 #   supabase/.temp/   CLI scratch files, rewritten on most commands
 .supabase/
 supabase/.temp/
+adb_dumps/

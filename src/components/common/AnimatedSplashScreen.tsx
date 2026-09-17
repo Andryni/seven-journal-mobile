@@ -1,11 +1,18 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Animated, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
-import { BootScreen } from './BootScreen';
+import { BrandWordmark } from '../brand/BrandWordmark';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
+  /**
+   * Whether the Google fonts have finished loading. The wordmark and tagline
+   * stay invisible until they are: measured in the fallback font, the real
+   * (wider) mono face paints over a too-narrow line and clips its tail -- the
+   * reported "the L of JOURNAL / the word TERMINAL sometimes vanish".
+   */
+  fontsReady?: boolean;
 }
 
 /**
@@ -18,6 +25,7 @@ interface AnimatedSplashScreenProps {
  */
 export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
   onAnimationFinish,
+  fontsReady = true,
 }) => {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -71,10 +79,36 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <Animated.View style={{ opacity, flex: 1, alignSelf: 'stretch' }}>
-        {/* Vector, not the PNG: a bitmap has to be decoded before it can be
-            shown, which is exactly the moment the user saw a blank frame. */}
-        <BootScreen />
+      <Animated.View
+        style={{
+          opacity,
+          flex: 1,
+          alignSelf: 'stretch',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View style={styles.stack}>
+          {/* Vector, not the PNG: a bitmap has to be decoded before it can be
+              shown, which is exactly the moment the user saw a blank frame. */}
+          <Image
+            source={require('../../assets/seven_tracking_logo.png')}
+            style={{ width: markSize, height: markSize }}
+            resizeMode="contain"
+          />
+          {/* The mark needs no font and shows immediately; the wordmark and
+              tagline wait for fontsReady -- see the prop's doc. The mark keeps
+              the screen alive meanwhile, so nothing blank flashes. */}
+          <BrandWordmark
+            fontSize={17}
+            fontFamily={theme.fonts.monoBold}
+            letterSpacing={3.4}
+            style={[styles.wordmark, !fontsReady && styles.awaitingFonts]}
+          />
+          <Text style={[styles.tagline, !fontsReady && styles.awaitingFonts]}>
+            FINTECH TERMINAL
+          </Text>
+        </View>
       </Animated.View>
     </View>
   );
@@ -88,4 +122,19 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    // Mirrors BootScreen's stack so the two boot surfaces read as one screen
+    // when the splash hands over to it.
+    stack: { alignItems: 'center' },
+    wordmark: {
+      marginTop: theme.spacing.md,
+      color: theme.colors.textPrimary,
+    },
+    tagline: {
+      marginTop: 6,
+      color: theme.colors.textMuted,
+      fontSize: 9,
+      fontFamily: theme.fonts.mono,
+      letterSpacing: 2.2,
+    },
+    awaitingFonts: { opacity: 0 },
   });

@@ -106,7 +106,9 @@ export const WeeklyReviewScreen: React.FC = () => {
           {money(w.netPnL, { decimals: 0, thousandsSeparator: true })}
         </Text>
         <Text style={[styles.heroDelta, { color: w.deltaPnL >= 0 ? theme.colors.green : theme.colors.red }]}>
-          {w.deltaPnL >= 0 ? '▲ +' : '▼ '}
+          {/* The sign travels with the money format; prefixing another '+'
+              here produced the reported "++$1550" on a positive delta. */}
+          {w.deltaPnL >= 0 ? '▲ ' : '▼ '}
           {money(w.deltaPnL, { decimals: 0 })} {t('weeklyVsPrevShort')}
         </Text>
         <Text style={styles.heroRange}>{rangeLabel}</Text>
