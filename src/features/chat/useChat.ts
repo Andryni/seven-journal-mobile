@@ -44,8 +44,10 @@ export function useChat(params: {
   account?: TradingAccount | null;
   locale?: string;
   focusTradeId?: string | null;
+  /** Live state of the rule engine, so the model can answer "can I trade". */
+  isLocked?: boolean;
 }) {
-  const { trades, account = null, locale = 'fr', focusTradeId = null } = params;
+  const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,7 +112,7 @@ export function useChat(params: {
       setDetail(null);
 
       try {
-        const context = buildChatContext({ trades, account, locale, focusTradeId });
+        const context = buildChatContext({ trades, account, locale, focusTradeId, isLocked });
         const { data, error: fnError } = await supabase.functions.invoke('chat', {
           body: { context, history, message: trimmed },
         });
@@ -161,7 +163,7 @@ export function useChat(params: {
         if (mounted.current) setLoading(false);
       }
     },
-    [messages, loading, trades, account, locale, focusTradeId]
+    [messages, loading, trades, account, locale, focusTradeId, isLocked]
   );
 
   const clear = useCallback(() => {

@@ -4,7 +4,7 @@ import {
   toChatTrade,
   MAX_CHAT_TRADES,
 } from '../buildChatContext';
-import type { Trade } from '../../../types/domain';
+import type { Trade, TradingAccount } from '../../../types/domain';
 
 /**
  * These tests are mostly about what is NOT sent.
@@ -193,5 +193,80 @@ describe('buildChatContext', () => {
     const ctx = buildChatContext({ trades: [trade()] });
     expect(ctx.trades).toHaveLength(1);
     expect(ctx.stats.trades).toBe(1);
+  });
+});
+
+describe('the v2 account block', () => {
+  function account(over: Partial<TradingAccount> = {}): TradingAccount {
+    return {
+      id: 'a1',
+      user_id: 'u',
+      name: 'FTMO 50K',
+      type: 'challenge',
+      balance: 50000,
+      initial_balance: 50000,
+      currency: 'USD',
+      is_active: true,
+      max_daily_loss_limit: 1000,
+      max_drawdown_limit: 2500,
+      profit_target: 5000,
+      created_at: '2026-01-01T00:00:00',
+      ...over,
+    } as TradingAccount;
+  }
+
+  it('carries the derived risk figures the dashboard already shows', () => {
+    // "Today" from the machine running the test: isSameLocalDay buckets by
+    // the local day, so the fixtures must live in it.
+    const today = new Date();
+    const hhmm = (h: number, m: number) => {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate(), h, m);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(h)}:${pad(m)}:00`;
+    };
+    const ctx = buildChatContext({
+      trades: [
+        trade({ pnl: -400, entry_time: hhmm(9, 30) }),
+        trade({ pnl: -300, entry_time: hhmm(15, 10) }),
+      ],
+      account: account(),
+      isLocked: true,
+    });
+    expect(ctx.account).not.toBeNull();
+    expect(ctx.account!.name).toBe('FTMO 50K');
+    // Two red trades today: 700 consumed of the 1000 limit, 300 left,
+    // and the guard would have locked the session at that point.
+    expect(ctx.account!.todayPnl).toBe(-700);
+    expect(ctx.account!.dailyLossLimit).toBe(1000);
+    expect(ctx.account!.dailyRemaining).toBe(300);
+    expect(ctx.account!.isLocked).toBe(true);
+  });
+
+  it('computes target and drawdown progress as bounded fractions', () => {
+    const ctx = buildChatContext({
+      trades: [trade({ pnl: 1250 })],
+      account: account(),
+    });
+    expect(ctx.account!.profitTargetProgress).toBe(0.25); // 1250 / 5000
+    expect(ctx.account!.drawdownUsedPct).toBe(0); // no losing day yet
+    expect(ctx.account!.bestDayPnl).toBe(1250);
+  });
+
+  it('stays null without a selected account, instead of faking one', () => {
+    // A combined multi-account total is not an account; handing the model
+    // an anonymous aggregate dressed as one would invite confident lies.
+    const ctx = buildChatContext({ trades: [trade()] });
+    expect(ctx.account).toBeNull();
+  });
+
+  it('leaves limit fields null when the account has none configured', () => {
+    const ctx = buildChatContext({
+      trades: [trade({ pnl: 80 })],
+      account: account({ max_daily_loss_limit: null, max_drawdown_limit: null, profit_target: null }),
+    });
+    expect(ctx.account!.dailyLossLimit).toBeNull();
+    expect(ctx.account!.dailyRemaining).toBeNull();
+    expect(ctx.account!.profitTargetProgress).toBeNull();
+    expect(ctx.account!.drawdownUsedPct).toBeNull();
   });
 });

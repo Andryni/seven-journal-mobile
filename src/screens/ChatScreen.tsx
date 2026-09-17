@@ -15,8 +15,9 @@ import { useTheme, withAlpha } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
 import { PressableScale } from '../components/ui/PressableScale';
-import { CandleLoader } from '../components/ui/CandleLoader';
+import { ThinkingIndicator } from '../components/ui/ThinkingIndicator';
 import { useTrades } from '../features/trades/useTrades';
+import { useDailyLock } from '../features/guard/useDailyLock';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades } from '../features/accounts/accountScope';
@@ -38,6 +39,7 @@ export const ChatScreen: React.FC = () => {
   const { trades } = useTrades();
   const { accounts } = useAccounts();
   const activeAccountId = useUIStore(st => st.activeAccountId);
+  const { isLocked } = useDailyLock();
 
   const scoped = useMemo(
     () => scopeTrades(trades, activeAccountId),
@@ -48,7 +50,7 @@ export const ChatScreen: React.FC = () => {
     [accounts, activeAccountId]
   );
 
-  const chat = useChat({ trades: scoped, account, locale: lang });
+  const chat = useChat({ trades: scoped, account, locale: lang, isLocked });
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<ScrollView>(null);
 
@@ -91,6 +93,14 @@ export const ChatScreen: React.FC = () => {
         <View style={styles.titleRow}>
           <Sparkles size={15} color={theme.colors.primary} strokeWidth={2} />
           <Text style={styles.title}>{t('chatTitle')}</Text>
+          {/* What the coach is looking at. With no account selected the chat
+              aggregates every account, so the chip names that too — silence
+              here is how a mixed-currency answer surprises someone. */}
+          <View style={styles.accountChip}>
+            <Text style={styles.accountChipText} numberOfLines={1}>
+              {account ? account.name.toUpperCase() : t('chatAccountChip')}
+            </Text>
+          </View>
         </View>
         {chat.messages.length > 0 ? (
           <PressableScale
@@ -150,9 +160,9 @@ export const ChatScreen: React.FC = () => {
         ))}
 
         {chat.loading ? (
-          <View style={styles.thinking}>
-            <CandleLoader size={26} />
-          </View>
+          <Animated.View entering={FadeIn.duration(160)} style={styles.thinking}>
+            <ThinkingIndicator />
+          </Animated.View>
         ) : null}
 
         {chat.error ? (
@@ -214,6 +224,22 @@ const createStyles = (theme: AppTheme) =>
       fontSize: theme.type.title,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.8,
+    },
+    accountChip: {
+      marginLeft: 6,
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 4,
+      backgroundColor: withAlpha(theme.colors.primary, 0.12),
+      borderWidth: 1,
+      borderColor: withAlpha(theme.colors.primary, 0.25),
+      maxWidth: 140,
+    },
+    accountChipText: {
+      color: theme.colors.primaryLight,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.6,
     },
 
     thread: { flex: 1 },

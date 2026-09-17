@@ -1,5 +1,6 @@
 import type { Trade, TradingAccount } from '../../types/domain';
 import { classifyPnl } from '../../utils/tradeOutcome';
+import { isSameLocalDay, localDayKey } from '../../utils/formatDate';
 
 /**
  * The snapshot of the journal sent with a chat message.
@@ -76,13 +77,43 @@ export interface ChatStats {
 }
 
 export interface ChatContext {
-  v: 1;
+  v: 2;
   locale: string;
   accountType: string | null;
   stats: ChatStats;
   trades: ChatTrade[];
   /** Set when the user opened the chat from one specific trade. */
   focusTradeN: number | null;
+  /**
+   * The active account as the model may discuss it, v2.
+   *
+   * "Do I still have room to trade today" and "how far into the challenge
+   * am I" are account questions, and v1 could not answer either: it carried
+   * only the account type string. Everything here is a figure the dashboard
+   * already displays -- no balance, no position sizes, no new exposure.
+   */
+  account: ChatAccount | null;
+}
+
+export interface ChatAccount {
+  /** Display name, e.g. "FTMO 50K". The model refers to it by this. */
+  name: string;
+  type: string;
+  currency: string;
+  /** Realised P&L of the local day, the figure the risk gauge shows. */
+  todayPnl: number;
+  /** Daily loss limit in currency, when one is configured. */
+  dailyLossLimit: number | null;
+  /** Currency still riskable today before the limit; null without a limit. */
+  dailyRemaining: number | null;
+  /** Whether the rule engine has locked the session. */
+  isLocked: boolean;
+  /** Profit target progress, 0..1, when a target is set. */
+  profitTargetProgress: number | null;
+  /** Drawdown consumed, 0..1, when a max drawdown is set. */
+  drawdownUsedPct: number | null;
+  /** Largest single-day gain, for the consistency rule, in currency. */
+  bestDayPnl: number | null;
 }
 
 /**
@@ -181,14 +212,102 @@ export function computeChatStats(closed: Trade[], currency: string): ChatStats {
   };
 }
 
+/**
+ * The active account as the model may discuss it.
+ *
+ * Pure and null-tolerant: with no account selected the chat runs on every
+ * account combined, and the honest payload carries NO account block at all
+ * -- a fabricated aggregate of mixed currencies would just invite the model
+ * to quote it as one number.
+ */
+export function buildChatAccount(
+  account: TradingAccount | null,
+  closed: Trade[],
+  isLocked: boolean
+): ChatAccount | null {
+  if (!account) return null;
+
+  const currency = account.currency || 'USD';
+  const todayPnl = r2(
+    closed
+      .filter(t => isSameLocalDay(t.entry_time))
+      .reduce((s, t) => s + (t.pnl ?? 0), 0)
+  );
+
+  const limit =
+    account.max_daily_loss_limit && account.max_daily_loss_limit > 0
+      ? account.max_daily_loss_limit
+      : null;
+  // Only realised losses consume the allowance, same rule as the pre-trade
+  // guard -- the two must never disagree in front of the trader.
+  const used = todayPnl < 0 ? Math.abs(todayPnl) : 0;
+  const dailyRemaining = limit !== null ? r2(Math.max(0, limit - used)) : null;
+
+  const netPnl = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
+  const target =
+    account.profit_target && account.profit_target > 0 ? account.profit_target : null;
+  const profitTargetProgress =
+    target !== null ? Math.min(1, Math.max(0, netPnl / target)) : null;
+
+  // Peak-to-trough drawdown consumption, walked in closing order exactly
+  // like the analytics tab so the two figures can never diverge.
+  let cum = 0;
+  let peak = 0;
+  let maxDd = 0;
+  for (const t of [...closed].sort(
+    (a, b) =>
+      new Date(a.exit_time || a.entry_time || 0).getTime() -
+      new Date(b.exit_time || b.entry_time || 0).getTime()
+  )) {
+    cum += t.pnl ?? 0;
+    if (cum > peak) peak = cum;
+    const dd = peak - cum;
+    if (dd > maxDd) maxDd = dd;
+  }
+  const maxDdLimit =
+    account.max_drawdown_limit && account.max_drawdown_limit > 0
+      ? account.max_drawdown_limit
+      : null;
+  const drawdownUsedPct = maxDdLimit !== null ? Math.min(1, maxDd / maxDdLimit) : null;
+
+  // Largest realised single-day gain, the number the consistency rule
+  // is checked against.
+  const byDay = new Map<string, number>();
+  for (const t of closed) {
+    if (!t.entry_time) continue;
+    const d = new Date(t.entry_time);
+    if (Number.isNaN(d.getTime())) continue;
+    const k = localDayKey(d);
+    byDay.set(k, (byDay.get(k) ?? 0) + (t.pnl ?? 0));
+  }
+  const bestDayPnl = byDay.size ? r2(Math.max(...byDay.values())) : null;
+
+  return {
+    name: account.name || 'Account',
+    type: account.type,
+    currency,
+    todayPnl,
+    dailyLossLimit: limit !== null ? r2(limit) : null,
+    dailyRemaining,
+    isLocked,
+    profitTargetProgress:
+      profitTargetProgress !== null ? Math.round(profitTargetProgress * 100) / 100 : null,
+    drawdownUsedPct:
+      drawdownUsedPct !== null ? Math.round(drawdownUsedPct * 100) / 100 : null,
+    bestDayPnl,
+  };
+}
+
 export function buildChatContext(params: {
   trades: Trade[];
   account?: TradingAccount | null;
   locale?: string;
   /** Trade the user tapped "ask about this" on, if any. */
   focusTradeId?: string | null;
+  /** Whether the rule engine currently locks the session. */
+  isLocked?: boolean;
 }): ChatContext {
-  const { trades, account = null, locale = 'fr', focusTradeId = null } = params;
+  const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
 
   // Open positions have no result to reason about.
   const closed = trades.filter(t => t.pnl !== null && t.pnl !== undefined);
@@ -216,7 +335,7 @@ export function buildChatContext(params: {
     : -1;
 
   return {
-    v: 1,
+    v: 2,
     locale,
     accountType: account?.type ?? null,
     // Stats cover the WHOLE history, not just the window: the model must not
@@ -224,5 +343,6 @@ export function buildChatContext(params: {
     stats: computeChatStats(closed, account?.currency ?? 'USD'),
     trades: chatTrades,
     focusTradeN: focusIndex >= 0 ? focusIndex + 1 : null,
+    account: buildChatAccount(account, closed, isLocked),
   };
 }

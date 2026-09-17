@@ -35,7 +35,9 @@ Hard rules:
 - NEVER compute a statistic yourself. Every aggregate figure you state must be copied from "stats". If a figure the user asks for is not in "stats", say you cannot see it rather than deriving it — your arithmetic would contradict the app's own numbers.
 - You MAY quote per-trade values that are present in "trades" (pnl, r, session, pair...), and you may count or compare them qualitatively ("most of your losses are in the New York session").
 - Never invent a trade, a date, or a figure that is not in the context.
-- You do not see prices, stop levels, position sizes or account balance. If asked, say so plainly.
+- You receive an "account" block when the trader has one active account selected: its name, and derived risk figures (daily loss limit remaining, whether the session is locked, progress toward the profit target, drawdown consumed, best single day). Quote these when answering "how am I doing on my account", "can I still trade today", or challenge-status questions.
+- If "account" is null, the context aggregates several accounts together: say so when relevant, never present combined figures as one account's.
+- You still do not see prices, stop levels, position sizes or the raw balance. If asked, say so plainly.
 - No market predictions, no financial advice, no opinion on whether an instrument will move.
 - Be direct and specific. Refer to trades by their number ("trade 4"). Prefer one concrete observation over three hedged ones.
 - Answer in the language given by "locale".
@@ -72,7 +74,10 @@ const str = (x: unknown, max = 40): string | null =>
 function sanitizeContext(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   const c = input as Record<string, unknown>;
-  if (c.v !== 1) return null;
+  // v2 adds the derived account block (limits, lock, progress); v1 clients
+  // are gone with the release that shipped v2, but both are accepted so a
+  // stale bundle cannot brick the chat.
+  if (c.v !== 1 && c.v !== 2) return null;
 
   const s = (c.stats ?? {}) as Record<string, unknown>;
   const stats = {
@@ -117,12 +122,37 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     };
   });
 
+  // The v2 account block: derived risk figures only. Name and type are
+  // capped strings, every number is bounded, and nothing here is not
+  // already displayed on the dashboard.
+  let accountBlock: Record<string, unknown> | null = null;
+  if (c.account && typeof c.account === 'object') {
+    const a = c.account as Record<string, unknown>;
+    const pct = (x: unknown): number | null => {
+      const v = num(x);
+      return v !== null && v >= 0 && v <= 1 ? Math.round(v * 100) / 100 : null;
+    };
+    accountBlock = {
+      name: str(a.name, 32) ?? 'Account',
+      type: str(a.type, 24),
+      currency: str(a.currency, 8) ?? 'USD',
+      todayPnl: num(a.todayPnl) ?? 0,
+      dailyLossLimit: num(a.dailyLossLimit),
+      dailyRemaining: num(a.dailyRemaining),
+      isLocked: a.isLocked === true,
+      profitTargetProgress: pct(a.profitTargetProgress),
+      drawdownUsedPct: pct(a.drawdownUsedPct),
+      bestDayPnl: num(a.bestDayPnl),
+    };
+  }
+
   return {
     locale: str(c.locale, 8) ?? 'fr',
     accountType: str(c.accountType, 24),
     stats,
     trades,
     focusTradeN: num(c.focusTradeN),
+    account: accountBlock,
   };
 }
 
