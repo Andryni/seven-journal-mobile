@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
-  Modal,
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Image,
   Linking,
 } from 'react-native';
+import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { Sheet, useSheetVisible } from '../ui/Sheet';
 import { ScreenshotViewer } from './ScreenshotViewer';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
@@ -47,6 +47,10 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   onDelete,
 }) => {
   const { theme } = useTheme();
+
+  /** Themed bottom sheet, driven from the `visible` prop. */
+  const sheetRef = useRef<BottomSheetModal>(null);
+  useSheetVisible(sheetRef, visible);
   const { accounts } = useAccounts();
 
   // A size means nothing without its unit, and the unit comes from the account
@@ -106,8 +110,16 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const isLoss = (trade.pnl || 0) < 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
+    <>
+      {/* Bottom sheet version of the detail: drag-to-dismiss, rubber-banding,
+          same themed surface as QuickTradeSheet. The nested ShareCard and
+          ScreenshotViewer stay classic modals — they stack above sheets. */}
+      <Sheet
+        ref={sheetRef}
+        snapPoints={['90%']}
+        onDismiss={onClose}
+        enablePanDownToClose
+      >
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
@@ -130,7 +142,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          <BottomSheetScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {/* P&L & R-Multiple Highlight */}
             <View style={styles.pnlBanner}>
               <View>
@@ -349,7 +361,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 <Text style={styles.notesText}>"{trade.notes}"</Text>
               ) : null}
             </View>
-          </ScrollView>
+          </BottomSheetScrollView>
 
           {/* Action Buttons: Modifier / Supprimer */}
           <View style={styles.actionRow}>
@@ -385,7 +397,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </Sheet>
       <ShareCardModal
         visible={sharing}
         onClose={() => setSharing(false)}
@@ -398,7 +410,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
         label={viewer?.label}
         onClose={() => setViewer(null)}
       />
-    </Modal>
+    </>
   );
 };
 

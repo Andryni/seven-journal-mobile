@@ -1,20 +1,19 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
-  Modal,
   View,
   Text,
   TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { X, ShieldCheck, ShieldAlert, ShieldX, Zap } from 'lucide-react-native';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
+import { Sheet, useSheetVisible } from '../ui/Sheet';
+import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useTrades } from '../../features/trades/useTrades';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { useDailyLock } from '../../features/guard/useDailyLock';
@@ -56,6 +55,10 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  /** The themed bottom sheet, driven imperatively from the `visible` prop. */
+  const sheetRef = useRef<BottomSheetModal>(null);
+  useSheetVisible(sheetRef, visible);
 
   const { createTrade, trades, isCreating } = useTrades();
   const { accounts } = useAccounts();
@@ -213,13 +216,18 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   })();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.sheetWrap}
-        >
-          <View style={styles.sheet}>
+    <>
+      {/* A real bottom sheet now: drag-to-dismiss, rubber-banding, backdrop
+          blur. The RN Modal slide had none of it; the Sheet wrapper carries
+          the theme. The PickerModal stays a classic modal — pickers nest
+          badly inside gesture sheets. */}
+      <Sheet
+        ref={sheetRef}
+        snapPoints={['85%']}
+        onDismiss={onClose}
+        enablePanDownToClose
+      >
+        <View style={styles.sheet}>
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerTitle}>
@@ -232,7 +240,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
             </View>
             <Hairline />
 
-            <ScrollView
+            <BottomSheetScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.body}
@@ -409,7 +417,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                   </Text>
                 </View>
               </View>
-            </ScrollView>
+            </BottomSheetScrollView>
 
             {/* Footer */}
             <Hairline />
@@ -428,9 +436,8 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </Sheet>
 
       <PickerModal
         visible={instrumentPickerVisible}
@@ -443,7 +450,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
         }}
         onClose={() => setInstrumentPickerVisible(false)}
       />
-    </Modal>
+    </>
   );
 };
 

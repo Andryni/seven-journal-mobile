@@ -34,6 +34,8 @@ applyMutationDefaults(queryClient);
 installOnlineManager(queryClient);
 import { OfflineBanner } from './src/components/common/OfflineBanner';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { supabase } from './src/api/supabaseClient';
 import { useTheme } from './src/theme';
 import { useT } from './src/i18n';
@@ -258,6 +260,8 @@ export default function App() {
       // now, so this is the moment to try the replay.
       onSuccess={() => resumeQueuedMutations(queryClient)}
     >
+      <GestureHandlerRootView style={styles.appContainer}>
+      <BottomSheetModalProvider>
       <SafeAreaProvider>
         <SafeAreaView
           style={[styles.appContainer, { backgroundColor: theme.colors.background }]}
@@ -374,6 +378,8 @@ export default function App() {
           </NavigationContainer>
         </SafeAreaView>
       </SafeAreaProvider>
+      </BottomSheetModalProvider>
+      </GestureHandlerRootView>
     </PersistQueryClientProvider>
   );
 }
