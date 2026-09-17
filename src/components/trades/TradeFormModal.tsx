@@ -37,6 +37,7 @@ import type { MarketType } from '../../utils/positionSizing';
 import { detectTradingStyle } from '../../utils/tradingStyle';
 import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
 import { PickerModal } from '../ui/PickerModal';
+import { usePreTradeGuard } from '../../features/guard/usePreTradeGuard';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   X,
@@ -163,6 +164,22 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
   const [manualRMultiple, setManualRMultiple] = useState('');
 
+  /**
+   * R computed from the typed prices, offered as the default. It used to be
+   * stored only when hand-typed, so every R statistic in the app quietly
+   * sampled just the trades the trader bothered to fill in — a self-selected
+   * subset that skews towards the memorable ones. Typed value still wins:
+   * partials and trailed stops make the honest R differ from the naive one.
+   */
+  const autoR = useMemo(() => {
+    const entry = Number(entryPrice);
+    const exit = Number(exitPrice);
+    const sl = Number(stopLoss);
+    if (!entry || !exit || !sl) return null;
+    const r = calculateRMultiple({ direction, entryPrice: entry, exitPrice: exit, stopLoss: sl });
+    return Number.isFinite(r) ? r : null;
+  }, [direction, entryPrice, exitPrice, stopLoss]);
+
   // Section 2: Strategy & Setup (Playbook Only)
   const [selectedSetupTitle, setSelectedSetupTitle] = useState('');
 
@@ -267,6 +284,27 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   // accepted "MNQ" and then priced it with futures tick values. The list is
   // now scoped to the account's own market.
   const selectedAccountObj = accounts.find(acc => acc.id === accountId);
+
+  /**
+   * The personal-rules arm of the pre-trade guard, applied to the trade as
+   * typed. QuickTradeSheet ran it; the full form only checked the server
+   * lock — so max-trades-per-day, consecutive-loss and risk-ceiling rules
+   * were one long form away from being bypassed. Editing an existing trade
+   * stays exempt: the guard is about new commitments.
+   */
+  const plannedRisk = useMemo(() => {
+    const entry = Number(entryPrice);
+    const sl = Number(stopLoss);
+    const qty = Number(size);
+    if (!entry || !sl || !qty) return null;
+    return estimateRiskAtStop(pair, qty, entry, sl);
+  }, [pair, entryPrice, stopLoss, size]);
+  const preTradeGuard = usePreTradeGuard(
+    allTrades,
+    selectedAccountObj ?? null,
+    isDailySessionLocked,
+    editingTrade ? null : plannedRisk
+  );
   const accountMarket = normalizeMarket(selectedAccountObj?.instrument_type);
   const allowedInstruments = useMemo(
     () => instrumentsForMarket(accountMarket),
@@ -417,9 +455,25 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const handleSubmit = async () => {
     setErrorMsg('');
 
-    if (isDailySessionLocked && !editingTrade) {
-      setErrorMsg(t('tfSessionLocked'));
-      return;
+    // Same gate as QuickTradeSheet: server lock first, then the personal
+    // rules (max trades/day, consecutive losses, risk ceiling). One form can
+    // no longer bypass what the other enforces.
+    if (!editingTrade) {
+      if (isDailySessionLocked) {
+        setErrorMsg(t('tfSessionLocked'));
+        return;
+      }
+      if (preTradeGuard.status === 'blocked' && preTradeGuard.ruleBreach) {
+        const b = preTradeGuard.ruleBreach;
+        setErrorMsg(
+          b.code === 'MAX_TRADES_PER_DAY'
+            ? t('guardRuleMaxTrades').replace('{count}', String(b.count)).replace('{limit}', String(b.limit))
+            : b.code === 'MAX_CONSECUTIVE_LOSSES'
+              ? t('guardRuleMaxLosses').replace('{count}', String(b.count)).replace('{limit}', String(b.limit))
+              : t('guardRuleMaxRisk').replace('{count}', String(b.count)).replace('{limit}', String(b.limit))
+        );
+        return;
+      }
     }
 
     if (!accountId || !pair.trim() || !entryPrice || !stopLoss || !takeProfit || !size) {
@@ -442,7 +496,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     const finalMae = maePrice ? Number(maePrice) : null;
     const finalMfe = mfePrice ? Number(mfePrice) : null;
     const finalTags = parseTagInput(tagsInput);
-    const finalR = manualRMultiple ? Number(manualRMultiple) : null;
+    // Typed R wins; otherwise the computed one travels with the trade.
+    const finalR = manualRMultiple ? Number(manualRMultiple) : autoR;
 
     const setupStructures: string[] = [];
     if (selectedSetupTitle) setupStructures.push(selectedSetupTitle);
@@ -1075,7 +1130,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     />
                     <TextInput
                       style={[styles.input, { flex: 1 }]}
-                      placeholder="R"
+                      placeholder={autoR !== null ? `R ≈ ${autoR}` : 'R'}
                       placeholderTextColor={theme.colors.textMuted}
                       value={manualRMultiple}
                       onChangeText={setManualRMultiple}
