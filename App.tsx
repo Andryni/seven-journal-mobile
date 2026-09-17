@@ -37,6 +37,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from './src/api/supabaseClient';
 import { useTheme } from './src/theme';
 import { useT } from './src/i18n';
+import { useUIStore } from './src/store/uiStore';
 import { TopAccountBar } from './src/components/common/TopAccountBar';
 import { GlobalAddTradeFab } from './src/components/trades/GlobalAddTradeFab';
 import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
@@ -94,6 +95,7 @@ export default function App() {
   const [splashFinished, setSplashFinished] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const appLock = useAppLock();
+  const setActiveRouteName = useUIStore(state => state.setActiveRouteName);
 
   // Load High-Tech FinTech Google Fonts
   const [fontsLoaded] = useFonts({
@@ -173,6 +175,19 @@ export default function App() {
    */
   const finishSplash = useCallback(() => setSplashFinished(true), []);
 
+  /**
+   * Publish the active tab route for overlays outside the navigator.
+   * GlobalAddTradeFab reads it from the UI store to hide on Chat; it must not
+   * read navigation state directly (fatal outside a navigator, see there).
+   * The callback identity stays stable so the container never re-subscribes.
+   */
+  const handleNavStateChange = useCallback(
+    (state: Parameters<NonNullable<React.ComponentProps<typeof NavigationContainer>['onStateChange']>>[0]) => {
+      setActiveRouteName(state?.routes[state.index]?.name ?? null);
+    },
+    []
+  );
+
   if (!splashFinished || !fontsLoaded) {
     return (
       <SafeAreaProvider>
@@ -251,7 +266,18 @@ export default function App() {
           <ToastContainer />
           <OfflineBanner />
           {session && <TopAccountBar />}
-          <NavigationContainer theme={navTheme}>
+          <NavigationContainer
+            theme={navTheme}
+            /**
+             * The active route name is published to the UI store so overlays
+             * mounted OUTSIDE the navigator (GlobalAddTradeFab) can stand
+             * down on specific screens. Reading it from inside those overlays
+             * with useNavigationState throws when no navigator is above them
+             * -- a fatal exception in release builds that killed the app on
+             * boot with a restored session.
+             */
+            onStateChange={handleNavStateChange}
+          >
             <ErrorBoundary screenName="Navigation">
             {!session ? (
               <AuthScreen />
@@ -336,9 +362,15 @@ export default function App() {
             </ErrorBoundary>
             {/* Logging lives above the navigator so it is reachable from every
                 tab, not only from Trades. Inside NavigationContainer, though,
-                so it can read the active route and stand down where it would
-                cover something -- see GlobalAddTradeFab. */}
-            {session ? <GlobalAddTradeFab /> : null}
+                so it can know the active route and stand down where it would
+                cover something -- the route reaches it via the UI store (see
+                onStateChange above), never via useNavigationState, which
+                throws outside a navigator and crashed release builds. */}
+            {session ? (
+              <ErrorBoundary screenName="QuickEntryFab">
+                <GlobalAddTradeFab />
+              </ErrorBoundary>
+            ) : null}
           </NavigationContainer>
         </SafeAreaView>
       </SafeAreaProvider>

@@ -20,6 +20,7 @@ import { accountTypeLabel, useT } from '../../i18n';
 import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-react-native';
 import { supabase } from '../../api/supabaseClient';
 import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
+import { BrandWordmark } from '../brand/BrandWordmark';
 
 export const TopAccountBar: React.FC = () => {
   const { theme } = useTheme();
@@ -48,10 +49,13 @@ export const TopAccountBar: React.FC = () => {
           />
         </View>
         <View>
-          <View style={styles.flexRow}>
-            <Text style={styles.brandTextSeven}>SEVEN </Text>
-            <Text style={styles.brandTextTerminal}>JOURNAL</Text>
-          </View>
+          <BrandWordmark
+            fontSize={12}
+            fontFamily={theme.fonts.sansExtraBold}
+            letterSpacing={0.8}
+            primaryColor={theme.colors.textPrimary}
+            accentColor={theme.colors.primaryLight}
+          />
           <View style={styles.liveIndicatorRow}>
             <View style={styles.liveDot} />
             <Text style={styles.terminalSub}>FINTECH TERMINAL</Text>
@@ -218,22 +222,6 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
   logoImage: {
     width: '100%',
     height: '100%',
-  },
-  flexRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandTextSeven: {
-    color: theme.colors.textPrimary,
-    fontSize: 12,
-    fontFamily: theme.fonts.sansExtraBold,
-    letterSpacing: 0.8,
-  },
-  brandTextTerminal: {
-    color: theme.colors.primaryLight,
-    fontSize: 12,
-    fontFamily: theme.fonts.sansExtraBold,
-    letterSpacing: 0.8,
   },
   liveIndicatorRow: {
     flexDirection: 'row',

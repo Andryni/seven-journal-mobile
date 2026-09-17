@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import { CandleLoader } from '../ui/CandleLoader';
+import { BrandWordmark } from '../brand/BrandWordmark';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -35,7 +36,12 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
           style={{ width: markSize, height: markSize }}
           resizeMode="contain"
         />
-        <Text style={styles.wordmark}>SEVEN JOURNAL</Text>
+        <BrandWordmark
+          fontSize={17}
+          fontFamily={theme.fonts.monoBold}
+          letterSpacing={3.4}
+          style={styles.wordmark}
+        />
         <Text style={styles.tagline}>{caption ?? 'FINTECH TERMINAL'}</Text>
 
         {/* Candles printing left to right: the same loader the rest of the
@@ -61,9 +67,6 @@ const createStyles = (theme: AppTheme) =>
     wordmark: {
       marginTop: theme.spacing.md,
       color: theme.colors.textPrimary,
-      fontSize: 17,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 3.4,
     },
     tagline: {
       marginTop: 6,

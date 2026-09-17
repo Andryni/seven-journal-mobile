@@ -7,6 +7,7 @@ import { useT } from '../i18n';
 import type { AppTheme } from '../theme';
 import { duration } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
+import { BrandWordmark } from '../components/brand/BrandWordmark';
 
 interface LockScreenProps {
   onAuthenticate: () => void;
@@ -36,7 +37,12 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onAuthenticate, isAuthen
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.wordmark}>SEVEN JOURNAL</Text>
+        <BrandWordmark
+          fontSize={theme.type.title}
+          fontFamily={theme.fonts.monoBold}
+          letterSpacing={4}
+          style={styles.wordmark}
+        />
         <View style={styles.rule} />
 
         <PressableScale
@@ -71,9 +77,6 @@ const createStyles = (theme: AppTheme) =>
     logo: { width: 68, height: 68, marginBottom: theme.spacing.lg },
     wordmark: {
       color: theme.colors.textPrimary,
-      fontSize: theme.type.title,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 4,
     },
     rule: {
       width: 28,

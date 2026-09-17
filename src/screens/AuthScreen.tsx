@@ -22,6 +22,7 @@ import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
 import Reanimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react-native';
+import { BrandWordmark } from '../components/brand/BrandWordmark';
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
@@ -247,10 +248,14 @@ export const AuthScreen: React.FC = () => {
                   resizeMode="contain"
                 />
               </Animated.View>
-              <View style={styles.brandRow}>
-                <Text style={styles.brandSeven}>SEVEN </Text>
-                <Text style={styles.brandTracking}>JOURNAL</Text>
-              </View>
+              <BrandWordmark
+                fontSize={18}
+                fontFamily={theme.fonts.sansExtraBold}
+                letterSpacing={2}
+                primaryColor={theme.colors.textPrimary}
+                accentColor={theme.colors.primaryLight}
+                style={styles.brandRow}
+              />
               <Text style={styles.tagline}>QUANTITATIVE TRADING TERMINAL</Text>
             </Reanimated.View>
 
@@ -543,21 +548,8 @@ const createStyles = (theme: AppTheme) =>
       height: '100%',
     },
     brandRow: {
-      flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 4,
-    },
-    brandSeven: {
-      color: theme.colors.textPrimary,
-      fontSize: 18,
-      fontFamily: theme.fonts.sansExtraBold,
-      letterSpacing: 2,
-    },
-    brandTracking: {
-      color: theme.colors.primaryLight,
-      fontSize: 18,
-      fontFamily: theme.fonts.sansExtraBold,
-      letterSpacing: 2,
     },
     tagline: {
       color: theme.colors.textMuted,

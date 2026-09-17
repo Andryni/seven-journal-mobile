@@ -20,6 +20,9 @@ interface UIState {
   setDailySessionLocked: (locked: boolean) => void;
   tradesDrill: TradesDrill | null;
   setTradesDrill: (drill: TradesDrill | null) => void;
+  /** Name of the active tab route, published by the navigator (see App.tsx). */
+  activeRouteName: string | null;
+  setActiveRouteName: (name: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -29,4 +32,6 @@ export const useUIStore = create<UIState>((set) => ({
   setDailySessionLocked: (locked) => set({ isDailySessionLocked: locked }),
   tradesDrill: null,
   setTradesDrill: (drill) => set({ tradesDrill: drill }),
+  activeRouteName: null,
+  setActiveRouteName: (name) => set({ activeRouteName: name }),
 }));

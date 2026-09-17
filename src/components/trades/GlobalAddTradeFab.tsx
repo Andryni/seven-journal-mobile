@@ -2,11 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Plus, Zap } from 'lucide-react-native';
-import { useNavigationState } from '@react-navigation/native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { duration } from '../../theme/motion';
+import { useUIStore } from '../../store/uiStore';
 import { TradeFormModal } from './TradeFormModal';
 import { QuickTradeSheet } from './QuickTradeSheet';
 
@@ -36,9 +36,17 @@ export const GlobalAddTradeFab: React.FC = () => {
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const routeName = useNavigationState(state =>
-    state ? state.routes[state.index]?.name : undefined
-  );
+  /**
+   * The active route name arrives through the UI store, not
+   * useNavigationState. This component is mounted by App.tsx OUTSIDE the
+   * Tab.Navigator (so it survives tab switches), and useNavigationState
+   * *throws* when there is no navigator above it -- in release builds that
+   * exception is fatal and killed the app right after the splash whenever a
+   * restored session mounted the FAB before the navigator tree settled.
+   * The navigator publishes its route via onStateChange; before the first
+   * event the store says null and the FAB simply renders.
+   */
+  const routeName = useUIStore(state => state.activeRouteName);
 
   const [quickVisible, setQuickVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);

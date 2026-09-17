@@ -18,6 +18,9 @@ import path from 'path';
 
 const SRC = path.join(__dirname, '..', '..');
 
+/** Repo-relative path with forward slashes, so expectations are OS-neutral. */
+const rel = (file: string): string => path.relative(SRC, file).split(path.sep).join('/');
+
 function tsxFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = path.join(dir, entry.name);
@@ -55,7 +58,7 @@ describe('typography', () => {
       const source = fs.readFileSync(file, 'utf8');
       for (const { name, body } of styleBlocks(source)) {
         if (body.includes('fontSize') && !body.includes('fontFamily')) {
-          offenders.push(`${path.relative(SRC, file)} → ${name}`);
+          offenders.push(`${rel(file)} → ${name}`);
         }
       }
     }
@@ -67,7 +70,7 @@ describe('typography', () => {
     for (const file of files) {
       const source = fs.readFileSync(file, 'utf8');
       if (source.includes("fontStyle: 'italic'")) {
-        offenders.push(path.relative(SRC, file));
+        offenders.push(rel(file));
       }
     }
     expect(offenders).toEqual([]);
@@ -81,7 +84,7 @@ describe('typography', () => {
     for (const file of files) {
       const source = fs.readFileSync(file, 'utf8');
       const hits = source.match(/fontSize: \d+\.\d+/g);
-      if (hits) offenders.push(`${path.relative(SRC, file)} → ${hits.join(', ')}`);
+      if (hits) offenders.push(`${rel(file)} → ${hits.join(', ')}`);
     }
     expect(offenders).toEqual([]);
   });
@@ -92,10 +95,10 @@ describe('typography', () => {
     const allowed = new Set(['components/common/ErrorBoundary.tsx']);
     const offenders: string[] = [];
     for (const file of files) {
-      const rel = path.relative(SRC, file).split(path.sep).join('/');
-      if (allowed.has(rel)) continue;
+      const relPath = rel(file);
+      if (allowed.has(relPath)) continue;
       const source = fs.readFileSync(file, 'utf8');
-      if (/fontFamily: '/.test(source)) offenders.push(rel);
+      if (/fontFamily: '/.test(source)) offenders.push(relPath);
     }
     expect(offenders).toEqual([]);
   });
@@ -121,7 +124,7 @@ describe('screen headers', () => {
     for (const file of screens) {
       const source = fs.readFileSync(file, 'utf8');
       if (/\n {2}screenTitle: \{/.test(source)) {
-        offenders.push(path.relative(SRC, file));
+        offenders.push(rel(file));
       }
     }
     // Known remaining: these still predate ScreenHeader and are listed so the
