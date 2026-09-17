@@ -23,6 +23,7 @@ import { useTrades } from '../features/trades/useTrades';
 import { useRefresh } from '../features/data/useRefresh';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigation, RouteProp, NavigationRouteContext } from '@react-navigation/native';
+import { MonteCarloCard } from '../components/analytics/MonteCarloCard';
 import type { RootTabParamList } from '../types/navigation';
 import { TradesScreenProps } from '../types/navigation';
 import type { TradesDrill } from '../store/uiStore';
@@ -968,6 +969,24 @@ export const AnalyticsScreen: React.FC = () => {
                 </View>
               </View>
             </Card>
+          </Animated.View>
+
+          {/* Monte Carlo — the challenge replayed 2,000 times through the
+              trader's own R distribution. Placed after the meters: the
+              question it answers is exactly "these meters, going forward?" */}
+          <Animated.View entering={FadeIn.delay(280).duration(350)}>
+            <MonteCarloCard
+              // Unknown R is not a 0R outcome: BE trades carry a real 0,
+              // unrecorded Rs are excluded so the resampled distribution
+              // stays the trader's actual edge, not a padded one.
+              rMultiples={closed
+                .map(tr => tr.r_multiple)
+                .filter((r): r is number => r !== null && r !== undefined && Number.isFinite(r))}
+              startingBalance={initialBalance}
+              profitTarget={profitTarget}
+              maxDrawdown={maxDrawdownLimit}
+              riskPct={selectedAccount?.max_risk_per_trade_pct ?? 1}
+            />
           </Animated.View>
 
           {/* Challenge Parameters */}
