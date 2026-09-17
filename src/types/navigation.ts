@@ -9,7 +9,8 @@ export type RootTabParamList = {
   Dashboard: undefined;
   Trades: undefined;
   Calendar: undefined;
-  Analytics: undefined;
+  /** Accepts { initialTab } so cockpit KPIs can deep-link into a breakdown. */
+  Analytics: { initialTab?: 'perf' | 'edge' | 'breakdown' | 'timing' | 'mind' | 'propfirm' } | undefined;
   /** Conversation with the journal, backed by the chat Edge Function. */
   Chat: undefined;
   /** Playbook, Accounts and Settings live behind this tab. */

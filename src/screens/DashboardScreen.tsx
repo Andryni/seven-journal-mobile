@@ -264,11 +264,18 @@ export const DashboardScreen: React.FC = () => {
           Four metrics on one row left each column ~80px wide, so "+$1253"
           and "100.0%" sat directly under their labels with no air and the
           row read as a wall of digits. A 2x2 grid gives each number a full
-          half-width cell and restores the label/value/sub hierarchy. */}
+          half-width cell and restores the label/value/sub hierarchy.
+          Each cell deep-links into the Analytics tab that expands it: the
+          cockpit answers "what", the tap answers "why". */}
       <LivePanel flush tone={kpiTone} live={m.openTrades > 0}>
         <View style={styles.metricGrid}>
           <View style={styles.metricRow}>
-            <View style={styles.metricCell}>
+            <PressableScale
+              style={styles.metricCell}
+              onPress={() => navigation.navigate('Analytics', { initialTab: 'edge' })}
+              accessibilityRole="button"
+              accessibilityLabel={t('winRateGlobal')}
+            >
               <Metric
                 label={t('winRateGlobal')}
                 value={`${m.winRate.toFixed(1)}%`}
@@ -284,9 +291,14 @@ export const DashboardScreen: React.FC = () => {
                 trend={trends.winRate}
                 trendBaseline={50}
               />
-            </View>
+            </PressableScale>
             <View style={styles.vRule} />
-            <View style={styles.metricCell}>
+            <PressableScale
+              style={styles.metricCell}
+              onPress={() => navigation.navigate('Analytics', { initialTab: 'edge' })}
+              accessibilityRole="button"
+              accessibilityLabel={t('profitFactor')}
+            >
               <Metric
                 label={t('profitFactor')}
                 // 0 means "no losses yet", so the ratio has no denominator.
@@ -299,13 +311,18 @@ export const DashboardScreen: React.FC = () => {
                 trend={trends.profitFactor}
                 trendBaseline={1}
               />
-            </View>
+            </PressableScale>
           </View>
 
           <View style={styles.hRule} />
 
           <View style={styles.metricRow}>
-            <View style={styles.metricCell}>
+            <PressableScale
+              style={styles.metricCell}
+              onPress={() => navigation.navigate('Analytics', { initialTab: 'edge' })}
+              accessibilityRole="button"
+              accessibilityLabel={t('expectancyShort')}
+            >
               <Metric
                 label={t('expectancyShort')}
                 value={money(expectancy, { decimals: 0 })}
@@ -317,9 +334,14 @@ export const DashboardScreen: React.FC = () => {
                 trend={trends.expectancy}
                 trendBaseline={0}
               />
-            </View>
+            </PressableScale>
             <View style={styles.vRule} />
-            <View style={styles.metricCell}>
+            <PressableScale
+              style={styles.metricCell}
+              onPress={() => navigation.navigate('Analytics', { initialTab: 'propfirm' })}
+              accessibilityRole="button"
+              accessibilityLabel={t('maxDrawdownLabel')}
+            >
               <Metric
                 label={t('maxDrawdownLabel')}
                 value={money(-m.maxDrawdown, { decimals: 0 })}
@@ -332,7 +354,7 @@ export const DashboardScreen: React.FC = () => {
                 trendBaseline={0}
                 trendInverted
               />
-            </View>
+            </PressableScale>
           </View>
         </View>
       </LivePanel>

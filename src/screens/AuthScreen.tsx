@@ -23,6 +23,7 @@ import { useT } from '../i18n';
 import Reanimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react-native';
 import { BrandWordmark } from '../components/brand/BrandWordmark';
+import { ShakeOn } from '../components/ui/ShakeOn';
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
@@ -264,12 +265,16 @@ export const AuthScreen: React.FC = () => {
               {isForgot ? t('resetPassword') : isSignIn ? t('authWelcomeBack') : t('authWelcomeNew')}
             </Text>
 
-            {/* Error / Success messages */}
+            {/* Error / Success messages. The error shakes — a rejected
+                credential must catch the eye, the keyboard is up and the
+                thumb is already reaching to retry. */}
             {errorMsg ? (
-              <View style={styles.errorBox}>
-                <AlertTriangle color={theme.colors.redLight} size={14} />
-                <Text style={styles.errorText}>{errorMsg}</Text>
-              </View>
+              <ShakeOn trigger={errorMsg}>
+                <View style={styles.errorBox}>
+                  <AlertTriangle color={theme.colors.redLight} size={14} />
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                </View>
+              </ShakeOn>
             ) : null}
             {successMsg ? (
               <View style={styles.successBox}>

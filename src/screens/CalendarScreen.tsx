@@ -23,7 +23,7 @@ import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { localeFor, useT } from '../i18n';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, SlideInLeft, SlideInRight } from 'react-native-reanimated';
 import { duration } from '../theme/motion';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -67,12 +67,25 @@ export const CalendarScreen: React.FC = () => {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+  /**
+   * Direction of the last month change, so the grid slides the way a page
+   * turns: next month enters from the right, previous from the left. The
+   * key change on the grid wrapper replays the entering animation on every
+   * switch; the nav bar above stays put.
+   */
+  const [monthDirection, setMonthDirection] = useState<1 | -1>(1);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  const prevMonth = () => {
+    setMonthDirection(-1);
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+  const nextMonth = () => {
+    setMonthDirection(1);
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
 
   // Build calendar map (Local Date keys YYYY-MM-DD)
   const tradesByDate = useMemo(() => {
@@ -237,6 +250,15 @@ export const CalendarScreen: React.FC = () => {
           ))}
         </View>
 
+        {/* Month body — remounts on month change (key), sliding in from the
+            side the page "turns" toward. Static chrome (nav, weekday header)
+            stays outside so it never re-animates. */}
+        <Animated.View
+          key={`${year}-${month}`}
+          entering={
+            monthDirection === 1 ? SlideInRight.duration(220) : SlideInLeft.duration(220)
+          }
+        >
         {/* Heatmap Grid — Row by Row for perfect alignment */}
         {Array.from({ length: totalRows }).map((_, rowIdx) => (
           <View key={rowIdx} style={styles.gridRow}>
@@ -312,6 +334,7 @@ export const CalendarScreen: React.FC = () => {
             {money(monthlyStats.monthPnl)}
           </Text>
         </View>
+        </Animated.View>
       </View>
 
       {/* ── SELECTED DATE DETAILS ── */}

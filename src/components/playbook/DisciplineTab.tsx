@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { Flame } from 'lucide-react-native';
 import { Card } from '../ui/Card';
 import { useTheme, withAlpha } from '../../theme';
@@ -124,7 +125,13 @@ export const DisciplineTab: React.FC<DisciplineTabProps> = ({
         <Card title={t('disciplineGridTitle')}>
           <View style={styles.gridWrap}>
             {grid.map((week, wi) => (
-              <View key={wi} style={styles.gridCol}>
+              /* Columns fade in left-to-right: the grid reads as painting
+                 itself from the oldest week to today, 40ms per week. */
+              <Animated.View
+                key={wi}
+                entering={FadeIn.delay(wi * 40).duration(260)}
+                style={styles.gridCol}
+              >
                 {week.map(cell => {
                   const bg = cell.isFuture
                     ? 'transparent'
@@ -144,7 +151,7 @@ export const DisciplineTab: React.FC<DisciplineTabProps> = ({
                     />
                   );
                 })}
-              </View>
+              </Animated.View>
             ))}
           </View>
           <View style={styles.gridLegend}>

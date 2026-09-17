@@ -1,4 +1,3 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,7 +21,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTrades } from '../features/trades/useTrades';
 import { useRefresh } from '../features/data/useRefresh';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigation, RouteProp, NavigationRouteContext } from '@react-navigation/native';
+import type { RootTabParamList } from '../types/navigation';
 import { TradesScreenProps } from '../types/navigation';
 import type { TradesDrill } from '../store/uiStore';
 import { hapticLight } from '../utils/haptics';
@@ -118,7 +119,15 @@ export const AnalyticsScreen: React.FC = () => {
   const { debriefs } = usePlaybook();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
 
-  const [activeTab, setActiveTab] = useState<TabType>('perf');
+  // Deep link: the dashboard's KPI grid navigates here with a tab preselected
+  // (tap Win Rate -> Edge, tap Drawdown -> Prop firm). Params apply once on
+  // mount; in-tab taps then drive the state as before. Read through the raw
+  // route context: useRoute() throws when the screen is mounted bare (tests),
+  // useContext simply yields null there.
+  const routeContext = React.useContext(NavigationRouteContext) as
+    | RouteProp<RootTabParamList, 'Analytics'>
+    | null;
+  const [activeTab, setActiveTab] = useState<TabType>(routeContext?.params?.initialTab ?? 'perf');
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [shareModalVisible, setShareModalVisible] = useState(false);
 

@@ -1,6 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -44,6 +50,58 @@ interface HBarBreakdownProps {
   /** Called with item.payload when a row carrying one is pressed. */
   onRowPress?: (payload: string, item: HBreakdownItem) => void;
 }
+
+/**
+ * One bar, grown from the centre line with a spring instead of appearing at
+ * full width. The delay follows the row's entrance, so the card reads top to
+ * bottom; the spring's slight overshoot is what makes the winner feel like it
+ * *lands*. Static width render is preserved for tests (isAnimated=false).
+ */
+ const GrowingBar: React.FC<{
+  widthPct: number;
+  positive: boolean;
+  color: string;
+  index: number;
+  isAnimated: boolean;
+}> = ({ widthPct, positive, color, index, isAnimated }) => {
+  const progress = useSharedValue(isAnimated ? 0 : 1);
+
+  useEffect(() => {
+    if (!isAnimated) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = withDelay(
+      60 + index * 50,
+      withSpring(1, { damping: 16, stiffness: 150, mass: 0.9 })
+    );
+  }, [progress, isAnimated, index]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: `${progress.value * widthPct}%`,
+  }));
+
+  if (!isAnimated) {
+    return (
+      <View
+        style={[
+          { width: `${widthPct}%`, backgroundColor: color, opacity: 0.85 },
+          positive ? { left: '50%' } : { right: '50%' },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Animated.View
+      style={[
+        { backgroundColor: color, opacity: 0.85 },
+        positive ? { left: '50%' } : { right: '50%' },
+        animatedStyle,
+      ]}
+    />
+  );
+};
 
 export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
   items,
@@ -117,12 +175,12 @@ export const HBarBreakdown: React.FC<HBarBreakdownProps> = ({
                   <View style={styles.trackHalf} />
                   <View style={[styles.centreLine, { backgroundColor: theme.colors.hairline }]} />
                   <View style={styles.barLayer} pointerEvents="none">
-                    <View
-                      style={[
-                        styles.bar,
-                        positive ? { left: '50%' } : { right: '50%' },
-                        { width: `${widthPct}%`, backgroundColor: color, opacity: 0.85 },
-                      ]}
+                    <GrowingBar
+                      widthPct={widthPct}
+                      positive={positive}
+                      color={color}
+                      index={i}
+                      isAnimated={true}
                     />
                   </View>
                 </View>
