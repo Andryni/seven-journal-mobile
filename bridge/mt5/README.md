@@ -16,9 +16,11 @@ le journal sans votre validation dans l'app.
 ### 1. Créer le connecteur dans l'app
 
 Seven Journal → **Plus → Journal auto → Ajouter un connecteur** →
-plateforme **MT5 (EA)**. Copiez les deux valeurs affichées :
+plateforme **MT5 (MetaTrader 5)** → choisissez le **compte du journal à
+automatiser** (les trades de ce compte broker iront dedans). Copiez les deux
+valeurs affichées :
 
-- **URL du webhook** : `https://VOTRE-PROJET.supabase.co/functions/v1/sync-ingest`
+- **URL du webhook** : `https://aeqyqwchxvcfvbbapqch.supabase.co/functions/v1/sync-ingest`
 - **Secret du connecteur** (une longue chaîne — elle ne se réaffiche pas)
 
 ### 2. Autoriser l'URL dans MetaTrader 5
@@ -48,14 +50,11 @@ l'onglet **Experts** : `SevenJournalSync: actif. Premier scan depuis ...`
 
 ### 4. Le premier envoi
 
-Au premier scan, l'EA envoie **l'historique des dernières 24 h** (positions
-fermées) + les positions actuellement ouvertes. Ils apparaissent dans
-**Journal auto → File de validation** : chiffres pré-remplis, à vous de
-promouvoir / lier / ignorer.
-
-Pour importer plus d'historique : augmentez temporairement l'input
-`InpOverlapMinutes` (ex. `43200` = 30 jours) et re-attachez l'EA — le serveur
-dédoublonne ce qui est déjà arrivé, un renvoi est toujours inoffensif.
+Au premier attachement, l'EA envoie **tout l'historique du compte** (positions
+fermées depuis l'ouverture, par lots de 400) + les positions actuellement
+ouvertes. Ils apparaissent dans **Journal auto → File de validation** :
+chiffres pré-remplis, à vous de promouvoir / lier / ignorer. Après un envoi
+complet, seules les nouvelles positions partent à chaque scan.
 
 ---
 
@@ -69,6 +68,11 @@ dédoublonne ce qui est déjà arrivé, un renvoi est toujours inoffensif.
 | `InpBeatSeconds` | 60 | Fréquence du heartbeat (positions ouvertes) |
 | `InpTimeoutMs` | 10000 | Timeout réseau par requête |
 | `InpOverlapMinutes` | 120 | Recouvrement anti-trou à chaque scan |
+
+> **Déjà branché avec la v1.00 ?** La v1.10 importe tout l'historique au
+> premier attachement via une nouvelle variable watermark. Pour déclencher
+> l'import complet : **F3** (Terminal → Variables globales) → supprimer
+> `SevenJournalSync_watermark` → re-attacher l'EA v1.10.
 
 ## Comment ça marche
 

@@ -32,10 +32,33 @@ export interface IngestAccountRow {
 export interface StagingWithConnector extends SyncTradeRow {
   connector_label: string | null;
   routed_account_id: string | null;
+  routed_account_name: string | null;
 }
 
 const QUEUE_KEY = ['sync_queue'] as const;
 const CONNECTORS_KEY = ['sync_connectors'] as const;
+const LINKED_ACCOUNTS_KEY = ['sync_linked_accounts'] as const;
+
+/**
+ * Journal accounts currently fed by at least one connector.
+ *
+ * The Accounts screen badges these as "synchronised"; a dedicated tiny query
+ * keeps that screen decoupled from the queue machinery while sharing the
+ * invalidation namespace.
+ */
+export function useSyncedAccountIds() {
+  const { data } = useQuery<string[]>({
+    queryKey: LINKED_ACCOUNTS_KEY,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sync_account_links')
+        .select('trading_account_id');
+      if (error) throw error;
+      return Array.from(new Set((data ?? []).map((r) => r.trading_account_id)));
+    },
+  });
+  return data ?? [];
+}
 
 export function useSyncQueue() {
   const queryClient = useQueryClient();
@@ -56,20 +79,32 @@ export function useSyncQueue() {
       if (error) throw error;
 
       // One join query for labels: the queue renders connector names, and N
-      // per-row lookups would be the classic waterfall.
+      // per-row lookups would be the classic waterfall. A second lookup maps
+      // routed accounts to their names — once a connector is linked, the
+      // account it feeds IS the human-readable provenance of a queued trade.
       const ids = Array.from(new Set((rows ?? []).map((r) => r.ingest_account_id)));
       const { data: connectors } = await supabase
         .from('sync_ingest_accounts')
         .select('id, label, account_id')
         .in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000']);
 
+      const routedIds = Array.from(
+        new Set((connectors ?? []).map((c) => c.account_id).filter((x): x is string => !!x)),
+      );
+      const { data: routedAccounts } = await supabase
+        .from('trading_accounts')
+        .select('id, name')
+        .in('id', routedIds.length > 0 ? routedIds : ['00000000-0000-0000-0000-000000000000']);
+
       const byId = new Map((connectors ?? []).map((c) => [c.id, c]));
+      const nameById = new Map((routedAccounts ?? []).map((a) => [a.id, a.name]));
       return (rows ?? []).map((r) => {
         const c = byId.get(r.ingest_account_id);
         return {
           ...r,
           connector_label: c?.label ?? null,
           routed_account_id: c?.account_id ?? null,
+          routed_account_name: c?.account_id ? nameById.get(c.account_id) ?? null : null,
         };
       });
     },
@@ -92,6 +127,7 @@ export function useSyncQueue() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: QUEUE_KEY });
     queryClient.invalidateQueries({ queryKey: CONNECTORS_KEY });
+    queryClient.invalidateQueries({ queryKey: LINKED_ACCOUNTS_KEY });
   };
 
   // A link flow opens a picker of manual-trade candidates for ONE staging row.
@@ -191,6 +227,29 @@ export function useSyncQueue() {
     onError: () => showError(t('syncToastError')),
   });
 
+  const setRoutingMutation = useMutation({
+    mutationFn: async ({
+      syncIngestAccountId,
+      tradingAccountId,
+    }: {
+      syncIngestAccountId: string;
+      tradingAccountId: string | null;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non authentifié');
+      const { error } = await supabase.rpc('set_sync_routing', {
+        p_sync_ingest_account_id: syncIngestAccountId,
+        p_trading_account_id: tradingAccountId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess(t('syncRoutingDone'));
+      invalidate();
+    },
+    onError: () => showError(t('syncToastError')),
+  });
+
   return {
     queue: queueQuery.data ?? [],
     isLoadingQueue: queueQuery.isLoading,
@@ -210,5 +269,7 @@ export function useSyncQueue() {
     matchingStagingId: stagingIdForMatch,
     createConnector: createConnectorMutation.mutateAsync,
     isCreatingConnector: createConnectorMutation.isPending,
+    setRouting: setRoutingMutation.mutate,
+    isSettingRouting: setRoutingMutation.isPending,
   };
 }

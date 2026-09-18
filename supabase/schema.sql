@@ -449,6 +449,50 @@ create table if not exists public.sync_ingest_accounts (
 create index if not exists sync_ingest_accounts_user_idx
   on public.sync_ingest_accounts (user_id);
 
+-- A journal account may be fed by more than one connector (an MT5 demo and a
+-- cTrader demo can both belong to "50k Paper Trading"), so the association is
+-- its own table, not a column on either side. Feeds the "synchronised" badge
+-- on the Accounts screen and the per-connector default routing target.
+create table if not exists public.sync_account_links (
+  sync_ingest_account_id uuid not null references public.sync_ingest_accounts(id) on delete cascade,
+  trading_account_id     uuid not null references public.trading_accounts(id) on delete cascade,
+  created_at             timestamptz not null default now(),
+  primary key (sync_ingest_account_id, trading_account_id)
+);
+
+create index if not exists sync_account_links_account_idx
+  on public.sync_account_links (trading_account_id);
+
+-- The ingest account's default routing target must be one of its explicit
+-- links (or NULL). Keeping this invariant in a trigger means every writer —
+-- app, service script, future import — gets the same guard for free.
+create or replace function public.sync_ingest_default_guard()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.account_id is not null and not exists (
+    select 1 from public.sync_account_links
+    where sync_ingest_account_id = new.id and trading_account_id = new.account_id
+  ) then
+    raise exception 'P0001: default account must be linked first';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_ingest_default_guard_trg on public.sync_ingest_accounts;
+create trigger sync_ingest_default_guard_trg
+  before insert or update of account_id on public.sync_ingest_accounts
+  for each row execute function public.sync_ingest_default_guard();
+
+-- Seed: connectors created before links existed keep their default target.
+insert into public.sync_account_links (sync_ingest_account_id, trading_account_id)
+select s.id, s.account_id
+from public.sync_ingest_accounts s
+where s.account_id is not null
+on conflict do nothing;
+
 -- Verbatim inbound payloads, for replay after a parser bug and as the source
 -- of truth in a broker-vs-journal dispute. 30-day retention: purged nightly
 -- by pg_cron (schedule created at the end of this section).
@@ -892,6 +936,62 @@ as $$
   limit 5;
 $$;
 
+-- Wire a journal account to a connector: the account joins the connector's
+-- routing options (its name/capital then render on the connector card, and it
+-- shows the "synchronised" state on the Accounts screen); passing it as the
+-- default also makes promotion one tap. Unsetting (p_trading_account_id null)
+-- removes every link of the connector and clears its default.
+create or replace function public.set_sync_routing(
+  p_sync_ingest_account_id uuid,
+  p_trading_account_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  if not exists (
+    select 1 from public.sync_ingest_accounts
+    where id = p_sync_ingest_account_id and user_id = v_uid
+  ) then
+    raise exception 'P0001: unknown connector';
+  end if;
+
+  if p_trading_account_id is null then
+    update public.sync_ingest_accounts
+    set account_id = null
+    where id = p_sync_ingest_account_id;
+    delete from public.sync_account_links
+    where sync_ingest_account_id = p_sync_ingest_account_id;
+    return;
+  end if;
+
+  -- Ownership of the journal account is re-checked here: inside a security
+  -- definer body RLS does not implicitly filter, so ownership is explicit.
+  if not exists (
+    select 1 from public.trading_accounts
+    where id = p_trading_account_id and user_id = v_uid
+  ) then
+    raise exception 'P0001: unknown trading account';
+  end if;
+
+  insert into public.sync_account_links (sync_ingest_account_id, trading_account_id)
+  values (p_sync_ingest_account_id, p_trading_account_id)
+  on conflict do nothing;
+
+  update public.sync_ingest_accounts
+  set account_id = p_trading_account_id
+  where id = p_sync_ingest_account_id;
+end;
+$$;
+
 -- 30-day retention for raw payloads. Scheduled nightly via pg_cron below;
 -- also safe to call by hand.
 create or replace function public.purge_old_sync_events()
@@ -911,6 +1011,7 @@ grant execute on function public.apply_broker_close(uuid)        to authenticate
 grant execute on function public.link_sync_trade(uuid, uuid)     to authenticated;
 grant execute on function public.dismiss_sync_trade(uuid, text)  to authenticated;
 grant execute on function public.match_candidates(uuid)          to authenticated;
+grant execute on function public.set_sync_routing(uuid, uuid)    to authenticated;
 
 -- Connector creation runs server-side so the secret is born from
 -- gen_random_bytes(32), never from client randomness, and never transits a

@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -50,11 +50,22 @@ int OnInit()
      }
 
    // Reprise apres redemarrage : on repart d'au moins une heure en arriere.
-   datetime saved = (datetime)GlobalVariableGet("SevenJournalSync_watermark");
-   g_lastScanFrom = (saved > 0) ? saved - InpOverlapMinutes * 60 : TimeCurrent() - 86400;
+   // Premier attachement : TOUT l'historique du compte est importe (le
+   // serveur dedoublonne, le terminal dedupe, aucun trade n'arrive deux fois).
+   // _v2 : v1.10 importe tout l'historique au premier attachement. Si une
+   // v1.00 a deja tourne, son ancien watermark (limite a 24 h) ne doit pas
+   // empecher l'import complet — d'ou le nouveau nom de variable.
+   datetime saved = (datetime)GlobalVariableGet("SevenJournalSync_watermark_v2");
+   if(saved > 0)
+      g_lastScanFrom = saved - InpOverlapMinutes * 60;
+   else
+      g_lastScanFrom = 0;
 
    EventSetTimer(g_timer);
-   Print("SevenJournalSync: actif. Premier scan depuis ", TimeToString(g_lastScanFrom));
+   if(g_lastScanFrom == 0)
+      Print("SevenJournalSync: actif. Premier scan : historique complet du compte.");
+   else
+      Print("SevenJournalSync: actif. Premier scan depuis ", TimeToString(g_lastScanFrom));
    return(INIT_SUCCEEDED);
   }
 
@@ -121,7 +132,7 @@ bool PostJson(const string body, string &responseCode)
       else if(status >= 200 && status < 300)
         {
          responseCode = IntegerToString(status);
-         GlobalVariableSet("SevenJournalSync_watermark", (double)g_lastScanFrom);
+         GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
          return(true);
         }
       else
@@ -131,7 +142,7 @@ bool PostJson(const string body, string &responseCode)
          // 4xx (sauf 429) : renvoyer ne changera rien, on abandonne.
          if(status >= 400 && status < 500 && status != 429)
            {
-            GlobalVariableSet("SevenJournalSync_watermark", (double)g_lastScanFrom);
+            GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
             return(false);
            }
         }
@@ -161,6 +172,22 @@ void SendHeartbeat()
    string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]}";
    string code;
    PostJson(body, code);
+  }
+
+//+------------------------------------------------------------------+
+//| Envoi d'un lot d'events. Retourne true si le serveur a accepte.  |
+//+------------------------------------------------------------------+
+bool FlushEvents(const string events, const int count)
+  {
+   if(count <= 0) return(true);
+   string body = "{\"type\":\"trades\",\"events\":[" + events + "]}";
+   string code;
+   if(PostJson(body, code))
+     {
+      Print("SevenJournalSync: ", count, " position(s) envoyee(s) (HTTP ", code, ")");
+      return(true);
+     }
+   return(false);
   }
 
 //+------------------------------------------------------------------+
@@ -207,11 +234,17 @@ void ScanAndPush()
         }
      }
 
-   //--- 2e passe : construire et envoyer chaque position fermee (par id)
+   //--- 2e passe : construire les positions fermees (par id). L'envoi se
+   //    fait par lots de BATCH : la passerelle refuse un batch de plus de
+   //    500 events, et un premier import complet peut en contenir des
+   //    centaines (tout l'historique du compte est couvert au 1er attachement).
+   const int BATCH = 400;
    string events = "";
    int    count  = 0;
+   int    sent   = 0;
+   bool   allOk  = true;
 
-   for(int c = 0; c < closedN && count < 200; c++)
+   for(int c = 0; c < closedN; c++)
      {
       string id = closedArr[c];
       if(StringFind(events, "\"external_id\":\"" + id + "\"") >= 0) continue; // deja agregee
@@ -222,10 +255,16 @@ void ScanAndPush()
       if(events != "") events += ",";
       events += ev;
       count++;
+      if(count >= BATCH)
+        {
+         if(FlushEvents(events, count)) sent += count; else allOk = false;
+         events = "";
+         count  = 0;
+        }
      }
 
    //--- 3e passe : les positions ouvertes (etat courant du terminal)
-   for(int p = 0; p < PositionsTotal() && count < 200; p++)
+   for(int p = 0; p < PositionsTotal(); p++)
      {
       ulong ticket = PositionGetTicket(p);
       if(ticket == 0) continue;
@@ -244,22 +283,27 @@ void ScanAndPush()
       if(events != "") events += ",";
       events += ev;
       count++;
+      if(count >= BATCH)
+        {
+         if(FlushEvents(events, count)) sent += count; else allOk = false;
+         events = "";
+         count  = 0;
+        }
      }
 
-   if(count == 0)
+   if(count > 0)
      {
-      g_lastScanFrom = to;
-      GlobalVariableSet("SevenJournalSync_watermark", (double)g_lastScanFrom);
-      return;
+      if(FlushEvents(events, count)) sent += count; else allOk = false;
      }
 
-   string body = "{\"type\":\"trades\",\"events\":[" + events + "]}";
-   string code;
-   if(PostJson(body, code))
+   // Le watermark n'avance que si TOUT est parti : un lot refuse sera
+   // reconstruit au prochain scan (les lots deja acceptes y seront
+   // rededoublonnes par le serveur — un renvoi est toujours inoffensif).
+   if(allOk)
      {
-      Print("SevenJournalSync: ", count, " position(s) envoyee(s) (HTTP ", code, ")");
+      if(sent > 0) Print("SevenJournalSync: ", sent, " position(s) au total pour ce scan");
       g_lastScanFrom = to;
-      GlobalVariableSet("SevenJournalSync_watermark", (double)g_lastScanFrom);
+      GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
      }
   }
 

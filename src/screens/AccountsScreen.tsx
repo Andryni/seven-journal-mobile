@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccounts } from '../features/accounts/useAccounts';
+import { useSyncedAccountIds } from '../features/sync/useSyncQueue';
 import { useTrades } from '../features/trades/useTrades';
 import { useRefresh } from '../features/data/useRefresh';
 import { formatCurrency, currencySymbol, CURRENCIES } from '../utils/formatCurrency';
@@ -50,6 +51,8 @@ export const AccountsScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const queryClient = useQueryClient();
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const syncedIds = useSyncedAccountIds();
+  const syncedSet = useMemo(() => new Set(syncedIds), [syncedIds]);
   const { trades } = useTrades();
   const { refreshing, onRefresh } = useRefresh();
   const activeAccountId = useUIStore((state: { activeAccountId: string | null }) => state.activeAccountId);
@@ -235,6 +238,13 @@ export const AccountsScreen: React.FC = () => {
               <Badge
                 label={item.instrument_type}
                 variant="neutral"
+                size="sm"
+              />
+            )}
+            {syncedSet.has(item.id) && (
+              <Badge
+                label={t('accountSyncedBadge')}
+                variant="green"
                 size="sm"
               />
             )}

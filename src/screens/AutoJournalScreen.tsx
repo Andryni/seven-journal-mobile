@@ -20,6 +20,9 @@ import { PressableScale } from '../components/ui/PressableScale';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PickerModal } from '../components/ui/PickerModal';
 import { Badge } from '../components/ui/Badge';
+import { PlatformBadge } from '../components/sync/PlatformBadge';
+import { useAccounts } from '../features/accounts/useAccounts';
+import { formatCurrency, currencySymbol } from '../utils/formatCurrency';
 import { useSyncQueue } from '../features/sync/useSyncQueue';
 import {
   closeReasonLabel,
@@ -40,22 +43,6 @@ import {
 // sheet then shows a copy-pasteable truth instead of a placeholder.
 const WS_URL = 'https://aeqyqwchxvcfvbbapqch.supabase.co/functions/v1/sync-ingest';
 
-/**
- * Platform identity for the connector avatar: a brand-styled monogram
- * (MetaTrader orange, cTrader green) standing in for trademarked logos we
- * cannot bundle. The sync-status dot is overlaid on the avatar's corner.
- */
-type BrandColorKey = 'gold' | 'green' | 'primary' | 'textMuted';
-
-const PLATFORM_BRAND: Record<string, { mono: string; colorKey: BrandColorKey }> = {
-  mt5_ea: { mono: 'MT5', colorKey: 'gold' },
-  mt4_ea: { mono: 'M4', colorKey: 'gold' },
-  ctrader: { mono: 'CT', colorKey: 'green' },
-  csv_mt5: { mono: 'CSV', colorKey: 'textMuted' },
-  csv_generic: { mono: 'CSV', colorKey: 'textMuted' },
-  manual_api: { mono: 'API', colorKey: 'primary' },
-};
-
 export const AutoJournalScreen: React.FC = () => {
   const { theme } = useTheme();
   const { t, lang } = useT();
@@ -73,12 +60,39 @@ export const AutoJournalScreen: React.FC = () => {
     openMatch,
     closeMatch,
     createConnector,
+    setRouting,
   } = useSyncQueue();
+  const { accounts } = useAccounts();
 
   // Setup sheet for a freshly created connector (secret shown exactly once).
   const [setup, setSetup] = useState<{ secret: string; label: string } | null>(null);
   const [dismissTarget, setDismissTarget] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Creation flow: platform -> (connector created) -> routing -> setup sheet.
+  const [pickPlatform, setPickPlatform] = useState(false);
+  // Routing: which journal account this connector feeds. Opened at creation
+  // and on tapping a connector row; the pending handoff shows the setup sheet
+  // only after the account decision so the two overlays never stack.
+  const [routingFor, setRoutingFor] = useState<string | null>(null);
+  const [pendingSetup, setPendingSetup] = useState<{ secret: string; label: string } | null>(null);
+
+  const routingConnector = connectors.find((c) => c.id === routingFor) ?? null;
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  const capital = (a: { initial_balance: number; currency: string }) =>
+    formatCurrency(a.initial_balance, {
+      symbol: currencySymbol(a.currency),
+      showPlus: false,
+      thousandsSeparator: true,
+    });
+
+  const closeRouting = () => {
+    setRoutingFor(null);
+    if (pendingSetup) {
+      setSetup(pendingSetup);
+      setPendingSetup(null);
+    }
+  };
 
   const intl = new Intl.DateTimeFormat(localeFor(lang), {
     day: '2-digit',
@@ -87,18 +101,7 @@ export const AutoJournalScreen: React.FC = () => {
     minute: '2-digit',
   });
 
-  const addConnector = async () => {
-    try {
-      const created = await createConnector({
-        platform: 'mt5_ea',
-        label: `MT5 #${connectors.length + 1}`,
-        accountId: null,
-      });
-      if (created?.secret) setSetup({ secret: created.secret, label: created.label });
-    } catch {
-      // toast already shown by the hook
-    }
-  };
+  const addConnector = () => setPickPlatform(true);
 
   const copySecret = async () => {
     if (!setup) return;
@@ -140,36 +143,41 @@ export const AutoJournalScreen: React.FC = () => {
                   : c.last_sync_status === 'empty'
                     ? t('syncConnectorStatusEmpty')
                     : t('syncConnectorNever');
-            const brand = PLATFORM_BRAND[c.platform] ?? {
-              mono: (c.platform ?? '?').slice(0, 4).toUpperCase(),
-              colorKey: 'textMuted' as BrandColorKey,
-            };
-            const brandColor = theme.colors[brand.colorKey];
+            // Once a journal account is wired, it IS the connector's identity:
+            // name and capital replace the technical label. Tapping the row
+            // reopens routing (change account / unlink); long-press reveals
+            // the setup sheet with the webhook URL.
+            const linked = c.account_id ? accountById.get(c.account_id) : undefined;
+            const title = linked ? linked.name : c.label;
+            const sub = linked
+              ? t('syncConnectorAccountSub', capital(linked))
+              : c.last_sync_at
+                ? t('syncConnectorLastSync', intl.format(new Date(c.last_sync_at)))
+                : statusLabel;
             return (
               <React.Fragment key={c.id}>
-                <View style={styles.connectorRow}>
+                <PressableScale
+                  style={styles.connectorRow}
+                  onPress={() => setRoutingFor(c.id)}
+                  onLongPress={() => setSetup({ secret: '', label: c.label })}
+                  accessibilityLabel={title}
+                >
                   <View style={styles.connectorAvatarWrap}>
-                    <View
-                      style={[
-                        styles.connectorAvatar,
-                        { backgroundColor: withAlpha(brandColor, 0.16) },
-                      ]}
-                    >
-                      <Text style={[styles.connectorAvatarText, { color: brandColor }]}>
-                        {brand.mono}
-                      </Text>
-                    </View>
+                    <PlatformBadge platform={c.platform} />
                     <View style={[styles.connectorDot, { backgroundColor: statusColor }]} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.connectorLabel}>{c.label}</Text>
-                    <Text style={styles.connectorSub}>
-                      {c.last_sync_at
-                      ? t('syncConnectorLastSync', intl.format(new Date(c.last_sync_at)))
-                        : statusLabel}
-                    </Text>
+                    <Text style={styles.connectorLabel}>{title}</Text>
+                    <Text style={styles.connectorSub}>{sub}</Text>
                   </View>
-                </View>
+                  <Text style={styles.connectorPlatformHint}>
+                    {t('syncConnectorPlatform',
+                      c.platform === 'ctrader' ? 'cTrader' :
+                      c.platform.startsWith('mt5') ? 'MT5' :
+                      c.platform.startsWith('mt4') ? 'MT4' :
+                      c.platform.startsWith('csv') ? 'CSV' : 'API')}
+                  </Text>
+                </PressableScale>
                 {i < connectors.length - 1 ? <Hairline inset={48} /> : null}
               </React.Fragment>
             );
@@ -251,6 +259,56 @@ export const AutoJournalScreen: React.FC = () => {
           setDismissTarget(null);
         }}
         onClose={() => setDismissTarget(null)}
+      />
+
+      {/* ------------------------------------------------ routage ---------- */}
+      <PickerModal
+        visible={routingFor != null}
+        title={t('syncRoutingTitle')}
+        items={[
+          { id: '__unlink__', label: t('syncRoutingUnlink') },
+          ...accounts.map((a) => ({ id: a.id, label: a.name, rightText: capital(a) })),
+        ]}
+        selectedId={routingConnector?.account_id ?? null}
+        onSelect={(id) => {
+          const connectorId = routingFor;
+          if (connectorId) {
+            setRouting({
+              syncIngestAccountId: connectorId,
+              tradingAccountId: id === '__unlink__' ? null : id,
+            });
+          }
+          closeRouting();
+        }}
+        onClose={closeRouting}
+      />
+
+      <PickerModal
+        visible={pickPlatform}
+        title={t('syncPickPlatformTitle')}
+        items={[
+          { id: 'mt5_ea', label: t('syncPlatformMT5') },
+          { id: 'ctrader', label: t('syncPlatformCTrader') },
+        ]}
+        selectedId={null}
+        onSelect={(platform) => {
+          setPickPlatform(false);
+          createConnector({
+            platform,
+            label: `${platform === 'ctrader' ? 'cTrader' : 'MT5'} #${connectors.length + 1}`,
+            accountId: null,
+          })
+            .then((created) => {
+              if (created?.secret) {
+                setPendingSetup({ secret: created.secret, label: created.label });
+                setRoutingFor(created.id);
+              }
+            })
+            .catch(() => {
+              /* reported by the hook */
+            });
+        }}
+        onClose={() => setPickPlatform(false)}
       />
 
       {setup ? (
@@ -363,18 +421,22 @@ const SetupSheet: React.FC<{
           </Text>
         </View>
 
-        <Text style={styles.fieldLabel}>{t('syncSetupSecret')}</Text>
-        <PressableScale style={styles.fieldBox} onPress={onCopy}>
-          <Text style={styles.fieldValue} numberOfLines={1}>
-            {secret}
-          </Text>
-          {copied ? (
-            <Check size={15} color={theme.colors.green} strokeWidth={2.5} />
-          ) : (
-            <Copy size={15} color={theme.colors.textMuted} strokeWidth={2} />
-          )}
-        </PressableScale>
-        <Text style={styles.note}>{t('syncSetupSecretNote')}</Text>
+        {secret ? (
+          <>
+            <Text style={styles.fieldLabel}>{t('syncSetupSecret')}</Text>
+            <PressableScale style={styles.fieldBox} onPress={onCopy}>
+              <Text style={styles.fieldValue} numberOfLines={1}>
+                {secret}
+              </Text>
+              {copied ? (
+                <Check size={15} color={theme.colors.green} strokeWidth={2.5} />
+              ) : (
+                <Copy size={15} color={theme.colors.textMuted} strokeWidth={2} />
+              )}
+            </PressableScale>
+            <Text style={styles.note}>{t('syncSetupSecretNote')}</Text>
+          </>
+        ) : null}
 
         <View style={styles.guide}>
           <Text style={styles.guideTitle}>{t('syncSetupGuideTitle')}</Text>
@@ -431,18 +493,6 @@ const createStyles = (theme: AppTheme) =>
       paddingVertical: theme.spacing.md,
     },
     connectorAvatarWrap: { position: 'relative' as const },
-    connectorAvatar: {
-      width: 34,
-      height: 34,
-      borderRadius: 9,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    connectorAvatarText: {
-      fontSize: 11,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 0.5,
-    },
     connectorDot: {
       position: 'absolute' as const,
       right: -2,
@@ -452,6 +502,13 @@ const createStyles = (theme: AppTheme) =>
       borderRadius: 5,
       borderWidth: 2,
       borderColor: theme.colors.surface,
+    },
+    connectorPlatformHint: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
     },
     connectorLabel: {
       color: theme.colors.textPrimary,
