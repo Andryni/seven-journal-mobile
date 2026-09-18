@@ -23,3 +23,20 @@ verify_jwt = true
 # Same reasoning as coach: the function only checks that a bearer token is
 # PRESENT, so the gateway must be the one that validates it.
 verify_jwt = true
+
+[functions.sync-ingest]
+# The ONLY function where this must be false, and it is not an oversight.
+#
+# coach and chat are called by the app, which holds a Supabase session, so
+# the gateway can verify a JWT. This one is called by an Expert Advisor
+# running inside MetaTrader on the trader's PC. It has no Supabase session
+# and cannot obtain one; it authenticates with a per-connector secret that
+# the function itself looks up in sync_ingest_accounts.
+#
+# Left at the default, the gateway rejects every EA request with 401 before
+# the function runs, and the bridge silently never imports anything.
+#
+# This is safe precisely because the function does its own check: an unknown
+# or inactive secret is refused, and the secret scopes every write to its own
+# connector's staging rows. Do not copy this line to another function.
+verify_jwt = false

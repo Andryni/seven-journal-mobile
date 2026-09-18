@@ -14,6 +14,13 @@ Schéma : `supabase/schema.sql` (SECTION 4). Design : `docs/auto-journal-sync.md
 npx supabase functions deploy sync-ingest
 ```
 
+> `supabase/config.toml` met `verify_jwt = false` pour **cette fonction
+> uniquement**. L'EA tourne dans MetaTrader : il n'a pas de session Supabase
+> et ne peut pas en obtenir une. Il s'authentifie avec le secret du
+> connecteur, que la fonction vérifie elle-même. Sans ce réglage, la
+> passerelle renvoie 401 avant même que la fonction s'exécute, et le pont
+> n'importe jamais rien — sans message d'erreur côté EA.
+
 Aucune variable personnalisée : la fonction utilise `SUPABASE_URL` et
 `SUPABASE_SERVICE_ROLE_KEY`, fournies par Supabase à l'exécution.
 
