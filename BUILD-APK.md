@@ -118,6 +118,19 @@ ou gestionnaire de fichiers). C'est normal pour une app hors Play Store.
 Si une ancienne version est déjà installée avec une signature différente,
 désinstallez-la d'abord.
 
+### Méthode fiable : installer via adb (recommandé)
+
+Le téléchargement manuel peut échouer avec un vague « Application non
+installée » (copie corrompue, restriction de la surcouche Realme/ColorOS).
+Avec le téléphone branché (débogage USB activé) :
+
+```
+adb install -r chemin\vers\seven-journal.apk
+```
+
+L'installation passe par le canal système : pas de transfert à corrompre,
+et en cas de refus le vrai code d'erreur s'affiche (signature, stockage…).
+
 ---
 
 ## Étape 5 — Vérifier les notifications
@@ -146,6 +159,60 @@ rappels n'arrivent pas, ce n'est pas l'application :
 
 Relancer la même commande produit un nouvel APK. Le `versionCode` est géré
 par EAS (`appVersionSource: remote`), il n'y a rien à incrémenter à la main.
+
+---
+
+## Mettre à jour SANS reconstruire — EAS Update
+
+Pour un correctif qui ne touche **que du JavaScript** (écrans, styles, texte,
+logique — tout ce qui vit dans `src/` et `App.tsx`), inutile de reconstruire
+l'APK : l'update est poussé sur les serveurs Expo et se télécharge tout seul
+sur les téléphones déjà installés.
+
+Les fondations sont déjà en place dans le dépôt :
+
+- `expo-updates` dans `package.json` (embarqué dans l'APK au build) ;
+- `updates.url` + `runtimeVersion` policy `appVersion` dans `app.json` ;
+- un canal par profil : `preview` pour l'APK que vous installez.
+
+La procédure complète :
+
+```
+:: 1. Synchroniser les variables d'environnement (comme au build)
+npx eas env:pull --environment preview
+
+:: 2. Publier l'update sur le canal de l'APK installé
+npx eas update --channel preview --environment preview --message "description du correctif"
+```
+
+Comptez 2 à 5 minutes. L'update apparaît sur le tableau de bord EAS
+(`Updates` → branche `preview`).
+
+### Comment il arrive sur le téléphone
+
+1. Au **prochain lancement**, l'app télécharge l'update en arrière-plan.
+2. Au **lancement suivant**, la nouvelle version s'applique (comportement
+   natif d'expo-updates : jamais à chaud, pour ne pas interrompre l'usage).
+
+Donc : ouvrir l'app deux fois, c'est tout.
+
+### Quand l'update NE suffit PAS
+
+Un rebuild complet est obligatoire dès qu'on touche à ce qui est compilé en
+natif : ajout/retrait d'un module (`expo-notifications`, …), modification de
+`app.json` (permissions, plugins, icônes, splash), montée de version du SDK
+Expo, ou changement de `runtimeVersion`. En cas de doute : si l'APK de la
+même `runtimeVersion` (affichée sur le dashboard EAS) ne peut pas exécuter le
+changement, reconstruisez.
+
+### Revenir en arrière
+
+Si un update pose problème, sur le dashboard EAS → Updates → groupe fautif →
+**Roll back to embedded** (le téléphone retombe sur le code de l'APK), ou :
+
+```
+npx eas update:republish --group <GROUP_ID_du_bon_update>
+```
 
 ---
 
