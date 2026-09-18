@@ -674,7 +674,7 @@ begin
       user_id, account_id, pair, direction, entry_price, exit_price,
       stop_loss, take_profit, size, entry_time, exit_time, pnl, r_multiple,
       result, commission, swap, mae_price, mfe_price, timeframe, session,
-      sync_source_id
+      mental_state, sync_source_id
     ) values (
       v_uid,
       v_account_id,
@@ -711,6 +711,10 @@ begin
       (v_payload->>'mfe_price')::numeric,
       coalesce(nullif(v_over->>'timeframe',''), nullif(v_payload->>'timeframe',''), 'M15'),
       nullif(v_over->>'session',''),
+      -- Journal-required human fields the bridge cannot know. Seeded with the
+      -- neutral value so promotion never fails on NOT NULL; the trader edits
+      -- them in the trade form (mental_state has a CHECK, 'focused' is valid).
+      coalesce(nullif(v_over->>'mental_state',''), 'focused'),
       v_row.id
     )
     returning id into v_trade_id;
@@ -907,6 +911,37 @@ begin
 end;
 $$;
 
+-- Bulk dismiss: same contract as dismiss_sync_trade, one statement for the
+-- whole pending queue of one connector (or everything when null).
+create or replace function public.dismiss_sync_trades(
+  p_staging_ids uuid[],
+  p_reason text
+)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+  update public.sync_trades
+     set status = 'dismissed',
+         resolution = 'dismissed',
+         dismiss_reason = left(coalesce(p_reason, 'not_mine'), 40),
+         resolved_at = now(),
+         resolved_by = 'user'
+   where id = any(p_staging_ids)
+     and user_id = auth.uid()
+     and status = 'pending';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
 -- Matching candidates for a staging row: same routed account, same normalized
 -- pair, same direction, entry time within the connector's window, size within
 -- 2%. A proposal engine, never an auto-merge.
@@ -1010,6 +1045,7 @@ grant execute on function public.promote_sync_trades(jsonb)      to authenticate
 grant execute on function public.apply_broker_close(uuid)        to authenticated;
 grant execute on function public.link_sync_trade(uuid, uuid)     to authenticated;
 grant execute on function public.dismiss_sync_trade(uuid, text)  to authenticated;
+grant execute on function public.dismiss_sync_trades(uuid[], text) to authenticated;
 grant execute on function public.match_candidates(uuid)          to authenticated;
 grant execute on function public.set_sync_routing(uuid, uuid)    to authenticated;
 

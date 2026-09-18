@@ -154,7 +154,12 @@ export function useSyncQueue() {
       showSuccess(t('syncToastPromoted').replace('{count}', String(count)));
       invalidate();
     },
-    onError: () => showError(t('syncToastError')),
+    onError: (err: unknown) => {
+      // The RPC raises precise Postgres errors (no routing account, missing
+      // journal columns) — surface the server's message, not a generic one.
+      const msg = err instanceof Error && err.message ? err.message : t('syncToastError');
+      showError(msg);
+    },
   });
 
   const linkMutation = useMutation({
@@ -227,6 +232,56 @@ export function useSyncQueue() {
     onError: () => showError(t('syncToastError')),
   });
 
+  // Bulk actions over the whole pending queue (promotion routes each row
+  // through its connector's linked account, so one tap empties a full
+  // import). dismissAll maps every row through the same server enum.
+  const promoteAllMutation = useMutation({
+    mutationFn: async () => {
+      const rows = queueQuery.data ?? [];
+      if (rows.length === 0) return 0;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non authentifié');
+      const { data, error } = await supabase.rpc('promote_sync_trades', {
+        p_batch: rows.map((r) => ({
+          staging_id: r.id,
+          overrides: {},
+        })),
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (count) => {
+      showSuccess(t('syncToastPromoted').replace('{count}', String(count)));
+      invalidate();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error && err.message ? err.message : t('syncToastError');
+      showError(msg);
+    },
+  });
+
+  const dismissAllMutation = useMutation({
+    mutationFn: async () => {
+      const rows = queueQuery.data ?? [];
+      if (rows.length === 0) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non authentifié');
+      const { error } = await supabase.rpc('dismiss_sync_trade', {
+        p_staging_id: rows.map((r) => r.id),
+        p_reason: 'duplicate',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess(t('syncToastDismissed'));
+      invalidate();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error && err.message ? err.message : t('syncToastError');
+      showError(msg);
+    },
+  });
+
   const setRoutingMutation = useMutation({
     mutationFn: async ({
       syncIngestAccountId,
@@ -271,5 +326,9 @@ export function useSyncQueue() {
     isCreatingConnector: createConnectorMutation.isPending,
     setRouting: setRoutingMutation.mutate,
     isSettingRouting: setRoutingMutation.isPending,
+    promoteAll: promoteAllMutation.mutate,
+    isPromotingAll: promoteAllMutation.isPending,
+    dismissAll: dismissAllMutation.mutate,
+    isDismissingAll: dismissAllMutation.isPending,
   };
 }

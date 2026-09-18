@@ -267,7 +267,6 @@ export default function App() {
           style={[styles.appContainer, { backgroundColor: theme.colors.background }]}
           edges={['top', 'left', 'right']}
         >
-          <ToastContainer />
           <OfflineBanner />
           {session && <TopAccountBar />}
           <NavigationContainer
@@ -378,6 +377,7 @@ export default function App() {
           </NavigationContainer>
         </SafeAreaView>
       </SafeAreaProvider>
+      <ToastContainer />
       </BottomSheetModalProvider>
       </GestureHandlerRootView>
     </PersistQueryClientProvider>

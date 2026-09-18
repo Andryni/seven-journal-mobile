@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Share } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Share, Alert } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import {
   RefreshCw,
@@ -8,6 +8,7 @@ import {
   X,
   Copy,
   Check,
+  CheckCheck,
   AlertTriangle,
   Inbox,
 } from 'lucide-react-native';
@@ -61,6 +62,9 @@ export const AutoJournalScreen: React.FC = () => {
     closeMatch,
     createConnector,
     setRouting,
+    promoteAll,
+    isPromotingAll,
+    dismissAll,
   } = useSyncQueue();
   const { accounts } = useAccounts();
 
@@ -190,7 +194,55 @@ export const AutoJournalScreen: React.FC = () => {
       </Panel>
 
       {/* ---------------------------------------------------- file ---------- */}
-      <Text style={styles.sectionTitle}>{t('syncQueueTitle')}</Text>
+      <View style={styles.queueHeader}>
+        <Text style={styles.sectionTitle}>{t('syncQueueTitle')}</Text>
+        {queue.length > 1 ? (
+          <View style={styles.bulkRow}>
+            <PressableScale
+              style={styles.bulkBtn}
+              onPress={() =>
+                Alert.alert(
+                  t('syncBulkPromoteTitle'),
+                  t('syncBulkPromoteBody', String(queue.length)),
+                  [
+                    { text: t('confirmNo'), style: 'cancel' },
+                    {
+                      text: t('confirmYes'),
+                      onPress: () => promoteAll(),
+                    },
+                  ],
+                )
+              }
+              disabled={isPromotingAll}
+              accessibilityLabel={t('syncBulkPromoteTitle')}
+            >
+              <CheckCheck size={12} color={theme.colors.green} strokeWidth={2} />
+              <Text style={styles.bulkBtnText}>{t('syncBulkPromote')}</Text>
+            </PressableScale>
+            <PressableScale
+              style={styles.bulkBtn}
+              onPress={() =>
+                Alert.alert(
+                  t('syncBulkDismissTitle'),
+                  t('syncBulkDismissBody', String(queue.length)),
+                  [
+                    { text: t('confirmNo'), style: 'cancel' },
+                    {
+                      text: t('confirmYes'),
+                      style: 'destructive' as const,
+                      onPress: () => dismissAll(),
+                    },
+                  ],
+                )
+              }
+              accessibilityLabel={t('syncBulkDismissTitle')}
+            >
+              <X size={12} color={theme.colors.redLight} strokeWidth={2} />
+              <Text style={styles.bulkBtnText}>{t('syncBulkDismiss')}</Text>
+            </PressableScale>
+          </View>
+        ) : null}
+      </View>
       {isLoadingQueue ? (
         <Panel>
           <Text style={styles.loadingText}>{t('loading')}</Text>
@@ -478,6 +530,28 @@ const createStyles = (theme: AppTheme) =>
       color: theme.colors.textMuted,
       fontSize: theme.type.body,
       fontFamily: theme.fonts.sans,
+    },
+    queueHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    bulkRow: { flexDirection: 'row' as const, gap: theme.spacing.sm },
+    bulkBtn: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 6,
+      backgroundColor: withAlpha(theme.colors.textMuted, 0.12),
+    },
+    bulkBtnText: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase' as const,
     },
     noConnectors: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
     noConnectorsText: {
