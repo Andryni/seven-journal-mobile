@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.11"
+#property version   "1.12"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -423,6 +423,7 @@ string BuildPositionEvent(const string posId, const bool isOpen,
    long     lastReason = -1;
    string exits        = "";
    int    exitsCount   = 0;
+   double histSL       = 0, histTP = 0;   // SL/TP vus sur les deals (fermées)
 
    int deals = HistoryDealsTotal();
    for(int i = 0; i < deals; i++)
@@ -449,9 +450,14 @@ string BuildPositionEvent(const string posId, const bool isOpen,
          inVol      += dVol;
          inVolPrice += dPrice * dVol;
          if(dType == DEAL_TYPE_SELL) direction = "SELL";
-        }
-      else if(dEntry == DEAL_ENTRY_OUT || dEntry == DEAL_ENTRY_OUT_BY || dEntry == DEAL_ENTRY_INOUT)
-        {
+        }         // SL/TP historisés : le deal d'entrée (et les suivants) portent les
+         // niveaux du moment — le dernier non nul gagne. Sans ça, une position
+         // fermée arrive dans le journal sans ses niveaux (R non calculable).
+         double dSL = HistoryDealGetDouble(deal, DEAL_SL);
+         double dTP = HistoryDealGetDouble(deal, DEAL_TP);
+         if(dSL > 0) histSL = dSL;
+         if(dTP > 0) histTP = dTP;
+
          outVol      += dVol;
          outVolPrice += dPrice * dVol;
          lastOutTime  = dTime;
@@ -490,6 +496,8 @@ string BuildPositionEvent(const string posId, const bool isOpen,
      }
    else
      {
+      if(histSL > 0) json += ",\"stop_loss\":" + Num(histSL, 8);
+      if(histTP > 0) json += ",\"take_profit\":" + Num(histTP, 8);
       if(outVol > 0)
          json += ",\"exit_price\":" + Num(outVolPrice / outVol, 8);
       json += ",\"close_time\":\"" + IsoTime(lastOutTime) + "\"";
@@ -511,7 +519,13 @@ string BuildPositionEvent(const string posId, const bool isOpen,
 string CloseReason(const long lastReason, const double pnl)
   {
    if(lastReason == DEAL_REASON_TP) return("TP");
-   if(lastReason == DEAL_REASON_SL) return("SL");
+   if(lastReason == DEAL_REASON_SL)
+     {
+      // Un stop déplacé au-delà de l'entrée (breakeven+) sort par SL mais
+      // n'est PAS une perte : le journal doit le compter comme BE.
+      if(pnl >= 0) return("BE");
+      return("SL");
+     }
    if(MathAbs(pnl) < 0.01)          return("BE");
    return("CLOSED");   // client, expert, mobile, stop-out, ...
   }

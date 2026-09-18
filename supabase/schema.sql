@@ -710,7 +710,19 @@ begin
       (v_payload->>'mae_price')::numeric,
       (v_payload->>'mfe_price')::numeric,
       coalesce(nullif(v_over->>'timeframe',''), nullif(v_payload->>'timeframe',''), 'M15'),
-      nullif(v_over->>'session',''),
+      -- Session inferred from the entry hour, same UTC windows as the app's
+      -- sessionDetect (Asia 23-07, London 7-12, NY 12-21): analytics bucket a
+      -- null session as 'Over Session', which turns the breakdown into noise.
+      coalesce(
+        nullif(v_over->>'session',''),
+        case
+          when extract(hour from (v_payload->>'entry_time')::timestamptz) >= 23
+            or extract(hour from (v_payload->>'entry_time')::timestamptz) < 7  then 'Asia'
+          when extract(hour from (v_payload->>'entry_time')::timestamptz) < 12 then 'London'
+          when extract(hour from (v_payload->>'entry_time')::timestamptz) < 21 then 'New York'
+          else 'Over Session'
+        end
+      ),
       -- Journal-required human fields the bridge cannot know. Seeded with the
       -- neutral value so promotion never fails on NOT NULL; the trader edits
       -- them in the trade form (mental_state has a CHECK, 'focused' is valid).
@@ -1301,6 +1313,34 @@ drop trigger if exists trg_trades_enforce_lock on public.trades;
 create trigger trg_trades_enforce_lock
   after insert or update or delete on public.trades
   for each row execute function public.trades_enforce_lock();
+
+-- Recording an ALREADY-TAKEN trade is bookkeeping, not risk: the promotion of
+-- staged broker history must flow through even while the daily lock is active
+-- (the trader importing this morning's losses is reviewing, not trading).
+-- Manual entries stay blocked — this exemption only exists where provenance
+-- is verifiable (sync_source_id set by promote_sync_trades).
+create or replace function public.fn_prevent_trade_during_lock()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.sync_source_id is null and exists (
+    select 1 from daily_session_locks
+    where user_id = new.user_id
+      and is_locked = true
+      and date = current_date
+      and (unlock_at is null or now() < unlock_at)
+  ) then
+    raise exception 'LOCKED: daily session lock is active for today.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_trade_during_lock on public.trades;
+create trigger trg_prevent_trade_during_lock
+  before insert on public.trades
+  for each row execute function public.fn_prevent_trade_during_lock();
 
 -- Read-only snapshot of prop-firm rule state, so the app stops recomputing
 -- drawdown / consistency locally on every render.

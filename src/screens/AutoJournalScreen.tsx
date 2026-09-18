@@ -207,7 +207,7 @@ export const AutoJournalScreen: React.FC = () => {
                   [
                     { text: t('confirmNo'), style: 'cancel' },
                     {
-                      text: t('confirmYes'),
+                      text: t('syncBulkConfirm'),
                       onPress: () => promoteAll(),
                     },
                   ],
@@ -228,7 +228,7 @@ export const AutoJournalScreen: React.FC = () => {
                   [
                     { text: t('confirmNo'), style: 'cancel' },
                     {
-                      text: t('confirmYes'),
+                      text: t('syncBulkConfirm'),
                       style: 'destructive' as const,
                       onPress: () => dismissAll(),
                     },

@@ -49,7 +49,9 @@ export const Toast: React.FC<ToastProps> = ({
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-20)).current;
+  // Slides up from the bottom edge (above the tab bar): the top of the
+  // screen collides with the screen header's own labels.
+  const translateY = useRef(new Animated.Value(20)).current;
   const Icon = TOAST_ICONS[type];
   const colors = makeToastColors(theme.colors)[type];
 
@@ -77,7 +79,7 @@ export const Toast: React.FC<ToastProps> = ({
           useNativeDriver: true,
         }),
         Animated.timing(translateY, {
-          toValue: -20,
+          toValue: 20,
           duration: 300,
           useNativeDriver: true,
         }),
@@ -112,7 +114,7 @@ export const Toast: React.FC<ToastProps> = ({
               useNativeDriver: true,
             }),
             Animated.timing(translateY, {
-              toValue: -20,
+              toValue: 20,
               duration: 200,
               useNativeDriver: true,
             }),
@@ -130,7 +132,7 @@ const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     container: {
       position: 'absolute',
-      top: 50,
+      bottom: 78,
       left: theme.spacing.md,
       right: theme.spacing.md,
       flexDirection: 'row',
