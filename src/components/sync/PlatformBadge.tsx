@@ -1,17 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
+
+// Bundled asset modules resolve through Metro's require; the returned
+// number is the RN asset reference the Image source expects.
+const MT5_LOGO = require('../../../assets/platforms/mt5.png');
+const CTRADER_LOGO = require('../../../assets/platforms/ctrader.png');
 
 /**
  * Platform identity for a sync connector.
  *
- * The real MT5/cTrader logos are trademarked, so these are hand-drawn vector
- * monograms in each brand's colour: MetaTrader's orange with the MT5
- * "5"-glyph, cTrader's green with its double-c mark. Drawn with react-native-svg
- * (already in the dependency tree) rather than raster assets: they scale on
- * every density and stay crisp in dark mode.
+ * MT5 and cTrader render the vendors' own logos (bundled PNGs — the user
+ * supplied them; they scale cleanly at 34 px on every density since the
+ * sources are 225/447 px). CSV and API keep their text tiles.
  *
  * The sync-status dot is NOT part of this component — screens overlay it so
  * the semantics (ok/error/never) stay theirs.
@@ -19,13 +21,11 @@ import type { AppTheme } from '../../theme';
 
 export type PlatformKind = 'mt5' | 'mt4' | 'ctrader' | 'csv' | 'api';
 
-// Brand approximations, deliberate: close enough to be recognised, not
-// claimed as the vendors' assets.
-const BRAND = {
-  mt5: '#F07E1F',
-  mt4: '#D9D9DE',
-  ctrader: '#22B573',
-} as const;
+const FALLBACK_BG: Record<Exclude<PlatformKind, 'csv' | 'api'>, string> = {
+  mt5: '#2C5AA0',
+  mt4: '#8B8B92',
+  ctrader: '#DE5124',
+};
 
 const SIZE = 34;
 
@@ -54,59 +54,39 @@ export const PlatformBadge: React.FC<Props> = ({ platform, size = SIZE }) => {
   const { theme } = useTheme();
   const styles = makeStyles(theme, size);
   const kind = platformKind(platform);
-  const bg = kind === 'csv' ? theme.colors.card : BRAND[kind as keyof typeof BRAND] ?? BRAND.mt5;
-  const radius = size * 0.264;
-
-  const glyph = (() => {
-    if (kind === 'mt5' || kind === 'mt4') {
-      // Stylised "5" (MetaTrader's wordmark glyph): down-stroke, mid bar.
-      return (
-        <Path
-          d={`M ${size * 0.44} ${size * 0.34} L ${size * 0.44} ${size * 0.58} L ${size * 0.66} ${size * 0.58}`}
-          stroke={kind === 'mt5' ? '#FFFFFF' : '#17181C'}
-          strokeWidth={size * 0.09}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      );
-    }
-    if (kind === 'ctrader') {
-      // cTrader's double-c: an open ring and its core dot.
-      return (
-        <>
-          <Path
-            d={`M ${size * 0.66} ${size * 0.38} A ${size * 0.16} ${size * 0.16} 0 1 0 ${size * 0.66} ${size * 0.62}`}
-            stroke="#FFFFFF"
-            strokeWidth={size * 0.085}
-            strokeLinecap="round"
-            fill="none"
-          />
-          <Circle cx={size * 0.42} cy={size * 0.5} r={size * 0.062} fill="#FFFFFF" />
-        </>
-      );
-    }
-    if (kind === 'csv') {
-      return (
-        <Text style={[styles.textGlyph, { color: theme.colors.textMuted }]}>CSV</Text>
-      );
-    }
-    return <Text style={[styles.textGlyph, { color: theme.colors.primary }]}>API</Text>;
-  })();
 
   if (kind === 'csv' || kind === 'api') {
-    return <View style={[styles.badge, { backgroundColor: bg, borderRadius: radius }]}>{glyph}</View>;
+    return (
+      <View style={[styles.badge, { backgroundColor: theme.colors.card, borderRadius: size * 0.264 }]}>
+        <Text style={[styles.textGlyph, { color: theme.colors.textMuted }]}>
+          {kind === 'csv' ? 'CSV' : 'API'}
+        </Text>
+      </View>
+    );
   }
 
+  const label = kind === 'mt5' ? 'MT5' : kind === 'mt4' ? 'MT4' : 'cTrader';
   return (
     <View
-      style={[styles.badge, { backgroundColor: bg, borderRadius: radius }]}
+      style={[
+        styles.badge,
+        { backgroundColor: FALLBACK_BG[kind], borderRadius: size * 0.264 },
+      ]}
       accessibilityRole="image"
-      accessibilityLabel={kind === 'mt5' ? 'MT5' : kind === 'mt4' ? 'MT4' : 'cTrader'}
+      accessibilityLabel={label}
     >
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {glyph}
-      </Svg>
+      {/* mt4 has no supplied asset: it shows the cTrader-independent MT4
+          fallback tile with the plain "MT4" glyph instead of an image. */}
+      {kind === 'mt4' ? (
+        <Text style={[styles.textGlyph, { color: '#FFFFFF' }]}>4</Text>
+      ) : (
+        <Image
+          source={kind === 'mt5' ? MT5_LOGO : CTRADER_LOGO}
+          style={styles.image}
+          resizeMode="cover"
+          accessibilityLabel={label}
+        />
+      )}
     </View>
   );
 };
@@ -120,6 +100,7 @@ const makeStyles = (theme: AppTheme, size: number) =>
       justifyContent: 'center',
       overflow: 'hidden',
     },
+    image: { width: '100%', height: '100%' },
     textGlyph: {
       fontSize: size * 0.3,
       fontFamily: theme.fonts.monoBold,
