@@ -270,3 +270,77 @@ describe('the v2 account block', () => {
     expect(ctx.account!.drawdownUsedPct).toBeNull();
   });
 });
+
+describe('broker excursions (MAE/MFE in R)', () => {
+  it('is null when no closed trade carries excursions — manual journals', () => {
+    const ctx = buildChatContext({ trades: [trade()] });
+    expect(ctx.excursions).toBeNull();
+    expect(ctx.isAutoAccount).toBe(false);
+  });
+
+  it('flags the auto feed from the account, not from the data', () => {
+    const ctx = buildChatContext({
+      trades: [trade()],
+      account: {
+        id: 'a', user_id: 'u', name: '50k', type: 'funded', balance: 50000,
+        initial_balance: 50000, currency: 'USD', is_active: true,
+        max_daily_loss_limit: null, feed_mode: 'auto', created_at: '',
+      } as unknown as TradingAccount,
+    });
+    expect(ctx.isAutoAccount).toBe(true);
+  });
+
+  it('converts MAE/MFE to R and counts noise-stops and runners', () => {
+    // risk = |2400.55 - 2395| = 5.55. Excursion +22.2 => 4R; MAE -2.775 => 0.5R.
+    const ctx = buildChatContext({
+      trades: [
+        trade({ mae_price: 2397.775, mfe_price: 2422.75 }),
+        trade({
+          id: 't2',
+          mae_price: 2394, // beyond the stop: through the noise
+          mfe_price: 2405.55, // ~0.9R
+        }),
+      ],
+    });
+    const ex = ctx.excursions!;
+    expect(ex.measured).toBe(2);
+    expect(ex.stoppedThroughNoise).toBe(1);
+    expect(ex.runners2R).toBe(1);
+    expect(ex.avgMfeR).toBeCloseTo((4 + 0.9) / 2, 1);
+  });
+
+  it('respects the SELL direction', () => {
+    // SELL: stop ABOVE entry (2406.55 -> risk 6). MAE 2406.55 = 1R adverse;
+    // MFE 2388.55 = (2400.55-2388.55) = 12 down = 2R favourable.
+    const ctx = buildChatContext({
+      trades: [
+        trade({
+          direction: 'SELL',
+          stop_loss: 2406.55,
+          mae_price: 2406.55,
+          mfe_price: 2388.55,
+        }),
+      ],
+    });
+    expect(ctx.excursions!.runners2R).toBe(1);
+    expect(ctx.excursions!.stoppedThroughNoise).toBe(1);
+  });
+
+  it('refuses trades whose stop is zero or on the wrong side', () => {
+    const ctx = buildChatContext({
+      trades: [
+        trade({ mae_price: 2390, mfe_price: 2410, stop_loss: 0 }),
+        trade({ mae_price: 2390, mfe_price: 2410, stop_loss: 2450, direction: 'BUY' }),
+      ],
+    });
+    expect(ctx.excursions).toBeNull();
+  });
+
+  it('measures capture as banked R over best excursion R', () => {
+    // mfeR = 4, realized 1.8 => capture 0.45.
+    const ctx = buildChatContext({
+      trades: [trade({ mae_price: 2397.775, mfe_price: 2422.75 })],
+    });
+    expect(ctx.excursions!.avgCaptureRatio).toBeCloseTo(0.45, 2);
+  });
+});

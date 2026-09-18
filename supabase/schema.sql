@@ -79,6 +79,13 @@ create table if not exists public.trading_accounts (
   max_trades_per_day       int check (max_trades_per_day is null or max_trades_per_day > 0),
   max_risk_per_trade_pct   numeric check (max_risk_per_trade_pct is null or max_risk_per_trade_pct > 0),
   max_consecutive_losses   int check (max_consecutive_losses is null or max_consecutive_losses > 0),
+  -- How the account is fed. 'manual' = trades entered by hand (default, and
+  -- every account that existed before the column). 'auto' = fed by a sync
+  -- connector: the app then treats balance as derived (initial + net pnl) and
+  -- the AI coach can lean on the broker-side figures. Intent, not state:
+  -- the "synchronised" badge stays the live signal of an actual link.
+  feed_mode                text not null default 'manual'
+                             check (feed_mode in ('manual','auto')),
   created_at               timestamptz not null default now()
 );
 
@@ -93,13 +100,33 @@ alter table public.trading_accounts
   add column if not exists challenge_end_date       date,
   add column if not exists max_trades_per_day       int,
   add column if not exists max_risk_per_trade_pct   numeric,
-  add column if not exists max_consecutive_losses   int;
+  add column if not exists max_consecutive_losses   int,
+  add column if not exists feed_mode                text;
 
 -- Backfill before tightening, or the NOT NULL below fails on existing rows.
 update public.trading_accounts
    set instrument_type = 'CFD'
  where instrument_type is null
     or instrument_type not in ('CFD','Futures','Crypto');
+
+update public.trading_accounts
+   set feed_mode = 'manual'
+ where feed_mode is null
+    or feed_mode not in ('manual','auto');
+
+alter table public.trading_accounts
+  alter column feed_mode set default 'manual',
+  alter column feed_mode set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'trading_accounts_feed_mode_check'
+  ) then
+    alter table public.trading_accounts
+      add constraint trading_accounts_feed_mode_check check (feed_mode in ('manual','auto'));
+  end if;
+end $$;
 
 update public.trading_accounts
    set timezone = 'UTC'

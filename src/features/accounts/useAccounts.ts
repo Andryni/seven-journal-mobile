@@ -109,6 +109,9 @@ export function useAccounts() {
       if (newAccount.max_risk_per_trade_pct) {
         payload.max_risk_per_trade_pct = newAccount.max_risk_per_trade_pct;
       }
+      if (newAccount.feed_mode) {
+        payload.feed_mode = newAccount.feed_mode;
+      }
 
       let { data, error } = await supabase
         .from('trading_accounts')

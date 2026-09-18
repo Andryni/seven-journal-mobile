@@ -99,6 +99,12 @@ export interface TradingAccount {
   max_trades_per_day?: number | null;
   max_risk_per_trade_pct?: number | null;
   max_consecutive_losses?: number | null;
+  /**
+   * How the account is fed: 'manual' (typed by hand, default) or 'auto'
+   * (fed by a sync connector — balance is then derived, not entered).
+   * Optional at the type level: an unmigrated database omits the column.
+   */
+  feed_mode?: 'manual' | 'auto';
   created_at: string;
 }
 

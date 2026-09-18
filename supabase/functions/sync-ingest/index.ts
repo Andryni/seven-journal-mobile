@@ -291,6 +291,13 @@ Deno.serve(async (req: Request) => {
 
     const closingAnOpenRow = existing.is_open === true && !ev.is_open;
 
+    // A bridge re-sending history (re-attach, deep import) must never re-queue
+    // a resolved row: the journal already holds a promoted/linked trade, and
+    // a second promotion would duplicate it. Payload still refreshes so a
+    // later close event completes the journal row via apply_broker_close.
+    // Only pending/stale rows reopen; dismissed was already left standing.
+    const resolved = existing.status !== 'pending' && existing.status !== 'stale';
+
     await admin
       .from('sync_trades')
       .update({
@@ -298,8 +305,7 @@ Deno.serve(async (req: Request) => {
         is_open: ev.is_open,
         open_time: ev.entry_time,
         close_time: ev.close_time,
-        status: 'pending',
-        resolved_by: null,
+        ...(resolved ? {} : { status: 'pending', resolved_by: null }),
       })
       .eq('id', existing.id);
     updated++;

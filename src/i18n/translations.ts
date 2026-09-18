@@ -71,6 +71,16 @@ export const translations = {
     syncConnectorStatusError: 'Erreur',
     syncConnectorAccountSub: (cap: string) => `Compte lié · ${cap}`,
     accountSyncedBadge: 'Synchronisé',
+    accountFeedModeLabel: 'Alimentation du compte',
+    accountFeedModeHint:
+      'Auto : les trades arrivent du broker via Journal auto — le solde est calculé (initial + résultat), plus besoin de le saisir. Manuel : saisie classique.',
+    accountFeedModeManual: 'Manuel',
+    accountFeedModeAuto: 'Auto',
+    accountAutoBadge: 'AUTO',
+    accountManualBadge: 'MANUEL',
+    accountBalanceAutoHint:
+      'Compte auto : solde calculé automatiquement (initial + P&L net).',
+    closeLabel: 'Fermer',
     syncRoutingTitle: 'Compte à automatiser',
     syncRoutingUnlink: 'Ne plus lier ce compte',
     syncPickPlatformTitle: 'Plateforme à connecter',
@@ -1200,6 +1210,16 @@ export const translations = {
     syncConnectorStatusError: 'Error',
     syncConnectorAccountSub: (cap: string) => `Linked account · ${cap}`,
     accountSyncedBadge: 'Synced',
+    accountFeedModeLabel: 'Account feed',
+    accountFeedModeHint:
+      'Auto: trades arrive from the broker via Auto journal — the balance is derived (initial + net P&L), no need to type it. Manual: classic entry.',
+    accountFeedModeManual: 'Manual',
+    accountFeedModeAuto: 'Auto',
+    accountAutoBadge: 'AUTO',
+    accountManualBadge: 'MANUAL',
+    accountBalanceAutoHint:
+      'Auto account: balance computed automatically (initial + net P&L).',
+    closeLabel: 'Close',
     syncRoutingTitle: 'Account to automate',
     syncRoutingUnlink: 'Unlink this account',
     syncPickPlatformTitle: 'Platform to connect',

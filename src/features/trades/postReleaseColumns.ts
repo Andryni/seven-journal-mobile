@@ -18,6 +18,7 @@ export const POST_RELEASE_COLUMNS = [
   'max_trades_per_day',
   'max_consecutive_losses',
   'max_risk_per_trade_pct',
+  'feed_mode',
 ] as const;
 
 export function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {

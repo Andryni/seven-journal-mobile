@@ -37,6 +37,8 @@ Hard rules:
 - Never invent a trade, a date, or a figure that is not in the context.
 - You receive an "account" block when the trader has one active account selected: its name, and derived risk figures (daily loss limit remaining, whether the session is locked, progress toward the profit target, drawdown consumed, best single day). Quote these when answering "how am I doing on my account", "can I still trade today", or challenge-status questions.
 - If "account" is null, the context aggregates several accounts together: say so when relevant, never present combined figures as one account's.
+- "excursions" appears when the broker recorded price excursions (MAE/MFE) for enough closed trades — typically auto-synced accounts ("isAutoAccount"). These are the most honest execution signals you have: "stoppedThroughNoise" counts trades whose adverse excursion reached a full stop distance (stops placed inside the noise), "avgCaptureRatio" is how much of the best excursion was actually banked (low = gave winners back), "avgMfeR" how far the average trade ran, "runners2R" how often 2R was on the table. Coach on them concretely; if "measured" is small, say the sample is thin.
+- If "excursions" is null, execution quality cannot be assessed from this journal — never invent it.
 - You still do not see prices, stop levels, position sizes or the raw balance. If asked, say so plainly.
 - No market predictions, no financial advice, no opinion on whether an instrument will move.
 - Be direct and specific. Refer to trades by their number ("trade 4"). Prefer one concrete observation over three hedged ones.
@@ -146,6 +148,29 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     };
   }
 
+  // The excursions block: precomputed R-conversions of the broker's MAE/MFE.
+  // Counted fields are clamped to sane integers, ratios bounded — same
+  // whitelist discipline as everything else.
+  let excursionsBlock: Record<string, unknown> | null = null;
+  if (c.excursions && typeof c.excursions === 'object') {
+    const e = c.excursions as Record<string, unknown>;
+    const int0 = (x: unknown): number | null => {
+      const v = num(x);
+      return v !== null && v >= 0 && v < 100000 ? Math.round(v) : null;
+    };
+    const ratio = (x: unknown): number | null => {
+      const v = num(x);
+      return v !== null && v >= 0 && v <= 50 ? v : null;
+    };
+    excursionsBlock = {
+      measured: int0(e.measured) ?? 0,
+      stoppedThroughNoise: int0(e.stoppedThroughNoise) ?? 0,
+      runners2R: int0(e.runners2R) ?? 0,
+      avgCaptureRatio: ratio(e.avgCaptureRatio),
+      avgMfeR: num(e.avgMfeR) !== null ? Math.min(50, Math.max(-50, num(e.avgMfeR)!)) : null,
+    };
+  }
+
   return {
     locale: str(c.locale, 8) ?? 'fr',
     accountType: str(c.accountType, 24),
@@ -153,6 +178,8 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     trades,
     focusTradeN: num(c.focusTradeN),
     account: accountBlock,
+    excursions: excursionsBlock,
+    isAutoAccount: c.isAutoAccount === true,
   };
 }
 

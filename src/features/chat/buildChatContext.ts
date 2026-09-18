@@ -93,6 +93,14 @@ export interface ChatContext {
    * already displays -- no balance, no position sizes, no new exposure.
    */
   account: ChatAccount | null;
+  /**
+   * Execution quality from the broker's own excursion record. Present only
+   * when at least one closed trade carries usable MAE/MFE — i.e. in practice
+   * the auto-fed accounts — so the coach earns its name where the data lives.
+   */
+  excursions: ChatExcursions | null;
+  /** True when the active account is fed by a sync connector. */
+  isAutoAccount: boolean;
 }
 
 export interface ChatAccount {
@@ -114,6 +122,29 @@ export interface ChatAccount {
   drawdownUsedPct: number | null;
   /** Largest single-day gain, for the consistency rule, in currency. */
   bestDayPnl: number | null;
+}
+
+/**
+ * Broker-side execution quality, computed from MAE/MFE price excursions.
+ *
+ * The broker records the worst (MAE) and best (MFE) price a position reached;
+ * converted to R against the trade's own stop distance they answer the two
+ * questions a journal without them cannot: was my stop placed inside the
+ * noise (MAE ≥ 1R), and did I capture the move (MFE far above the realized
+ * R). NULL-safe by design: manual entries carry no excursion, older rows
+ * predate the columns, and an R without a stop distance is unknowable.
+ */
+export interface ChatExcursions {
+  /** Closed trades that carry both an excursion and a usable stop distance. */
+  measured: number;
+  /** Trades whose MAE reached the stop distance before the exit. */
+  stoppedThroughNoise: number;
+  /** Mean fraction of the best excursion actually banked, 0..1+. */
+  avgCaptureRatio: number | null;
+  /** Best excursion converted to R, on average — how far winners ran. */
+  avgMfeR: number | null;
+  /** Trades that ran at least 2R of favourable excursion. */
+  runners2R: number;
 }
 
 /**
@@ -298,6 +329,65 @@ export function buildChatAccount(
   };
 }
 
+/**
+ * Excursion aggregates, in R units, from whatever MAE/MFE the journal holds.
+ *
+ * The R conversion needs the stop distance — |entry − stop| — which manual
+ * entries carry only when the trader filled the field. Every trade that lacks
+ * one of the three ingredients (mae, mfe, stop distance) is simply not
+ * counted: a partial sample here must shrink, never fabricate. Direction is
+ * respected: a SELL's favourable excursion is downward.
+ */
+export function computeChatExcursions(closed: Trade[]): ChatExcursions | null {
+  let measured = 0;
+  let stoppedThroughNoise = 0;
+  let runners2R = 0;
+  let captureSum = 0;
+  let captureN = 0;
+  let mfeRSum = 0;
+
+  for (const t of closed) {
+    const mae = t.mae_price;
+    const mfe = t.mfe_price;
+    if (mae == null || mfe == null) continue;
+    // stop_loss is typed required but an unmigrated DB can still return null,
+    // and sync imports historically carried 0 — both would turn "risk" into
+    // the whole entry price. The stop must also sit on the losing side of the
+    // entry; anything else is bad data, and bad data must not feed a ratio.
+    const sl = t.stop_loss;
+    if (sl == null || sl === 0 || t.entry_price == null) continue;
+    if (t.direction === 'SELL' ? sl <= t.entry_price : sl >= t.entry_price) continue;
+    const risk = Math.abs(t.entry_price - sl);
+    if (!Number.isFinite(risk) || risk <= 0) continue;
+
+    const favorable = t.direction === 'SELL' ? -1 : 1;
+    const mfeR = ((mfe - t.entry_price) * favorable) / risk;
+    const maeR = ((t.entry_price - mae) * favorable) / risk;
+    if (!Number.isFinite(mfeR) || !Number.isFinite(maeR)) continue;
+
+    measured++;
+    if (maeR >= 1) stoppedThroughNoise++;
+    if (mfeR >= 2) runners2R++;
+    mfeRSum += mfeR;
+    // Banked R over best excursion R, clamped at 0: a negative realized R
+    // against a positive MFE is a real "gave it all back" story, not noise.
+    const realizedR = t.r_multiple;
+    if (realizedR != null) {
+      captureSum += Math.max(0, realizedR) / Math.max(mfeR, 0.0001);
+      captureN++;
+    }
+  }
+
+  if (measured === 0) return null;
+  return {
+    measured,
+    stoppedThroughNoise,
+    runners2R,
+    avgCaptureRatio: captureN > 0 ? r2(captureSum / captureN) : null,
+    avgMfeR: r2(mfeRSum / measured),
+  };
+}
+
 export function buildChatContext(params: {
   trades: Trade[];
   account?: TradingAccount | null;
@@ -344,5 +434,7 @@ export function buildChatContext(params: {
     trades: chatTrades,
     focusTradeN: focusIndex >= 0 ? focusIndex + 1 : null,
     account: buildChatAccount(account, closed, isLocked),
+    excursions: computeChatExcursions(closed),
+    isAutoAccount: account?.feed_mode === 'auto',
   };
 }
