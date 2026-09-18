@@ -822,7 +822,23 @@ begin
     commission  = coalesce((v_row.payload->>'commission')::numeric, 0),
     swap        = coalesce((v_row.payload->>'swap')::numeric, 0),
     mae_price   = (v_row.payload->>'mae_price')::numeric,
-    mfe_price   = (v_row.payload->>'mfe_price')::numeric
+    mfe_price   = (v_row.payload->>'mfe_price')::numeric,
+    -- The trade was promoted while OPEN: promote_sync_trades could not
+    -- compute R without an exit. Now the close payload supplies one, so the
+    -- same guarded |move|/|risk| ratio lands here — a completed trade with a
+    -- stop must not keep a null R in the analytics.
+    r_multiple  = case
+      when coalesce((v_row.payload->>'stop_loss')::numeric, 0) > 0
+           and coalesce((v_row.payload->>'exit_price')::numeric, 0) <> 0
+           and abs((v_row.payload->>'entry_price')::numeric
+                   - (v_row.payload->>'stop_loss')::numeric) > 0
+        then abs((v_row.payload->>'entry_price')::numeric
+                 - (v_row.payload->>'exit_price')::numeric)
+             / abs((v_row.payload->>'entry_price')::numeric
+                   - (v_row.payload->>'stop_loss')::numeric)
+             * case when coalesce((v_row.payload->>'pnl')::numeric, 0) >= 0 then 1 else -1 end
+      else null
+    end
   where id = v_row.resolved_trade_id;
 
   -- Re-apply exits verbatim: the close payload carries the full set.

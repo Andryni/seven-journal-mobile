@@ -243,6 +243,9 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 9,
     fontFamily: theme.fonts.monoBold,
     letterSpacing: 0.8,
+    // Books Android's un-measured trailing letter-spacing gap, so "TERMINAL"
+    // keeps its final L instead of losing it to the clip.
+    paddingRight: 2,
   },
   selectorBtn: {
     flex: 1,

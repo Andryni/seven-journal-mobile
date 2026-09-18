@@ -51,6 +51,8 @@ interface IngestEvent {
   entry_price: number;
   entry_time: string; // ISO-8601 UTC
   is_open: boolean;
+  /** Volume-weighted exit price of a closed position; feeds the R-multiple. */
+  exit_price?: number | null;
   close_time?: string | null;
   pnl?: number | null;
   commission?: number | null;
@@ -134,6 +136,7 @@ function parseEvent(raw: unknown): IngestEvent | null {
     entry_price,
     entry_time: new Date(entryMs).toISOString(),
     is_open,
+    exit_price: num(e.exit_price),
     close_time: isNaN(closeMs) ? null : new Date(closeMs).toISOString(),
     pnl: num(e.pnl),
     commission: num(e.commission) ?? 0,

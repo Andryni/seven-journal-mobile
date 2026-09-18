@@ -40,8 +40,15 @@ export const BrandWordmark: React.FC<BrandWordmarkProps> = ({
   return (
     <Text
       numberOfLines={1}
-      style={[{ fontSize, fontFamily, letterSpacing }, style]}
       {...rest}
+      // Android measures letterSpacing per glyph but not the trailing gap,
+      // so the LAST letter (the "L" of JOURNAL) can fall outside the
+      // measured width and get clipped. The padding books that gap.
+      // Applied after ...rest so a caller style cannot drop it.
+      style={[
+        { fontSize, fontFamily, letterSpacing, paddingRight: letterSpacing * 1.25 },
+        style,
+      ]}
     >
       <Text style={primaryColor ? { color: primaryColor } : undefined}>SEVEN </Text>
       <Text style={accentColor ? { color: accentColor } : undefined}>JOURNAL</Text>
