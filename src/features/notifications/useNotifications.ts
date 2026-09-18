@@ -172,6 +172,25 @@ export function useNotifications() {
     [prefs.enabled, prefs.riskAlerts]
   );
 
+  /**
+   * Personal rule broken while a position is open.
+   *
+   * Fires immediately (trigger: null) and carries no scheduling: by the time
+   * a scheduled notification arrived the position would be closed. Gated on
+   * riskAlerts, the same switch as the daily-loss warning -- a trader who
+   * turned those off did not ask for a second channel of the same thing.
+   */
+  const notifyLiveDrift = useCallback(
+    async (title: string, body: string) => {
+      if (!Notifications || !prefs.enabled || !prefs.riskAlerts) return;
+      await Notifications.scheduleNotificationAsync({
+        content: { title, body },
+        trigger: null,
+      });
+    },
+    [prefs.enabled, prefs.riskAlerts]
+  );
+
   const enable = useCallback(async () => {
     if (!Notifications) return false;
     const granted = await requestPermission();
@@ -190,6 +209,7 @@ export function useNotifications() {
     disable,
     sync,
     notifyRiskThreshold,
+    notifyLiveDrift,
     requestPermission,
     /** False in Expo Go: the UI should say so instead of offering dead switches. */
     available: notificationsAvailable,

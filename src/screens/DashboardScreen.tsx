@@ -20,6 +20,8 @@ import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart'
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
 import { EconomicEventBand } from '../components/dashboard/EconomicEventBand';
+import { LiveDriftBanner } from '../components/dashboard/LiveDriftBanner';
+import { useLiveDrift } from '../features/guard/useLiveDrift';
 import { useRefresh } from '../features/data/useRefresh';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -110,6 +112,17 @@ export const DashboardScreen: React.FC = () => {
     () => scopeTrades(trades, activeAccountId),
     [trades, activeAccountId]
   );
+
+  /**
+   * Live rule watch. Only meaningful on a bridge-fed account: without a
+   * connector there are no open positions to compare against, and polling
+   * for them would be work with no possible result.
+   */
+  const drift = useLiveDrift({
+    trades: scopedTrades,
+    account: activeAccount,
+    enabled: activeAccount?.feed_mode === 'auto',
+  });
 
   /**
    * With no account selected we show a combined view. That total is only
@@ -287,6 +300,10 @@ export const DashboardScreen: React.FC = () => {
           ) : null}
         </View>
       </Animated.View>
+
+      {/* Behaviour before schedule: a rule broken right now outranks a
+          release due in two hours. Renders nothing when compliant. */}
+      <LiveDriftBanner alert={drift.alert} />
 
       {/* One line, not a section: the dashboard budget is nine and every
           one of them earns its place. Renders nothing when no high-impact
