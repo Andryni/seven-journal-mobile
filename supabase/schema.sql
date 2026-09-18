@@ -450,8 +450,8 @@ create index if not exists sync_ingest_accounts_user_idx
   on public.sync_ingest_accounts (user_id);
 
 -- Verbatim inbound payloads, for replay after a parser bug and as the source
--- of truth in a broker-vs-journal dispute. 30-day retention: purge happens
--- opportunistically at ingest (see the function) or by pg_cron nightly.
+-- of truth in a broker-vs-journal dispute. 30-day retention: purged nightly
+-- by pg_cron (schedule created at the end of this section).
 -- Heartbeats deliberately do NOT land here (1440 rows/day/account otherwise);
 -- they only touch last_sync_* on the ingest account.
 create table if not exists public.sync_raw_events (
@@ -892,8 +892,8 @@ as $$
   limit 5;
 $$;
 
--- 30-day retention for raw payloads. Called opportunistically by the ingest
--- function; also safe to wire into pg_cron nightly.
+-- 30-day retention for raw payloads. Scheduled nightly via pg_cron below;
+-- also safe to call by hand.
 create or replace function public.purge_old_sync_events()
 returns void
 language sql
@@ -949,6 +949,26 @@ end;
 $$;
 
 grant execute on function public.create_sync_ingest_account(text, text, uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- sync.pg_cron — nightly retention
+--
+-- The ingest function no longer sweeps on the hot path; the raw-event archive
+-- is purged once a night instead. Idempotent: re-running the schema never
+-- duplicates the schedule. cron.schedule() is in the cron schema, which only
+-- exists once pg_cron is enabled — hence the two guarded blocks. Requires
+-- Dashboard → Database → Extensions to enable pg_cron once per project.
+-- ---------------------------------------------------------------------------
+do $sync$
+begin
+  if exists (select 1 from pg_namespace where nspname = 'cron') then
+    if not exists (select 1 from cron.job where jobname = 'purge-sync-raw') then
+      perform cron.schedule('purge-sync-raw', '30 3 * * *',
+        $job$select public.purge_old_sync_events()$job$);
+    end if;
+  end if;
+end
+$sync$;
 
 -- ============================================================================
 -- SECTION 2 — PROP-FIRM RULE ENGINE (server side)

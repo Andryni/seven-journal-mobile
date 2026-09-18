@@ -322,11 +322,7 @@ Deno.serve(async (req: Request) => {
     })
     .eq('id', ingestId);
 
-  // Opportunistic retention sweep — pg_cron nightly is the proper schedule,
-  // this keeps a database without cron honest anyway. 5% of requests.
-  if (Math.random() < 0.05) {
-    await admin.rpc('purge_old_sync_events');
-  }
-
+  // Retention is handled by pg_cron nightly (scheduled in supabase/schema.sql,
+  // SECTION 4) — nothing to sweep here on the hot path.
   return json({ inserted, updated, rejected, closedCompleted });
 });

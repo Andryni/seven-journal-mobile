@@ -96,6 +96,7 @@ curl -X POST ".../functions/v1/sync-ingest" -H "Authorization: Bearer ..." \
 | Connecteur « erreur » dans l'app | `last_error` sur la ligne `sync_ingest_accounts` |
 | File vide malgré 200 | Events rejetés au parse — `{ rejected }` le compte ; le payload brut est dans `sync_raw_events` pour rejouer |
 
-**Rétention** : `sync_raw_events` est purgé à 30 jours (5 % des requêtes
-déclenchent la purge opportuniste ; `pg_cron` nocturne recommandé :
-`select cron.schedule('purge-sync-raw', '0 3 * * *', $$select public.purge_old_sync_events()$$);`).
+**Rétention** : `sync_raw_events` est purgé à 30 jours par **pg_cron nocturne**
+(job `purge-sync-raw`, planifié par `supabase/schema.sql` — tous les jours à
+03:30 UTC). La fonction d'ingest ne balaye plus rien sur le chemin chaud.
+Prérequis : extension `pg_cron` activée une fois dans Dashboard → Extensions.
