@@ -390,6 +390,566 @@ create table if not exists public.user_checklists (
 create index if not exists user_checklists_user_idx
   on public.user_checklists (user_id, sort_order, created_at);
 
+-- ===========================================================================
+-- SECTION 4 — AUTO-JOURNAL SYNC
+--
+-- Broker-sourced trades land in a staging queue (sync_trades) and reach
+-- `trades` only through a human action (promote / link / dismiss RPCs).
+-- Dedup is structural: UNIQUE (ingest_account_id, external_id) makes any
+-- webhook re-delivery or double CSV import a no-op by construction.
+--
+-- The ingest identity is the secret on sync_ingest_accounts, held by the
+-- webhook caller (MQL5 EA, cTrader OAuth bridge). user_id is ALWAYS derived
+-- from that secret server-side; a payload may never carry it.
+--
+-- See docs/auto-journal-sync.md for the design (matching policy, OPEN->CLOSED
+-- flow, stale recovery, payload contract).
+-- ===========================================================================
+
+-- Result 'CLOSED': the broker closed the position outside TP/SL/BE (manual
+-- close, margin stop-out, session end). The broker does not always say why;
+-- the journal should not have to guess between TP and SL.
+alter table public.trades drop constraint if exists trades_result_check;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.trades'::regclass and conname = 'trades_result_check'
+  ) then
+    alter table public.trades
+      add constraint trades_result_check
+      check (result in ('TP','SL','BE','CLOSED','OPEN'));
+  end if;
+end $$;
+
+-- One connected broker account (a feed), not a journal account.
+-- account_id is the user's default routing choice at validation time; it is
+-- optional because routing is confirmed per batch by the human.
+create table if not exists public.sync_ingest_accounts (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references auth.users(id) on delete cascade,
+  account_id       uuid references public.trading_accounts(id) on delete set null,
+  platform         text not null
+                     check (platform in ('mt5_ea','mt4_ea','csv_mt5','csv_generic','ctrader','manual_api')),
+  label            text not null,
+  secret           text not null unique,
+  -- Match window against manually-entered trades, in seconds. Clocks drift:
+  -- the EA runs on the trader's PC or VPS, entry_time comes from the broker.
+  match_window_s   int not null default 90
+                     check (match_window_s between 5 and 3600),
+  is_active        boolean not null default true,
+  -- Heartbeat bookkeeping for the "Journal auto" connectors card.
+  last_sync_at     timestamptz,
+  last_sync_status text check (last_sync_status in ('ok','error','empty')),
+  last_error       text,
+  created_at       timestamptz not null default now(),
+  unique (user_id, label)
+);
+
+create index if not exists sync_ingest_accounts_user_idx
+  on public.sync_ingest_accounts (user_id);
+
+-- Verbatim inbound payloads, for replay after a parser bug and as the source
+-- of truth in a broker-vs-journal dispute. 30-day retention: purge happens
+-- opportunistically at ingest (see the function) or by pg_cron nightly.
+-- Heartbeats deliberately do NOT land here (1440 rows/day/account otherwise);
+-- they only touch last_sync_* on the ingest account.
+create table if not exists public.sync_raw_events (
+  id                uuid primary key default gen_random_uuid(),
+  ingest_account_id uuid not null references public.sync_ingest_accounts(id) on delete cascade,
+  payload           jsonb not null,
+  source_ip         text,
+  received_at       timestamptz not null default now()
+);
+
+create index if not exists sync_raw_events_ingest_idx
+  on public.sync_raw_events (ingest_account_id, received_at desc);
+
+-- The validation queue. One row per broker-side position; OPEN -> CLOSED
+-- transitions UPDATE the same row (same external_id = position id).
+create table if not exists public.sync_trades (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references auth.users(id) on delete cascade,
+  ingest_account_id uuid not null references public.sync_ingest_accounts(id) on delete cascade,
+  -- Broker-side identity of the trade: MT5/cTrader position id, MT4 order
+  -- ticket. The dedup key — see the UNIQUE below.
+  external_id       text not null,
+  payload           jsonb not null,
+  is_open           boolean not null,
+  open_time         timestamptz,
+  close_time        timestamptz,
+  -- pending -> promoted | linked | dismissed (human, terminal)
+  -- pending -> stale (system, RECOVERABLE: a later payload returns it to pending)
+  status            text not null default 'pending'
+                     check (status in ('pending','promoted','linked','dismissed','stale')),
+  resolution        text check (resolution in ('created','linked','dismissed')),
+  resolved_trade_id uuid references public.trades(id) on delete set null,
+  resolved_at       timestamptz,
+  resolved_by       text check (resolved_by in ('user','system')),
+  dismiss_reason    text,
+  created_at        timestamptz not null default now(),
+  -- The structural dedupe. A re-delivered webhook UPSERTs this same row.
+  unique (ingest_account_id, external_id)
+);
+
+-- The queue screen reads pending rows only.
+create index if not exists sync_trades_queue_idx
+  on public.sync_trades (user_id, created_at desc)
+  where status = 'pending';
+
+-- Provenance of promoted trades. on delete set null: purging the staging row
+-- must never cascade into the journal itself.
+alter table public.trades
+  add column if not exists sync_source_id uuid references public.sync_trades(id) on delete set null;
+
+-- RLS: same owner-scoped shape as every other table. The Edge Function uses
+-- the service role, which bypasses RLS but derives user_id from the secret —
+-- see the function's first lookup.
+do $$
+declare
+  tbl text;
+begin
+  -- Owner-scoped like every other table (they carry user_id directly).
+  foreach tbl in array array['sync_ingest_accounts','sync_trades']
+  loop
+    execute format('alter table public.%I enable row level security', tbl);
+    execute format('drop policy if exists %I_owner on public.%I', tbl, tbl);
+    execute format(
+      'create policy %I_owner on public.%I
+         for all
+         to authenticated
+         using (auth.uid() = user_id)
+         with check (auth.uid() = user_id)',
+      tbl, tbl
+    );
+  end loop;
+
+  -- sync_raw_events has no user_id column by design: ownership is DERIVED
+  -- through the ingest account, so a raw payload can never be re-attached to
+  -- a different account by rewriting it. Same effect, single source of truth.
+  alter table public.sync_raw_events enable row level security;
+  execute 'drop policy if exists sync_raw_events_owner on public.sync_raw_events';
+  execute $policy$
+    create policy sync_raw_events_owner on public.sync_raw_events
+      for all
+      to authenticated
+      using (exists (
+        select 1 from public.sync_ingest_accounts a
+        where a.id = sync_raw_events.ingest_account_id
+          and a.user_id = auth.uid()
+      ))
+      with check (exists (
+        select 1 from public.sync_ingest_accounts a
+        where a.id = sync_raw_events.ingest_account_id
+          and a.user_id = auth.uid()
+      ))
+  $policy$;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- sync helpers
+-- ---------------------------------------------------------------------------
+
+-- Broker symbol -> canonical pair. EURUSD.m / EURUSDm / eurusd-pro all fold to
+-- EURUSD so broker feeds can be matched against manual entries and so the
+-- journal stores one consistent symbol per instrument.
+create or replace function public.normalize_pair(p_symbol text)
+returns text
+language sql
+immutable
+as $$
+  select upper(regexp_replace(btrim(coalesce(p_symbol, '')), '(m|pro|\.m|\.(raw|c)|\.a)$', ''))
+$$;
+
+-- Promote a batch of staging rows to real journal trades. One transaction,
+-- server-revalidated: ownership, pending status, and required fields are all
+-- re-checked here, whoever calls it. Numbers come from the broker payload;
+-- the app passes only `overrides` for journal fields the human chose
+-- (timeframe, setup_structures, session...), never for measured values.
+--
+-- p_batch: [{ staging_id, overrides? }, ...]
+create or replace function public.promote_sync_trades(p_batch jsonb)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_row public.sync_trades%rowtype;
+  v_ingest public.sync_ingest_accounts%rowtype;
+  v_payload jsonb;
+  v_over jsonb;
+  v_account_id uuid;
+  v_count int := 0;
+  v_trade_id uuid;
+  v_exit jsonb;
+begin
+  if v_uid is null or p_batch is null or jsonb_typeof(p_batch) <> 'array' then
+    raise exception 'P0001: invalid batch';
+  end if;
+
+  -- Lock every staging row up front so two promotions can't interleave.
+  create temp table _promote_batch on commit drop as
+    select (e->>'staging_id')::uuid as staging_id, e->'overrides' as overrides
+    from jsonb_array_elements(p_batch) e;
+
+  for v_row in
+    select t.* from public.sync_trades t
+    join _promote_batch b on b.staging_id = t.id
+    where t.user_id = v_uid and t.status = 'pending'
+    for update
+  loop
+    select * into v_ingest from public.sync_ingest_accounts
+    where id = v_row.ingest_account_id;
+
+    select coalesce(b.overrides, '{}'::jsonb) into v_over
+    from _promote_batch b where b.staging_id = v_row.id;
+
+    -- Routing: explicit override wins, else the ingest account's default.
+    v_account_id := coalesce(
+      nullif(v_over->>'account_id', '')::uuid,
+      v_ingest.account_id
+    );
+    if v_account_id is null then
+      raise exception 'P0001: no target account for staging %', v_row.id;
+    end if;
+
+    -- Ownership of the target account is re-checked (it may have been
+    -- deleted, or belong to someone else if the default was stale).
+    if not exists (
+      select 1 from public.trading_accounts
+      where id = v_account_id and user_id = v_uid
+    ) then
+      raise exception 'P0001: bad target account for staging %', v_row.id;
+    end if;
+
+    v_payload := v_row.payload;
+
+    insert into public.trades (
+      user_id, account_id, pair, direction, entry_price, exit_price,
+      stop_loss, take_profit, size, entry_time, exit_time, pnl, r_multiple,
+      result, commission, swap, mae_price, mfe_price, timeframe, session,
+      sync_source_id
+    ) values (
+      v_uid,
+      v_account_id,
+      coalesce(nullif(v_over->>'pair',''), public.normalize_pair(v_payload->>'symbol')),
+      coalesce(v_payload->>'direction', 'BUY'),
+      (v_payload->>'entry_price')::numeric,
+      (v_payload->>'exit_price')::numeric,
+      coalesce((v_payload->>'stop_loss')::numeric, 0),
+      coalesce((v_payload->>'take_profit')::numeric, 0),
+      coalesce((v_payload->>'size')::numeric, 0),
+      (v_payload->>'entry_time')::timestamptz,
+      (v_payload->>'close_time')::timestamptz,
+      (v_payload->>'pnl')::numeric,
+      case
+        -- R only depends on |move| vs |risk| and the sign of the outcome:
+        -- the direction factor is deliberately absent (|entry-exit| is
+        -- direction-agnostic). Guarded against stop == entry.
+        when coalesce(v_payload->>'stop_loss', '0')::numeric > 0
+             and abs((v_payload->>'entry_price')::numeric
+                     - (v_payload->>'stop_loss')::numeric) > 0
+          then abs((v_payload->>'entry_price')::numeric - (v_payload->>'exit_price')::numeric)
+               / abs((v_payload->>'entry_price')::numeric - (v_payload->>'stop_loss')::numeric)
+               * case when coalesce((v_payload->>'pnl')::numeric, 0) >= 0 then 1 else -1 end
+        else null
+      end,
+      -- OPEN stays OPEN; the broker's close reason maps to TP/SL/BE/CLOSED.
+      case
+        when v_row.is_open then 'OPEN'
+        else coalesce(v_payload->>'close_reason', 'CLOSED')
+      end,
+      coalesce((v_payload->>'commission')::numeric, 0),
+      coalesce((v_payload->>'swap')::numeric, 0),
+      (v_payload->>'mae_price')::numeric,
+      (v_payload->>'mfe_price')::numeric,
+      coalesce(nullif(v_over->>'timeframe',''), nullif(v_payload->>'timeframe',''), 'M15'),
+      nullif(v_over->>'session',''),
+      v_row.id
+    )
+    returning id into v_trade_id;
+
+    -- Partial exits, if the bridge sent them.
+    if jsonb_typeof(v_payload->'exits') = 'array' then
+      for v_exit in select * from jsonb_array_elements(v_payload->'exits') loop
+        insert into public.trade_exits (user_id, trade_id, size, price, exit_time, pnl)
+        values (
+          v_uid,
+          v_trade_id,
+          (v_exit->>'size')::numeric,
+          (v_exit->>'price')::numeric,
+          (v_exit->>'exit_time')::timestamptz,
+          (v_exit->>'pnl')::numeric
+        );
+      end loop;
+    end if;
+
+    update public.sync_trades
+       set status = case when v_row.is_open then 'pending' else 'promoted' end,
+           -- An open position was promoted: its row stays pending so the
+           -- close event can complete the journal trade (see apply_broker_close).
+           resolution = 'created',
+           resolved_trade_id = v_trade_id,
+           resolved_at = now(),
+           resolved_by = 'user'
+     where id = v_row.id;
+
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+-- Promoting an OPEN position leaves the staging row pending on purpose: the
+-- close event must still complete the journal trade. This applies it.
+create or replace function public.apply_broker_close(p_staging_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.sync_trades%rowtype;
+  v_exit jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  select * into v_row from public.sync_trades
+  where id = p_staging_id and user_id = auth.uid() for update;
+
+  if not found or v_row.is_open or v_row.resolution <> 'created'
+     or v_row.resolved_trade_id is null then
+    return;
+  end if;
+
+  update public.trades set
+    exit_price  = (v_row.payload->>'exit_price')::numeric,
+    exit_time   = (v_row.payload->>'close_time')::timestamptz,
+    pnl         = (v_row.payload->>'pnl')::numeric,
+    result      = coalesce(v_row.payload->>'close_reason', 'CLOSED'),
+    commission  = coalesce((v_row.payload->>'commission')::numeric, 0),
+    swap        = coalesce((v_row.payload->>'swap')::numeric, 0),
+    mae_price   = (v_row.payload->>'mae_price')::numeric,
+    mfe_price   = (v_row.payload->>'mfe_price')::numeric
+  where id = v_row.resolved_trade_id;
+
+  -- Re-apply exits verbatim: the close payload carries the full set.
+  delete from public.trade_exits where trade_id = v_row.resolved_trade_id;
+  if jsonb_typeof(v_row.payload->'exits') = 'array' then
+    for v_exit in select * from jsonb_array_elements(v_row.payload->'exits') loop
+      insert into public.trade_exits (user_id, trade_id, size, price, exit_time, pnl)
+      values (
+        v_row.user_id,
+        v_row.resolved_trade_id,
+        (v_exit->>'size')::numeric,
+        (v_exit->>'price')::numeric,
+        (v_exit->>'exit_time')::timestamptz,
+        (v_exit->>'pnl')::numeric
+      );
+    end loop;
+  end if;
+
+  update public.sync_trades
+     set status = 'promoted', resolved_at = now()
+   where id = v_row.id;
+end;
+$$;
+
+-- Link a staging row to an existing manual trade. Merge policy: journal
+-- fields win, broker values only fill NULLs. A meaningful P&L gap is recorded
+-- on the staging row for the queue card to surface, never silently merged.
+create or replace function public.link_sync_trade(
+  p_staging_id uuid,
+  p_trade_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.sync_trades%rowtype;
+  v_trade public.trades%rowtype;
+  v_payload jsonb;
+  v_gap numeric;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  select * into v_row from public.sync_trades
+  where id = p_staging_id and user_id = auth.uid() and status = 'pending'
+  for update;
+  if not found then
+    raise exception 'P0001: staging row not pending';
+  end if;
+
+  select * into v_trade from public.trades
+  where id = p_trade_id and user_id = auth.uid();
+  if not found then
+    raise exception 'P0001: trade not found';
+  end if;
+
+  v_payload := v_row.payload;
+
+  update public.trades set
+    exit_price  = coalesce(exit_price,  (v_payload->>'exit_price')::numeric),
+    exit_time   = coalesce(exit_time,   (v_payload->>'close_time')::timestamptz),
+    pnl         = coalesce(pnl,         (v_payload->>'pnl')::numeric),
+    result      = case
+                    when result in ('OPEN') and not v_row.is_open
+                      then coalesce(v_payload->>'close_reason', 'CLOSED')
+                    else result
+                  end,
+    commission  = case when commission = 0 then coalesce((v_payload->>'commission')::numeric, 0) else commission end,
+    swap        = case when swap = 0       then coalesce((v_payload->>'swap')::numeric, 0)       else swap end,
+    mae_price   = coalesce(mae_price,   (v_payload->>'mae_price')::numeric),
+    mfe_price   = coalesce(mfe_price,   (v_payload->>'mfe_price')::numeric),
+    sync_source_id = v_row.id
+  where id = p_trade_id;
+
+  if jsonb_typeof(v_payload->'exits') = 'array'
+     and not exists (select 1 from public.trade_exits where trade_id = p_trade_id) then
+    insert into public.trade_exits (user_id, trade_id, size, price, exit_time, pnl)
+    select
+      v_row.user_id, p_trade_id,
+      (e->>'size')::numeric, (e->>'price')::numeric,
+      (e->>'exit_time')::timestamptz, (e->>'pnl')::numeric
+    from jsonb_array_elements(v_payload->'exits') e;
+  end if;
+
+  v_gap := case
+    when v_trade.pnl is not null and (v_payload->>'pnl')::numeric is not null
+      then abs(v_trade.pnl - (v_payload->>'pnl')::numeric)
+    else null
+  end;
+
+  update public.sync_trades
+     set payload = jsonb_set(v_row.payload, '{pnl_gap}', to_jsonb(v_gap), true),
+         status = 'linked',
+         resolution = 'linked',
+         resolved_trade_id = p_trade_id,
+         resolved_at = now(),
+         resolved_by = 'user'
+   where id = v_row.id;
+end;
+$$;
+
+create or replace function public.dismiss_sync_trade(
+  p_staging_id uuid,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+  update public.sync_trades
+     set status = 'dismissed',
+         resolution = 'dismissed',
+         dismiss_reason = left(coalesce(p_reason, 'not_mine'), 40),
+         resolved_at = now(),
+         resolved_by = 'user'
+   where id = p_staging_id and user_id = auth.uid() and status = 'pending';
+end;
+$$;
+
+-- Matching candidates for a staging row: same routed account, same normalized
+-- pair, same direction, entry time within the connector's window, size within
+-- 2%. A proposal engine, never an auto-merge.
+create or replace function public.match_candidates(p_staging_id uuid)
+returns table (trade_id uuid, entry_time timestamptz, pnl numeric, time_delta_s int)
+language sql
+security definer
+set search_path = public
+as $$
+  with s as (
+    select t.*, i.account_id as routed_account, i.match_window_s
+    from public.sync_trades t
+    join public.sync_ingest_accounts i on i.id = t.ingest_account_id
+    where t.id = p_staging_id and t.user_id = auth.uid()
+  )
+  select tr.id, tr.entry_time, tr.pnl,
+         abs(extract(epoch from (tr.entry_time - s.open_time)))::int
+  from public.trades tr
+  join s on true
+  where tr.user_id = auth.uid()
+    and tr.account_id = s.routed_account
+    and public.normalize_pair(tr.pair) = public.normalize_pair(s.payload->>'symbol')
+    and tr.direction = coalesce(s.payload->>'direction', tr.direction)
+    and abs(extract(epoch from (tr.entry_time - s.open_time))) <= s.match_window_s
+    and (abs(tr.size - (s.payload->>'size')::numeric) / greatest(abs(tr.size), 0.0001)) <= 0.02
+  order by abs(extract(epoch from (tr.entry_time - s.open_time)))
+  limit 5;
+$$;
+
+-- 30-day retention for raw payloads. Called opportunistically by the ingest
+-- function; also safe to wire into pg_cron nightly.
+create or replace function public.purge_old_sync_events()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.sync_raw_events where received_at < now() - interval '30 days';
+$$;
+
+-- ---------------------------------------------------------------------------
+-- sync.grants
+-- ---------------------------------------------------------------------------
+grant execute on function public.promote_sync_trades(jsonb)      to authenticated;
+grant execute on function public.apply_broker_close(uuid)        to authenticated;
+grant execute on function public.link_sync_trade(uuid, uuid)     to authenticated;
+grant execute on function public.dismiss_sync_trade(uuid, text)  to authenticated;
+grant execute on function public.match_candidates(uuid)          to authenticated;
+
+-- Connector creation runs server-side so the secret is born from
+-- gen_random_bytes(32), never from client randomness, and never transits a
+-- client-side generator. Returns the row including the plaintext secret ONCE;
+-- nothing ever exposes it again (rotate = delete + recreate).
+create or replace function public.create_sync_ingest_account(
+  p_platform  text,
+  p_label     text,
+  p_account_id uuid default null
+)
+returns public.sync_ingest_accounts
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_acc public.sync_ingest_accounts%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  insert into public.sync_ingest_accounts (user_id, platform, label, secret, account_id)
+  values (
+    auth.uid(),
+    p_platform,
+    left(p_label, 60),
+    -- base64url without padding: URL-safe, fits a Bearer header cleanly.
+    replace(replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_'), '=', ''),
+    p_account_id
+  )
+  returning * into v_acc;
+
+  return v_acc;
+end;
+$$;
+
+grant execute on function public.create_sync_ingest_account(text, text, uuid) to authenticated;
+
 -- ============================================================================
 -- SECTION 2 — PROP-FIRM RULE ENGINE (server side)
 --

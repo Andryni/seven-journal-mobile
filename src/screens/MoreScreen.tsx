@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { BookMarked, Wallet, ChevronRight, Settings, CalendarRange } from 'lucide-react-native';
+import { BookMarked, Wallet, ChevronRight, Settings, CalendarRange, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -14,11 +14,12 @@ import { AccountsScreen } from './AccountsScreen';
 import { WeeklyReviewScreen } from './WeeklyReviewScreen';
 import { MonthlyReviewScreen } from './MonthlyReviewScreen';
 import { YearlyReviewScreen } from './YearlyReviewScreen';
+import { AutoJournalScreen } from './AutoJournalScreen';
 import { SettingsSheet } from '../components/settings/SettingsSheet';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 
-type Route = 'menu' | 'playbook' | 'accounts' | 'weekly' | 'monthly' | 'yearly';
+type Route = 'menu' | 'playbook' | 'accounts' | 'weekly' | 'monthly' | 'yearly' | 'sync';
 
 /**
  * "More" — collapses Playbook, Accounts and Settings behind one tab.
@@ -81,7 +82,20 @@ export const MoreScreen: React.FC = () => {
     </SubScreen>;
   }
 
+  if (route === 'sync') {
+    return <SubScreen title={t('syncReview')} onBack={() => setRoute('menu')} theme={theme}>
+      <AutoJournalScreen />
+    </SubScreen>;
+  }
+
   const entries = [
+    {
+      id: 'sync' as const,
+      icon: <RefreshCw size={17} color={theme.colors.primary} strokeWidth={1.75} />,
+      title: t('syncReview'),
+      sub: t('syncReviewSub'),
+      count: null as number | null,
+    },
     {
       id: 'weekly' as const,
       icon: <CalendarRange size={17} color={theme.colors.primary} strokeWidth={1.75} />,

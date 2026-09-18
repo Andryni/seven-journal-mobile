@@ -114,7 +114,9 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const [exitPrice, setExitPrice] = useState('');
-  const [result, setResult] = useState<'TP' | 'SL' | 'BE' | 'OPEN'>('OPEN');
+  // CLOSED exists on promoted sync trades; editing one keeps it as-is (no
+  // pill highlighted) until the trader picks an outcome.
+  const [result, setResult] = useState<'TP' | 'SL' | 'BE' | 'CLOSED' | 'OPEN'>('OPEN');
   const [instrumentPickerVisible, setInstrumentPickerVisible] = useState(false);
   // Exit timestamp: without it the journal cannot measure hold time, so it
   // cannot tell scalps from swings or detect revenge re-entries accurately.

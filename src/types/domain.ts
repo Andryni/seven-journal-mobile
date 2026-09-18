@@ -66,7 +66,8 @@ export interface Trade {
   screenshot_before_url: string | null;
   screenshot_after_url: string | null;
   notes: string | null;
-  result: 'TP' | 'SL' | 'BE' | 'OPEN';
+  /** CLOSED = closed by the broker outside TP/SL/BE (manual, margin, session). */
+  result: 'TP' | 'SL' | 'BE' | 'CLOSED' | 'OPEN';
   session: 'Asia' | 'London' | 'New York' | 'Over Session' | null;
   created_at: string;
 }

@@ -1,0 +1,106 @@
+# Pont MT5 → Seven Journal (EA MQL5)
+
+`SevenJournalSync.mq5` surveille l'historique du terminal MetaTrader 5 et
+pousse chaque position vers votre journal Seven Journal : **une ligne par
+position**, ouvertes incluses (elles se complètent à la clôture), P&L net de
+commissions et swaps, sorties partielles détaillées.
+
+**Écriture seule.** Le secret du connecteur ne permet jamais de lire quoi que
+ce soit — il ne peut qu'alimenter votre file de validation. Rien n'entre dans
+le journal sans votre validation dans l'app.
+
+---
+
+## Installation (10 minutes)
+
+### 1. Créer le connecteur dans l'app
+
+Seven Journal → **Plus → Journal auto → Ajouter un connecteur** →
+plateforme **MT5 (EA)**. Copiez les deux valeurs affichées :
+
+- **URL du webhook** : `https://VOTRE-PROJET.supabase.co/functions/v1/sync-ingest`
+- **Secret du connecteur** (une longue chaîne — elle ne se réaffiche pas)
+
+### 2. Autoriser l'URL dans MetaTrader 5
+
+**Outils → Options → Expert Advisors** :
+
+1. Cocher **« Autoriser le trading algorithmique »** (déjà fait si vous
+   utilisez des EA)
+2. Cocher **« Autoriser WebRequest pour les URL listées »**
+3. Ajouter l'URL du webhook dans la liste (uniquement la partie
+   `https://VOTRE-PROJET.supabase.co`)
+
+Sans cette étape, l'EA affiche *« URL non autorisée »* dans l'onglet Experts.
+
+### 3. Installer l'EA
+
+1. MetaTrader 5 → **Fichier → Ouvrir le dossier de données** →
+   `MQL5/Experts/` → copier `SevenJournalSync.mq5` dedans
+2. Dans MetaEditor (F4), ouvrir le fichier et cliquer **Compiler** (F7) —
+   « 0 errors » attendu
+3. Retour dans MT5 : glisser **SevenJournalSync** sur **n'importe quel
+   graphique** (M15 conseillé), cocher **« Autoriser le trading
+   algorithmique »** dans la fenêtre, coller **URL** et **Secret**
+
+Le smiley 😀 en haut à droite du graphique = EA actif. Vérifiez dans
+l'onglet **Experts** : `SevenJournalSync: actif. Premier scan depuis ...`
+
+### 4. Le premier envoi
+
+Au premier scan, l'EA envoie **l'historique des dernières 24 h** (positions
+fermées) + les positions actuellement ouvertes. Ils apparaissent dans
+**Journal auto → File de validation** : chiffres pré-remplis, à vous de
+promouvoir / lier / ignorer.
+
+Pour importer plus d'historique : augmentez temporairement l'input
+`InpOverlapMinutes` (ex. `43200` = 30 jours) et re-attachez l'EA — le serveur
+dédoublonne ce qui est déjà arrivé, un renvoi est toujours inoffensif.
+
+---
+
+## Paramètres
+
+| Input | Défaut | Rôle |
+|---|---|---|
+| `InpWebhookUrl` | — | URL du webhook (étape 1) |
+| `InpSecret` | — | Secret du connecteur (étape 1) |
+| `InpScanSeconds` | 15 | Fréquence du scan de l'historique |
+| `InpBeatSeconds` | 60 | Fréquence du heartbeat (positions ouvertes) |
+| `InpTimeoutMs` | 10000 | Timeout réseau par requête |
+| `InpOverlapMinutes` | 120 | Recouvrement anti-trou à chaque scan |
+
+## Comment ça marche
+
+- **Watermark persisté** (`Variables globales` du terminal) : après un
+  redémarrage du terminal ou du VPS, rien n'est perdu ni renvoyé en double
+  (l'overlap de sécurité + le dédoublonnage serveur absorbent les cas limites)
+- **Agrégation par position** : deals d'entrée sommés (taille, prix moyen
+  pondéré, heure la plus ancienne), sorties listées une à une,
+  `pnl = Σprofit − Σcommission − Σswap`
+- **Raison de clôture** : TP/SL détectés via la raison du dernier deal de
+  sortie ; clôture manuelle, expert ou stop-out marge → `CLOSED` ; P&L ≈ 0 →
+  `BE`
+- **Heartbeat** : la liste des positions ouvertes, 60 s — met à jour le statut
+  « connecteur » dans l'app ; une position en file qui disparaît des
+  heartbeats passe en `stale` (récupérable si elle réapparaît)
+- **Retry** : 3 essais avec backoff sur erreur réseau ; les erreurs 4xx
+  (mauvais secret, payload refusé) ne sont pas retentées
+
+## Conseils
+
+- **Terminal ouvert = synchro active.** Sur un PC qui s'éteint, utilisez un
+  VPS (beaucoup de brokers en offrent un gratuit à partir d'un certain
+  volume) ou laissez le terminal tourner sur une machine toujours allumée
+- **Un connecteur par compte broker** : créez un connecteur distinct dans
+  l'app pour chaque terminal MT5 (le secret lie les events à un compte)
+- Le secret a tourné de travers / fuité ? Recréez le connecteur : l'ancien
+  secret est désactivé d'un coup
+
+## Limites connues (v1)
+
+- MAE/MFE (excursions) ne sont pas encore calculés par l'EA — les colonnes
+  restent vides, les stats qui en dépendent s'adaptent
+- MT4 n'a pas d'identifiant de position : un pont MT4 dédié utilisera le
+  ticket d'ordre (à venir)
+- Les dépôts/retraits ne sont pas des trades : ils ne passent pas par le pont
