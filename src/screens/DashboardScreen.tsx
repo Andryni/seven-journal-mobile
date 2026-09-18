@@ -205,13 +205,6 @@ export const DashboardScreen: React.FC = () => {
         playbookTitles={debriefsLoading || setupsLoading ? [] : playbookTitles}
       />
 
-      {/* ── 0bis. EXECUTIVE SUMMARY — the three-line brief: where I stand,
-          what works, what bleeds. Rendered only with closed trades. ── */}
-      <ExecutiveSummaryCard
-        metrics={m}
-        formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })}
-      />
-
       {/* A combined total across currencies is not a quantity. Say so rather
           than stamping one symbol on a sum of euros and dollars. */}
       {mixedCurrencies ? (
@@ -294,7 +287,7 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </Animated.View>
 
-      {/* ── 3. LOCK GUARD — highest-priority interrupt ── */}
+      {/* ── 2. LOCK GUARD — highest-priority interrupt ── */}
       {isLocked ? (
         <Animated.View entering={FadeIn.duration(duration.fast)} style={styles.lockBanner}>
           <ShieldAlert color={theme.colors.red} size={18} strokeWidth={1.75} />
@@ -307,7 +300,17 @@ export const DashboardScreen: React.FC = () => {
         </Animated.View>
       ) : null}
 
-      {/* ── 3. METRIC GRID ──
+      {/* ── 3. EXECUTIVE SUMMARY ──
+          Moved below the hero. It used to open the screen, so the first thing
+          shown was a paragraph about the past while the number the trader
+          opened the app for sat underneath it. The brief explains the hero;
+          an explanation belongs after the thing it explains. ── */}
+      <ExecutiveSummaryCard
+        metrics={m}
+        formatMoney={v => money(v, { decimals: 0, thousandsSeparator: true })}
+      />
+
+      {/* ── 4. METRIC GRID ──
           Four metrics on one row left each column ~80px wide, so "+$1253"
           and "100.0%" sat directly under their labels with no air and the
           row read as a wall of digits. A 2x2 grid gives each number a full
@@ -406,10 +409,10 @@ export const DashboardScreen: React.FC = () => {
         </View>
       </LivePanel>
 
-      {/* ── 4. RISK TODAY ── */}
+      {/* ── 5. RISK TODAY ── */}
       <DailyRiskGauge trades={scopedTrades} account={activeAccount} />
 
-      {/* ── 5. EMPTY STATE ── */}
+      {/* ── 6. EMPTY STATE ── */}
       {m.totalTrades === 0 ? (
         <Panel>
           <EmptyState
@@ -422,7 +425,11 @@ export const DashboardScreen: React.FC = () => {
         </Panel>
       ) : null}
 
-      {/* ── 5bis. PINNED MONTH — the export shortcut, when armed ── */}
+      {/* ── 7. PINNED EXPORTS ──
+          Month and week are one section, not two: they are the same control
+          in two periods, they appear and disappear together, and numbering
+          them separately was why the screen kept growing a section at a
+          time. ── */}
       {pinned ? (
         <PinnedMonthCard
           trades={scopedTrades}
@@ -436,7 +443,6 @@ export const DashboardScreen: React.FC = () => {
         />
       ) : null}
 
-      {/* ── 5ter. PINNED WEEK — the week export shortcut, when armed ── */}
       {pinnedWeek ? (
         <PinnedWeekCard
           trades={scopedTrades}
@@ -450,7 +456,7 @@ export const DashboardScreen: React.FC = () => {
         />
       ) : null}
 
-      {/* ── 6. EQUITY ──
+      {/* ── 8. EQUITY ──
           One chart, not two. The daily P&L bars told the same story as this
           curve; keeping both cost a screen of scroll for no extra insight. */}
       {m.equityCurve.length > 0 ? (
@@ -478,7 +484,7 @@ export const DashboardScreen: React.FC = () => {
         </PressableScale>
       ) : null}
 
-      {/* ── 10. RECENT TRADES — blotter preview ── */}
+      {/* ── 9. RECENT TRADES — blotter preview ── */}
       <Panel
         title={t('lastTrades')}
         flush

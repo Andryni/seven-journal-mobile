@@ -134,3 +134,35 @@ describe('screen headers', () => {
     );
   });
 });
+
+/**
+ * Dashboard section count.
+ *
+ * It was cut from eleven sections to six once, then grew back to ten one
+ * feature at a time -- each addition reasonable on its own, the total not.
+ * Nothing in the codebase noticed, because a screen getting longer breaks no
+ * test.
+ *
+ * This is a budget, not a rule about layout: it fails when the screen grows,
+ * so the growth has to be a decision rather than a side effect.
+ */
+describe('dashboard length budget', () => {
+  const DASHBOARD = path.join(SRC, 'screens', 'DashboardScreen.tsx');
+
+  it('keeps the top-level section count within budget', () => {
+    const source = fs.readFileSync(DASHBOARD, 'utf8');
+    const sections = source.split('\n').filter(l => /^ {6}\{\/\* ── /.test(l));
+    expect(sections.length).toBeLessThanOrEqual(9);
+  });
+
+  it('numbers its sections consecutively from 1', () => {
+    // The numbering had drifted to 1, 3, 3, 4, 5, 5bis, 5ter, 6, 10 -- which
+    // is how two different sections both came to be called "3".
+    const source = fs.readFileSync(DASHBOARD, 'utf8');
+    const numbers = source
+      .split('\n')
+      .filter(l => /^ {6}\{\/\* ── \d+\./.test(l))
+      .map(l => Number(l.match(/── (\d+)\./)![1]));
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+  });
+});
