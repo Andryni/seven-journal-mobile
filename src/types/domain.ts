@@ -50,6 +50,21 @@ export interface Trade {
    * setup statistics.
    */
   tags?: string[] | null;
+  /**
+   * Human fields promote_sync_trades had to invent because the broker feed
+   * cannot carry them. Empty on a hand-written trade.
+   *
+   * Without this, a seeded mental_state of 'focused' is indistinguishable
+   * from one the trader chose, and behavioural statistics quietly count
+   * imports that were never assessed.
+   */
+  seeded_fields?: string[] | null;
+  /**
+   * Staging row this trade was promoted from, when it came via the broker
+   * bridge. Null for a hand-written trade. `on delete set null` in the
+   * schema: purging staging never touches the journal.
+   */
+  sync_source_id?: string | null;
   r_multiple: number | null;
   timeframe: 'M1' | 'M5' | 'M15' | 'H1' | 'H4' | 'D1';
   setup_structures: string[];

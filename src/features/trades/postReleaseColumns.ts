@@ -14,6 +14,7 @@ export const POST_RELEASE_COLUMNS = [
   'mae_price',
   'mfe_price',
   'tags',
+  'seeded_fields',
   // trading_accounts
   'max_trades_per_day',
   'max_consecutive_losses',

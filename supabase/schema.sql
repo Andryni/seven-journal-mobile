@@ -573,6 +573,20 @@ create index if not exists sync_trades_queue_idx
 alter table public.trades
   add column if not exists sync_source_id uuid references public.sync_trades(id) on delete set null;
 
+-- Which human fields the bridge INVENTED at promotion.
+--
+-- promote_sync_trades must satisfy NOT NULL and CHECK constraints for fields
+-- the broker cannot possibly know: mental_state has a CHECK so it cannot be
+-- left null, timeframe falls back to 'M15'. Seeding them keeps promotion from
+-- failing, but the result is indistinguishable from a trade the trader
+-- actually qualified -- so "my focused trades" silently counted imports that
+-- were never assessed, and the timeframe breakdown inherited an invented M15.
+--
+-- Recording the seeded names at write time is the only honest fix: guessing
+-- afterwards cannot tell a real 'focused' from a placeholder one.
+alter table public.trades
+  add column if not exists seeded_fields text[] not null default '{}';
+
 -- RLS: same owner-scoped shape as every other table. The Edge Function uses
 -- the service role, which bypasses RLS but derives user_id from the secret —
 -- see the function's first lookup.
@@ -655,6 +669,7 @@ declare
   v_count int := 0;
   v_trade_id uuid;
   v_exit jsonb;
+  v_seeded text[];
 begin
   if v_uid is null or p_batch is null or jsonb_typeof(p_batch) <> 'array' then
     raise exception 'P0001: invalid batch';
@@ -697,11 +712,24 @@ begin
 
     v_payload := v_row.payload;
 
+    -- Record what we are about to invent, before inventing it.
+    v_seeded := array[]::text[];
+    if nullif(v_over->>'mental_state','') is null then
+      v_seeded := v_seeded || 'mental_state';
+    end if;
+    if nullif(v_over->>'timeframe','') is null
+       and nullif(v_payload->>'timeframe','') is null then
+      v_seeded := v_seeded || 'timeframe';
+    end if;
+    -- Context the bridge never carries at all.
+    v_seeded := v_seeded || 'setup';
+    v_seeded := v_seeded || 'notes';
+
     insert into public.trades (
       user_id, account_id, pair, direction, entry_price, exit_price,
       stop_loss, take_profit, size, entry_time, exit_time, pnl, r_multiple,
       result, commission, swap, mae_price, mfe_price, timeframe, session,
-      mental_state, sync_source_id
+      mental_state, sync_source_id, seeded_fields
     ) values (
       v_uid,
       v_account_id,
@@ -754,7 +782,8 @@ begin
       -- neutral value so promotion never fails on NOT NULL; the trader edits
       -- them in the trade form (mental_state has a CHECK, 'focused' is valid).
       coalesce(nullif(v_over->>'mental_state',''), 'focused'),
-      v_row.id
+      v_row.id,
+      v_seeded
     )
     returning id into v_trade_id;
 

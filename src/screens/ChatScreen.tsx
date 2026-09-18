@@ -22,6 +22,7 @@ import { useAccounts } from '../features/accounts/useAccounts';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades } from '../features/accounts/accountScope';
 import { useChat } from '../features/chat/useChat';
+import { auditCompleteness } from '../features/trades/tradeCompleteness';
 
 /**
  * Conversation with the journal.
@@ -72,10 +73,19 @@ export const ChatScreen: React.FC = () => {
 
   const closedCount = scoped.filter(tr => tr.pnl !== null && tr.pnl !== undefined).length;
 
+  // Whether the journal has context gaps worth asking about.
+  const hasGaps = useMemo(() => {
+    const closed = scoped.filter(tr => tr.pnl !== null && tr.pnl !== undefined);
+    return closed.length > 0 && auditCompleteness(closed).incomplete > 0;
+  }, [scoped]);
+
   const suggestions = [
     t('chatSuggest1'),
     t('chatSuggest2'),
     t('chatSuggest3'),
+    // Only offered once the bridge has actually left gaps: suggesting it on a
+    // hand-written journal would point at nothing.
+    ...(hasGaps ? [t('chatSuggest4')] : []),
   ];
 
   const onSend = (text: string) => {

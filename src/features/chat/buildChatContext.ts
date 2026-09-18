@@ -1,5 +1,6 @@
 import type { Trade, TradingAccount } from '../../types/domain';
 import { classifyPnl } from '../../utils/tradeOutcome';
+import { auditCompleteness } from '../trades/tradeCompleteness';
 import { isSameLocalDay, localDayKey } from '../../utils/formatDate';
 
 /**
@@ -101,6 +102,28 @@ export interface ChatContext {
   excursions: ChatExcursions | null;
   /** True when the active account is fed by a sync connector. */
   isAutoAccount: boolean;
+  /**
+   * What the journal is missing, v2.
+   *
+   * Imported trades arrive complete on the numbers and empty on the context,
+   * and promotion has to seed mental_state and timeframe to satisfy the
+   * schema. Without this the model would quote "your focused trades" over a
+   * pool that silently includes never-assessed imports.
+   */
+  completeness: ChatCompleteness | null;
+}
+
+export interface ChatCompleteness {
+  /** Closed trades considered. */
+  total: number;
+  /** Trades missing at least one context field. */
+  incomplete: number;
+  /** Trades whose mental_state is real: the honest denominator. */
+  assessed: number;
+  /** Missing count per field, keyed by the field name. */
+  byField: Record<string, number>;
+  /** The worst offenders, by trade number in `trades`. */
+  worstTradeNs: number[];
 }
 
 export interface ChatAccount {
@@ -388,6 +411,35 @@ export function computeChatExcursions(closed: Trade[]): ChatExcursions | null {
   };
 }
 
+/**
+ * The gap between what was imported and what was actually journaled.
+ *
+ * Reported over the whole closed history, but `worstTradeNs` can only point
+ * at trades the model can see, so it is intersected with the sent window --
+ * naming a trade number that is not in `trades` would invite the model to
+ * describe a trade it does not have.
+ */
+function buildChatCompleteness(
+  closed: Trade[],
+  window: Trade[]
+): ChatCompleteness | null {
+  if (closed.length === 0) return null;
+
+  const report = auditCompleteness(closed, 40);
+  const indexById = new Map(window.map((t, i) => [t.id, i + 1]));
+
+  return {
+    total: report.total,
+    incomplete: report.incomplete,
+    assessed: report.assessed,
+    byField: { ...report.byField },
+    worstTradeNs: report.worst
+      .map(t => indexById.get(t.id))
+      .filter((n): n is number => typeof n === 'number')
+      .slice(0, 10),
+  };
+}
+
 export function buildChatContext(params: {
   trades: Trade[];
   account?: TradingAccount | null;
@@ -436,5 +488,6 @@ export function buildChatContext(params: {
     account: buildChatAccount(account, closed, isLocked),
     excursions: computeChatExcursions(closed),
     isAutoAccount: account?.feed_mode === 'auto',
+    completeness: buildChatCompleteness(closed, window),
   };
 }

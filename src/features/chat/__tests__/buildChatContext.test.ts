@@ -344,3 +344,57 @@ describe('broker excursions (MAE/MFE in R)', () => {
     expect(ctx.excursions!.avgCaptureRatio).toBeCloseTo(0.45, 2);
   });
 });
+
+/**
+ * Completeness reaches the model.
+ *
+ * Imported trades carry a seeded mental_state that is indistinguishable from
+ * a chosen one, so without this block the model would quote "your focused
+ * trades" over a pool that includes trades nobody ever assessed.
+ */
+describe('completeness block', () => {
+  const importedTrade = (over: Partial<Trade> = {}) =>
+    trade({
+      sync_source_id: 's1',
+      mental_state: 'focused',
+      timeframe: 'M15',
+      seeded_fields: ['mental_state', 'timeframe', 'setup', 'notes'],
+      ...over,
+    } as Partial<Trade>);
+
+  it('reports the assessed count, not the trade count', () => {
+    const trades = [
+      ...Array.from({ length: 5 }, (_, i) => importedTrade({ id: `i${i}` })),
+      ...Array.from({ length: 3 }, (_, i) =>
+        trade({ id: `m${i}`, mental_state: 'fomo', seeded_fields: [] } as Partial<Trade>)
+      ),
+    ];
+    const ctx = buildChatContext({ trades });
+    expect(ctx.completeness?.total).toBe(8);
+    expect(ctx.completeness?.assessed).toBe(3);
+    expect(ctx.completeness?.byField.mental_state).toBe(5);
+  });
+
+  it('is null on an empty journal rather than a block of zeroes', () => {
+    // Zeroes would read as "nothing is missing", which is not the same thing.
+    expect(buildChatContext({ trades: [] }).completeness).toBeNull();
+  });
+
+  it('only points at trades the model can actually see', () => {
+    // Naming a trade number outside the sent window would invite the model to
+    // describe a trade it does not have.
+    const many = Array.from({ length: 200 }, (_, i) => importedTrade({ id: `x${i}` }));
+    const ctx = buildChatContext({ trades: many });
+    const sent = new Set(ctx.trades.map(t => t.n));
+    for (const n of ctx.completeness!.worstTradeNs) {
+      expect(sent.has(n)).toBe(true);
+    }
+  });
+
+  it('never sends a seeded value as if it were chosen', () => {
+    const ctx = buildChatContext({ trades: [importedTrade()] });
+    // The trade still carries 'focused' (the schema requires a value), but
+    // the completeness block is what tells the model it means nothing.
+    expect(ctx.completeness?.assessed).toBe(0);
+  });
+});

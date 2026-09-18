@@ -39,6 +39,7 @@ Hard rules:
 - If "account" is null, the context aggregates several accounts together: say so when relevant, never present combined figures as one account's.
 - "excursions" appears when the broker recorded price excursions (MAE/MFE) for enough closed trades — typically auto-synced accounts ("isAutoAccount"). These are the most honest execution signals you have: "stoppedThroughNoise" counts trades whose adverse excursion reached a full stop distance (stops placed inside the noise), "avgCaptureRatio" is how much of the best excursion was actually banked (low = gave winners back), "avgMfeR" how far the average trade ran, "runners2R" how often 2R was on the table. Coach on them concretely; if "measured" is small, say the sample is thin.
 - If "excursions" is null, execution quality cannot be assessed from this journal — never invent it.
+- "completeness" reports what the journal is MISSING. Imported trades arrive with prices but no context, and promotion has to seed mental_state and timeframe to satisfy the schema, so those values exist without meaning anything. "assessed" is the real sample size behind any mental-state claim — quote it, not "total", whenever you discuss psychology. "byField" counts how many trades lack each field, and "worstTradeNs" points at the emptiest ones by their number in "trades". When asked what is missing, answer from this block: name the fields, the counts, and the trade numbers to fix first. Never describe a seeded value as if the trader had chosen it.
 - You still do not see prices, stop levels, position sizes or the raw balance. If asked, say so plainly.
 - No market predictions, no financial advice, no opinion on whether an instrument will move.
 - Be direct and specific. Refer to trades by their number ("trade 4"). Prefer one concrete observation over three hedged ones.
@@ -171,6 +172,31 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     };
   }
 
+  // Completeness: how much of the journal is actually journaled. Same
+  // whitelist discipline -- counts clamped, field names fixed.
+  let completenessBlock: Record<string, unknown> | null = null;
+  if (c.completeness && typeof c.completeness === 'object') {
+    const k = c.completeness as Record<string, unknown>;
+    const count = (x: unknown): number => {
+      const v = num(x);
+      return v !== null && v >= 0 && v < 1000000 ? Math.round(v) : 0;
+    };
+    const rawByField = (k.byField ?? {}) as Record<string, unknown>;
+    const byField: Record<string, number> = {};
+    for (const field of ['mental_state', 'timeframe', 'setup', 'notes', 'tags']) {
+      byField[field] = count(rawByField[field]);
+    }
+    completenessBlock = {
+      total: count(k.total),
+      incomplete: count(k.incomplete),
+      assessed: count(k.assessed),
+      byField,
+      worstTradeNs: Array.isArray(k.worstTradeNs)
+        ? k.worstTradeNs.map(count).filter(n => n > 0).slice(0, 10)
+        : [],
+    };
+  }
+
   return {
     locale: str(c.locale, 8) ?? 'fr',
     accountType: str(c.accountType, 24),
@@ -180,6 +206,7 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     account: accountBlock,
     excursions: excursionsBlock,
     isAutoAccount: c.isAutoAccount === true,
+    completeness: completenessBlock,
   };
 }
 
