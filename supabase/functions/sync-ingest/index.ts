@@ -78,7 +78,7 @@ const str = (x: unknown, max: number): string | null =>
 function canonicalSymbol(raw: unknown): string | null {
   const s = str(raw, 24);
   if (!s) return null;
-  return s.toUpperCase().replace(/\.(M|PRO|RAW|C|A|CASH)$/i, '');
+  return s.toUpperCase().replace(/\.(M|PRO|RAW|C|A|CASH|STD)$/i, '');
 }
 
 const CLOSE_REASONS = ['TP', 'SL', 'BE', 'CLOSED'];
