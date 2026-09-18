@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  Radio,
   Inbox,
 } from 'lucide-react-native';
 import { useTheme } from '../theme';
@@ -36,15 +35,25 @@ import {
  * the app just makes the decision take one tap.
  */
 
-const WS_URL = 'https://VOTRE-PROJET.supabase.co/functions/v1/sync-ingest';
+// The ingest endpoint is public by design (the per-connector secret is the
+// credential), so the real project URL can live in the bundle — the setup
+// sheet then shows a copy-pasteable truth instead of a placeholder.
+const WS_URL = 'https://aeqyqwchxvcfvbbapqch.supabase.co/functions/v1/sync-ingest';
 
-const PLATFORM_LABELS: Record<string, string> = {
-  mt5_ea: 'MT5 (EA)',
-  mt4_ea: 'MT4 (EA)',
-  csv_mt5: 'CSV MT5',
-  csv_generic: 'CSV',
-  ctrader: 'cTrader',
-  manual_api: 'API',
+/**
+ * Platform identity for the connector avatar: a brand-styled monogram
+ * (MetaTrader orange, cTrader green) standing in for trademarked logos we
+ * cannot bundle. The sync-status dot is overlaid on the avatar's corner.
+ */
+type BrandColorKey = 'gold' | 'green' | 'primary' | 'textMuted';
+
+const PLATFORM_BRAND: Record<string, { mono: string; colorKey: BrandColorKey }> = {
+  mt5_ea: { mono: 'MT5', colorKey: 'gold' },
+  mt4_ea: { mono: 'M4', colorKey: 'gold' },
+  ctrader: { mono: 'CT', colorKey: 'green' },
+  csv_mt5: { mono: 'CSV', colorKey: 'textMuted' },
+  csv_generic: { mono: 'CSV', colorKey: 'textMuted' },
+  manual_api: { mono: 'API', colorKey: 'primary' },
 };
 
 export const AutoJournalScreen: React.FC = () => {
@@ -131,11 +140,26 @@ export const AutoJournalScreen: React.FC = () => {
                   : c.last_sync_status === 'empty'
                     ? t('syncConnectorStatusEmpty')
                     : t('syncConnectorNever');
+            const brand = PLATFORM_BRAND[c.platform] ?? {
+              mono: (c.platform ?? '?').slice(0, 4).toUpperCase(),
+              colorKey: 'textMuted' as BrandColorKey,
+            };
+            const brandColor = theme.colors[brand.colorKey];
             return (
               <React.Fragment key={c.id}>
                 <View style={styles.connectorRow}>
-                  <View style={styles.connectorStatus}>
-                    <Radio size={15} color={statusColor} strokeWidth={2} />
+                  <View style={styles.connectorAvatarWrap}>
+                    <View
+                      style={[
+                        styles.connectorAvatar,
+                        { backgroundColor: withAlpha(brandColor, 0.16) },
+                      ]}
+                    >
+                      <Text style={[styles.connectorAvatarText, { color: brandColor }]}>
+                        {brand.mono}
+                      </Text>
+                    </View>
+                    <View style={[styles.connectorDot, { backgroundColor: statusColor }]} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.connectorLabel}>{c.label}</Text>
@@ -145,10 +169,6 @@ export const AutoJournalScreen: React.FC = () => {
                         : statusLabel}
                     </Text>
                   </View>
-                  <Badge
-                    label={t('syncConnectorPlatform', PLATFORM_LABELS[c.platform] ?? c.platform)}
-                    variant="neutral"
-                  />
                 </View>
                 {i < connectors.length - 1 ? <Hairline inset={48} /> : null}
               </React.Fragment>
@@ -410,7 +430,29 @@ const createStyles = (theme: AppTheme) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
     },
-    connectorStatus: { width: 20, alignItems: 'center' },
+    connectorAvatarWrap: { position: 'relative' as const },
+    connectorAvatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    connectorAvatarText: {
+      fontSize: 11,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+    },
+    connectorDot: {
+      position: 'absolute' as const,
+      right: -2,
+      bottom: -2,
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
+    },
     connectorLabel: {
       color: theme.colors.textPrimary,
       fontSize: theme.type.body,
