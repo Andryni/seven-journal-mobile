@@ -66,18 +66,66 @@ s'adresser.
 
 ---
 
-## Étape 4 — Publier la fonction
+## Étape 3 bis — Appliquer le schéma (À NE PAS SAUTER)
+
+Les fonctions ne suffisent pas : plusieurs features ont besoin de tables et
+de colonnes qui n'existent pas encore dans votre base.
+
+Ouvrez **SQL Editor** sur le site Supabase, collez **tout** le contenu de
+`supabase/schema.sql`, exécutez.
+
+Le script est idempotent (`create table if not exists`, `add column if not
+exists`) : le relancer après chaque mise à jour du dépôt est sans danger, et
+c'est la façon prévue de migrer.
+
+Ce qui échoue silencieusement sans lui :
+
+| Manque | Symptôme dans l'app |
+|---|---|
+| Tables `sync_*` | Le pont MT5 n'importe rien |
+| `trades.seeded_fields` | Le coach ne peut pas dire ce qui manque |
+| `trades.commission`, `swap`, `tags`, `mae_price`… | Les colonnes sont ignorées à l'enregistrement |
+
+L'app est écrite pour survivre à une base non migrée — elle réessaie sans
+les colonnes inconnues plutôt que de refuser d'enregistrer un trade — donc
+rien ne plante. C'est précisément pour cela que l'oubli passe inaperçu.
+
+---
+
+## Étape 4 — Publier les fonctions
+
+Il y en a quatre. Déployez-les toutes : une fonction absente se manifeste
+dans l'app par « Service non déployé », et pour `sync-ingest` par un pont
+qui n'importe rien du tout, sans message.
 
 ```
 npx supabase functions deploy coach
 npx supabase functions deploy chat
 npx supabase functions deploy calendar
+npx supabase functions deploy sync-ingest
 ```
 
-`calendar` alimente le bandeau économique du tableau de bord. Aucune clé :
-il lit le flux public de ForexFactory, garde les événements à **impact
-élevé** sur les huit devises majeures, et met en cache 30 minutes côté
-serveur.
+| Fonction | Rôle | Secret requis |
+|---|---|---|
+| `coach` | Synthèse IA dans Analytics | `GEMINI_API_KEY` |
+| `chat` | Onglet Coach (conversation) | le même |
+| `calendar` | Bandeau économique du tableau de bord | aucun |
+| `sync-ingest` | Webhook du pont MT5 / cTrader | aucun |
+
+`calendar` lit le flux public de ForexFactory, garde les événements à
+**impact élevé** sur les huit devises majeures, et met en cache 30 minutes
+côté serveur.
+
+`sync-ingest` est la seule fonction avec `verify_jwt = false` : l'EA tourne
+dans MetaTrader, n'a pas de session Supabase, et s'authentifie avec le
+secret de son connecteur — que la fonction vérifie elle-même. Voir
+`supabase/functions/sync-ingest/README.md`.
+
+Vérifiez que les quatre sont publiées :
+
+```
+npx supabase functions list
+```
 
 `chat` alimente l'onglet COACH (conversation). Il partage la clé et le modèle
 de `coach` : aucun secret supplémentaire.
