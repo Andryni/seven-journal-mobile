@@ -450,7 +450,10 @@ string BuildPositionEvent(const string posId, const bool isOpen,
          inVol      += dVol;
          inVolPrice += dPrice * dVol;
          if(dType == DEAL_TYPE_SELL) direction = "SELL";
-        }         // SL/TP historisés : le deal d'entrée (et les suivants) portent les
+        }
+      else if(dEntry == DEAL_ENTRY_OUT || dEntry == DEAL_ENTRY_OUT_BY || dEntry == DEAL_ENTRY_INOUT)
+        {
+         // SL/TP historisés : le deal d'entrée (et les suivants) portent les
          // niveaux du moment — le dernier non nul gagne. Sans ça, une position
          // fermée arrive dans le journal sans ses niveaux (R non calculable).
          double dSL = HistoryDealGetDouble(deal, DEAL_SL);
