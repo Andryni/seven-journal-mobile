@@ -63,3 +63,4 @@ yarn-error.*
 .supabase/
 supabase/.temp/
 adb_dumps/
+*.ex5
