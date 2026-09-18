@@ -3,7 +3,7 @@ import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshContr
 import { Plus, Wallet } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccounts } from '../features/accounts/useAccounts';
-import { useSyncedAccountIds } from '../features/sync/useSyncQueue';
+import { useSyncedAccountIds, useSyncQueue } from '../features/sync/useSyncQueue';
 import { useTrades } from '../features/trades/useTrades';
 import { useRefresh } from '../features/data/useRefresh';
 import { useUIStore } from '../store/uiStore';
@@ -17,6 +17,7 @@ import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
 import { AccountCard } from '../components/accounts/AccountCard';
 import { AccountFormModal } from '../components/accounts/AccountFormModal';
+import { SetupSheet } from '../components/sync/SetupSheet';
 
 /**
  * Accounts — list, selection, and the add/edit form.
@@ -41,6 +42,13 @@ export const AccountsScreen: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAcc, setEditingAcc] = useState<TradingAccount | null>(null);
 
+  // Wizard handoff: a save with feed_mode 'auto' creates the platform
+  // connector right here, linked to the fresh account, then shows the setup
+  // sheet — the three-tap path from "new account" to a running bridge.
+  // The sheet needs the secret, which createConnector returns exactly once.
+  const { createConnector } = useSyncQueue();
+  const [setup, setSetup] = useState<{ secret: string; label: string } | null>(null);
+
   const openAddModal = () => {
     setEditingAcc(null);
     setModalVisible(true);
@@ -52,14 +60,29 @@ export const AccountsScreen: React.FC = () => {
   };
 
   const handleSave = async (payload: Record<string, unknown>) => {
+    const { _autoPlatform, ...accountPayload } = payload as Record<string, unknown> & {
+      _autoPlatform?: string | null;
+    };
     // mutateAsync rejects on failure. Without a catch the rejection is
     // unhandled, the modal stays open with no explanation, and on Android an
     // unhandled rejection can take the app down. The hook raises the toast.
     try {
-      if (editingAcc) {
-        await updateAccount({ id: editingAcc.id, ...payload });
-      } else {
-        await createAccount(payload as Omit<TradingAccount, 'id' | 'user_id' | 'created_at'>);
+      const saved = editingAcc
+        ? await updateAccount({ id: editingAcc.id, ...accountPayload })
+        : await createAccount(accountPayload as Omit<TradingAccount, 'id' | 'user_id' | 'created_at'>);
+
+      // Auto chosen on a NEW account: create the connector in the same
+      // gesture. The account object carries its id; the routing is done at
+      // creation so the queue already knows where trades belong.
+      if (!editingAcc && _autoPlatform && saved?.id) {
+        const created = await createConnector({
+          platform: String(_autoPlatform),
+          label: `${String(_autoPlatform) === 'ctrader' ? 'cTrader' : 'MT5'} · ${saved.name}`,
+          accountId: saved.id,
+        }).catch(() => null);
+        if (created?.secret) {
+          setSetup({ secret: created.secret, label: created.label });
+        }
       }
       setModalVisible(false);
     } catch {
@@ -160,6 +183,10 @@ export const AccountsScreen: React.FC = () => {
         onClose={() => setModalVisible(false)}
         onSave={handleSave}
       />
+
+      {setup ? (
+        <SetupSheet label={setup.label} secret={setup.secret} onDone={() => setSetup(null)} />
+      ) : null}
     </View>
   );
 };

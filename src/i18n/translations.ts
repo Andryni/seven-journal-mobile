@@ -80,6 +80,11 @@ export const translations = {
     accountManualBadge: 'MANUEL',
     accountBalanceAutoHint:
       'Compte auto : solde calculé automatiquement (initial + P&L net).',
+    accountPlatformLabel: 'Plateforme du connecteur',
+    accountPlatformHint:
+      'Le connecteur sera créé et lié à ce compte — vous verrez le secret juste après.',
+    accountConnectorCreated:
+      'Connecteur créé et lié — configurez le pont dans Journal auto.',
     closeLabel: 'Fermer',
     syncRoutingTitle: 'Compte à automatiser',
     syncRoutingUnlink: 'Ne plus lier ce compte',
@@ -1219,6 +1224,11 @@ export const translations = {
     accountManualBadge: 'MANUAL',
     accountBalanceAutoHint:
       'Auto account: balance computed automatically (initial + net P&L).',
+    accountPlatformLabel: 'Connector platform',
+    accountPlatformHint:
+      'The connector will be created and linked to this account — the secret shows right after.',
+    accountConnectorCreated:
+      'Connector created and linked — set up the bridge in Auto journal.',
     closeLabel: 'Close',
     syncRoutingTitle: 'Account to automate',
     syncRoutingUnlink: 'Unlink this account',

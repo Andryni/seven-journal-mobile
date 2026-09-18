@@ -37,6 +37,10 @@ export const AccountFormModal: React.FC<{
   const [feedMode, setFeedMode] = useState<'manual' | 'auto'>('manual');
   const unitLabelForForm = useMarketUnitLabel(instrumentType);
   const [currency, setCurrency] = useState('USD');
+  /** Wizard step: which platform feeds the account, once Auto is chosen.
+   * The connector itself is created by the screen after onSave resolves —
+   * the form only carries the choice. */
+  const [platform, setPlatform] = useState<'mt5_ea' | 'ctrader'>('mt5_ea');
 
   // Section 2: Capital & Garde-fou
   const [initialBalance, setInitialBalance] = useState('100000');
@@ -73,6 +77,7 @@ export const AccountFormModal: React.FC<{
       setChallengeEndDate(editing.challenge_end_date || '');
       setInstrumentType(editing.instrument_type || 'CFD');
       setFeedMode(editing.feed_mode === 'auto' ? 'auto' : 'manual');
+      setPlatform('mt5_ea');
       setMaxTradesPerDay(editing.max_trades_per_day ? String(editing.max_trades_per_day) : '');
       setMaxConsecutiveLosses(
         editing.max_consecutive_losses ? String(editing.max_consecutive_losses) : ''
@@ -85,6 +90,7 @@ export const AccountFormModal: React.FC<{
       setType('challenge');
       setInstrumentType('CFD');
       setFeedMode('manual');
+      setPlatform('mt5_ea');
       setBalance('100000');
       setInitialBalance('100000');
       setCurrency('USD');
@@ -118,6 +124,9 @@ export const AccountFormModal: React.FC<{
       currency,
       is_active: true,
       feed_mode: feedMode,
+      // Read by the screen after save: when feed_mode is 'auto', it creates
+      // and links the connector for this platform as part of the same flow.
+      _autoPlatform: feedMode === 'auto' ? platform : null,
       max_daily_loss_limit: maxDailyLoss ? Number(maxDailyLoss) : null,
       profit_target: profitTarget ? Number(profitTarget) : null,
       max_drawdown_limit: maxDrawdownLimit ? Number(maxDrawdownLimit) : null,
@@ -241,6 +250,38 @@ export const AccountFormModal: React.FC<{
                 </TouchableOpacity>
               </View>
               <Text style={styles.fieldHint}>{t('accountFeedModeHint')}</Text>
+
+              {/* Auto chosen: the next tap is WHICH platform. The connector is
+                  created and linked right after the account saves — the user
+                  never visits Journal auto to route it by hand. */}
+              {isAuto && (
+                <>
+                  <Text style={styles.fieldLabel}>{t('accountPlatformLabel')}</Text>
+                  <View style={styles.row2}>
+                    <TouchableOpacity
+                      style={[styles.ddTypeBtn, platform === 'mt5_ea' && styles.ddTypeBtnActive]}
+                      onPress={() => setPlatform('mt5_ea')}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: platform === 'mt5_ea' }}
+                    >
+                      <Text style={[styles.ddTypeText, platform === 'mt5_ea' && styles.ddTypeTextActive]}>
+                        MT5
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.ddTypeBtn, platform === 'ctrader' && styles.ddTypeBtnActive]}
+                      onPress={() => setPlatform('ctrader')}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: platform === 'ctrader' }}
+                    >
+                      <Text style={[styles.ddTypeText, platform === 'ctrader' && styles.ddTypeTextActive]}>
+                        cTrader
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.fieldHint}>{t('accountPlatformHint')}</Text>
+                </>
+              )}
 
               <Text style={styles.fieldLabel}>{t('currencyLabel')}</Text>
               <View style={styles.currencyRow}>

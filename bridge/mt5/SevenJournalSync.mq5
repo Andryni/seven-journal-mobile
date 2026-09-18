@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.12"
+#property version   "1.13"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -70,7 +70,7 @@ int OnInit()
    // _v2 : v1.10 importe tout l'historique au premier attachement. Si une
    // v1.00 a deja tourne, son ancien watermark (limite a 24 h) ne doit pas
    // empecher l'import complet — d'ou le nouveau nom de variable.
-   datetime saved = (datetime)GlobalVariableGet("SevenJournalSync_watermark_v2");
+   datetime saved = (datetime)GlobalVariableGet("SevenJournalSync_watermark_v3");
    if(saved > 0)
       g_lastScanFrom = saved - InpOverlapMinutes * 60;
    else
@@ -225,7 +225,7 @@ bool PostJson(const string body, string &responseCode)
       else if(status >= 200 && status < 300)
         {
          responseCode = IntegerToString(status);
-         GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
+         GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
          return(true);
         }
       else
@@ -235,7 +235,7 @@ bool PostJson(const string body, string &responseCode)
          // 4xx (sauf 429) : renvoyer ne changera rien, on abandonne.
          if(status >= 400 && status < 500 && status != 429)
            {
-            GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
+            GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
             return(false);
            }
         }
@@ -400,7 +400,7 @@ void ScanAndPush()
      {
       if(sent > 0) Print("SevenJournalSync: ", sent, " position(s) au total pour ce scan");
       g_lastScanFrom = to;
-      GlobalVariableSet("SevenJournalSync_watermark_v2", (double)g_lastScanFrom);
+      GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
      }
   }
 

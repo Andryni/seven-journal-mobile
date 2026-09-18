@@ -83,6 +83,13 @@ complet, seules les nouvelles positions partent à chaque scan.
 > premier attachement via une nouvelle variable watermark. Pour déclencher
 > l'import complet : **F3** (Terminal → Variables globales) → supprimer
 > `SevenJournalSync_watermark` → re-attacher l'EA v1.10.
+>
+> **v1.13 — re-import automatique :** le watermark a été renommé
+> (`SevenJournalSync_watermark_v3`), donc la première exécution de cette
+> version **ré-importe tout l'historique avec les niveaux SL/TP** lus dans
+> les deals — sans manipulation. Le serveur dédoublonnant par position, les
+> trades déjà promus ne reviennent pas dans la file : seuls leurs payloads
+> sont rafraîchis, et le R peut enfin être recalculé côté base.
 
 ## Comment ça marche
 
