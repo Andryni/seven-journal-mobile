@@ -71,7 +71,13 @@ s'adresser.
 ```
 npx supabase functions deploy coach
 npx supabase functions deploy chat
+npx supabase functions deploy calendar
 ```
+
+`calendar` alimente le bandeau économique du tableau de bord. Aucune clé :
+il lit le flux public de ForexFactory, garde les événements à **impact
+élevé** sur les huit devises majeures, et met en cache 30 minutes côté
+serveur.
 
 `chat` alimente l'onglet COACH (conversation). Il partage la clé et le modèle
 de `coach` : aucun secret supplémentaire.

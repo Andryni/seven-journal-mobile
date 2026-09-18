@@ -40,3 +40,8 @@ verify_jwt = true
 # or inactive secret is refused, and the secret scopes every write to its own
 # connector's staging rows. Do not copy this line to another function.
 verify_jwt = false
+
+[functions.calendar]
+# Gateway-verified like coach and chat: the app holds a session, and nothing
+# here is per-user, so there is no reason to widen access.
+verify_jwt = true

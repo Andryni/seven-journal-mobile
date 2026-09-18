@@ -19,6 +19,7 @@ import { Metric } from '../components/ui/Metric';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { ShieldAlert, Share2, ChevronRight, BookOpen, Info } from 'lucide-react-native';
 import { DailyRiskGauge } from '../components/dashboard/DailyRiskGauge';
+import { EconomicEventBand } from '../components/dashboard/EconomicEventBand';
 import { useRefresh } from '../features/data/useRefresh';
 import { EmptyState } from '../components/ui/EmptyState';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -286,6 +287,11 @@ export const DashboardScreen: React.FC = () => {
           ) : null}
         </View>
       </Animated.View>
+
+      {/* One line, not a section: the dashboard budget is nine and every
+          one of them earns its place. Renders nothing when no high-impact
+          release is within the window. */}
+      <EconomicEventBand />
 
       {/* ── 2. LOCK GUARD — highest-priority interrupt ── */}
       {isLocked ? (
