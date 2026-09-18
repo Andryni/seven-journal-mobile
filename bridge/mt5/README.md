@@ -33,7 +33,14 @@ valeurs affichées :
 3. Ajouter l'URL du webhook dans la liste (uniquement la partie
    `https://VOTRE-PROJET.supabase.co`)
 
-Sans cette étape, l'EA affiche *« URL non autorisée »* dans l'onglet Experts.
+Sans cette étape, l'EA affiche *« URL non autorisée »* dans l'onglet Experts
+(et 4014 dans le journal).
+
+> **Paramètres vides au moment de l'attachement ?** Depuis la v1.11 l'EA ne
+> disparaît plus avec un cryptique « failed with code 32767 » : il reste sur
+> le graphique, affiche **« PARAMÈTRES MANQUANTS »** en orange dans son
+> panneau et lève une **Alerte** popup. Re-attachez-le en remplissant l'onglet
+> **Paramètres** (URL + secret) et il passe en **« ACTIF »** (vert).
 
 ### 3. Installer l'EA
 
@@ -46,7 +53,10 @@ Sans cette étape, l'EA affiche *« URL non autorisée »* dans l'onglet Experts
    algorithmique »** dans la fenêtre, coller **URL** et **Secret**
 
 Le smiley 😀 en haut à droite du graphique = EA actif. Vérifiez dans
-l'onglet **Experts** : `SevenJournalSync: actif. Premier scan depuis ...`
+l'onglet **Experts** : `SevenJournalSync: actif. Premier scan : historique
+complet du compte.` — et le **panneau de statut** en haut à gauche du
+graphique indique en direct : état (ACTIF vert / PARAMÈTRES MANQUANTS
+orange), dernier envoi (heure + code HTTP), nombre de positions.
 
 ### 4. Le premier envoi
 

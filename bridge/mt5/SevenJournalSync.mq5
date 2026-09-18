@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.10"
+#property version   "1.11"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -32,22 +32,37 @@ datetime g_lastScanFrom   = 0;     // watermark : on scanne l'historique a parti
 datetime g_lastScanAt     = 0;     // planification : dernier scan effectue
 datetime g_lastBeatAt     = 0;
 int      g_timer          = 5;     // tick d'horloge interne (s)
+bool     g_configOk       = false; // URL + secret renseignes
+int      g_lastSendCount  = 0;
+datetime g_lastSendAt     = 0;
+string   g_lastHttp       = "-";
 
 //+------------------------------------------------------------------+
 //| Init : validation des entrees + horloge                          |
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   // v1.11 : un parametre manquant n'est plus un suicide silencieux
+   // (INIT_PARAMETERS_INCORRECT se lit "failed with code 32767" dans le
+   // journal et personne ne comprend). L'EA reste charge, affiche le probleme
+   // EN CLAIR sur le graphique et en Alert, et se repare par un simple
+   // re-glissage avec les bons parametres.
    if(StringLen(InpWebhookUrl) == 0 || StringLen(InpSecret) == 0)
      {
+      Alert("SevenJournalSync : URL du webhook et secret du connecteur requis.",
+            " Re-attachez l'EA et remplissez l'onglet Parametres.");
       Print("SevenJournalSync: renseignez l'URL du webhook et le secret du connecteur");
-      return(INIT_PARAMETERS_INCORRECT);
+      EventSetTimer(g_timer);
+      return(INIT_SUCCEEDED);
      }
    if(StringFind(InpWebhookUrl, "https://") != 0)
      {
+      Alert("SevenJournalSync : l'URL du webhook doit commencer par https://");
       Print("SevenJournalSync: l'URL doit etre en HTTPS");
-      return(INIT_PARAMETERS_INCORRECT);
+      EventSetTimer(g_timer);
+      return(INIT_SUCCEEDED);
      }
+   g_configOk = true;
 
    // Reprise apres redemarrage : on repart d'au moins une heure en arriere.
    // Premier attachement : TOUT l'historique du compte est importe (le
@@ -75,6 +90,7 @@ int OnInit()
 void OnDeinit(const int reason)
   {
    EventKillTimer();
+   ObjectsDeleteAll(0, "SJS_");
   }
 
 //+------------------------------------------------------------------+
@@ -83,6 +99,13 @@ void OnDeinit(const int reason)
 void OnTimer()
   {
    datetime now = TimeCurrent();
+
+   DrawPanel();
+
+   // Parametres manquants : on attend le re-glissage plutot que d'echouer
+   // en boucle (chaque tentative n'est qu'un Print explicite).
+   if(!g_configOk)
+      return;
 
    if(now - g_lastBeatAt >= InpBeatSeconds)
      {
@@ -95,6 +118,76 @@ void OnTimer()
       g_lastScanAt = now;
       ScanAndPush();
      }
+  }
+
+//+------------------------------------------------------------------+
+//| Panneau de statut sur le graphique : etat visible sans ouvrir le |
+//| journal Experts. Cree une fois, mis a jour a chaque tick d'horloge. |
+//+------------------------------------------------------------------+
+void DrawPanel()
+  {
+   const string PREFIX = "SJS_";
+   if(ObjectFind(0, PREFIX + "BG") < 0)
+     {
+      ObjectCreate(0, PREFIX + "BG", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_XDISTANCE, 8);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_YDISTANCE, 24);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_XSIZE, 240);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_YSIZE, 64);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BGCOLOR, C'20,22,28');
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_COLOR, C'20,22,28');
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BACK, false);
+
+      ObjectCreate(0, PREFIX + "L1", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_YDISTANCE, 30);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L1", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrWhite);
+
+      ObjectCreate(0, PREFIX + "L2", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_YDISTANCE, 46);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L2", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrSilver);
+
+      ObjectCreate(0, PREFIX + "L3", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_YDISTANCE, 62);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L3", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_COLOR, clrSilver);
+     }
+
+   string l1, l2, l3;
+   if(!g_configOk)
+     {
+      l1 = "SevenJournalSync — PARAMETRES MANQUANTS";
+      l2 = "Re-attachez l'EA : URL + secret";
+      l3 = "(onglet Parametres)";
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrOrange);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrWhite);
+     }
+   else
+     {
+      l1 = "SevenJournalSync — ACTIF";
+      l2 = StringFormat("Dernier envoi : %s  (HTTP %s)",
+             g_lastSendAt > 0 ? TimeToString(g_lastSendAt, TIME_DATE|TIME_MINUTES) : "-",
+             g_lastHttp);
+      l3 = StringFormat("Positions : %d   Scan %ds / Beat %ds",
+             g_lastSendCount, InpScanSeconds, InpBeatSeconds);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrLime);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrSilver);
+     }
+   ObjectSetString(0, PREFIX + "L1", OBJPROP_TEXT, l1);
+   ObjectSetString(0, PREFIX + "L2", OBJPROP_TEXT, l2);
+   ObjectSetString(0, PREFIX + "L3", OBJPROP_TEXT, l3);
   }
 
 //+------------------------------------------------------------------+
@@ -185,8 +278,12 @@ bool FlushEvents(const string events, const int count)
    if(PostJson(body, code))
      {
       Print("SevenJournalSync: ", count, " position(s) envoyee(s) (HTTP ", code, ")");
+      g_lastSendCount = count;
+      g_lastSendAt    = TimeCurrent();
+      g_lastHttp      = code;
       return(true);
      }
+   g_lastHttp = code;
    return(false);
   }
 
