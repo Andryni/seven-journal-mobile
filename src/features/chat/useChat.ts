@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../api/supabaseClient';
-import { buildChatContext } from './buildChatContext';
+import { buildChatContext, contextWindow } from './buildChatContext';
+import { parseAction, resolveAction, patchFor, type ResolvedAction } from './chatActions';
+import { useTrades } from '../trades/useTrades';
 import type { Trade, TradingAccount } from '../../types/domain';
 
 /**
@@ -24,6 +26,17 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   at: number;
+  /**
+   * A change the coach proposes, attached to the message that describes it.
+   *
+   * Never applied automatically: the UI renders a confirmation and the user
+   * decides. Held on the message rather than in hook state so an older
+   * proposal stays visible and inert once the conversation has moved on --
+   * a stale button that still worked would be a trap.
+   */
+  action?: ResolvedAction | null;
+  /** Set once confirmed, so the button becomes a record rather than a control. */
+  actionApplied?: boolean;
 }
 
 export type ChatError =
@@ -54,6 +67,7 @@ export function useChat(params: {
   const [error, setError] = useState<ChatError | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const { updateTrade } = useTrades();
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -113,6 +127,9 @@ export function useChat(params: {
 
       try {
         const context = buildChatContext({ trades, account, locale, focusTradeId, isLocked });
+        // The same ordered list the model sees as "trades", used below to
+        // resolve any action it proposes against real trade ids.
+        const sentWindow = contextWindow(trades, focusTradeId);
         const { data, error: fnError } = await supabase.functions.invoke('chat', {
           body: { context, history, message: trimmed },
         });
@@ -154,7 +171,23 @@ export function useChat(params: {
         if (!mounted.current) return;
         setMessages(prev => [
           ...prev,
-          { id: `m${Date.now()}`, role: 'model', text: String(data.reply), at: Date.now() },
+          {
+            id: `m${Date.now()}`,
+            role: 'model',
+            text: String(data.reply),
+            at: Date.now(),
+            /**
+             * Resolved against the exact window that was sent, so a
+             * hallucinated trade number resolves to nothing rather than
+             * landing on a real row.
+             */
+            action: (() => {
+              const parsed = parseAction(data.action);
+              if (!parsed) return null;
+              const resolved = resolveAction(parsed, sentWindow);
+              return resolved.ok ? resolved.action : null;
+            })(),
+          },
         ]);
       } catch (err) {
         console.warn('chat failed', err);
@@ -166,6 +199,39 @@ export function useChat(params: {
     [messages, loading, trades, account, locale, focusTradeId, isLocked]
   );
 
+  /**
+   * Apply a proposal the user confirmed.
+   *
+   * The only place in the app where the coach causes a write, and it runs
+   * from a press rather than from a model response. Trades already carrying
+   * the value are skipped by patchFor, so confirming twice is a no-op rather
+   * than a second round of identical updates.
+   */
+  const applyAction = useCallback(
+    async (messageId: string) => {
+      const message = messages.find(m => m.id === messageId);
+      const action = message?.action;
+      if (!action || message?.actionApplied) return;
+
+      try {
+        for (const trade of action.trades) {
+          const patch = patchFor(action, trade);
+          if (!patch) continue;
+          await updateTrade({ id: trade.id, ...patch });
+        }
+        setMessages(prev =>
+          prev.map(m => (m.id === messageId ? { ...m, actionApplied: true } : m))
+        );
+      } catch (err) {
+        // A failed write must not be recorded as applied: the button stays
+        // available so the trader can retry.
+        console.warn('chat action failed', err);
+        setError('unknown');
+      }
+    },
+    [messages, updateTrade]
+  );
+
   const clear = useCallback(() => {
     setMessages([]);
     setError(null);
@@ -173,5 +239,5 @@ export function useChat(params: {
     AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   }, []);
 
-  return { messages, loading, error, detail, send, clear, hydrated };
+  return { messages, loading, error, detail, send, clear, applyAction, hydrated };
 }

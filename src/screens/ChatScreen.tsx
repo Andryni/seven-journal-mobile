@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Send, Trash2, Lock, Sparkles } from 'lucide-react-native';
+import { Send, Trash2, Lock, Sparkles, Check } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme, withAlpha } from '../theme';
 import type { AppTheme } from '../theme';
@@ -21,7 +21,8 @@ import { useDailyLock } from '../features/guard/useDailyLock';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { useUIStore } from '../store/uiStore';
 import { scopeTrades } from '../features/accounts/accountScope';
-import { useChat } from '../features/chat/useChat';
+import { useChat, type ChatMessage } from '../features/chat/useChat';
+import { affectedTrades } from '../features/chat/chatActions';
 import { auditCompleteness } from '../features/trades/tradeCompleteness';
 
 /**
@@ -166,6 +167,30 @@ export const ChatScreen: React.FC = () => {
             style={[styles.bubble, m.role === 'user' ? styles.bubbleUser : styles.bubbleModel]}
           >
             <Text style={m.role === 'user' ? styles.textUser : styles.textModel}>{m.text}</Text>
+
+            {/* A proposal, never a completed change. The coach describes what
+                it would do; nothing is written until this is pressed. */}
+            {m.action ? (
+              <View style={styles.actionBox}>
+                <Text style={styles.actionSummary}>
+                  {actionSummary(m.action, t)}
+                </Text>
+                {m.actionApplied ? (
+                  <View style={styles.actionDone}>
+                    <Check size={12} color={theme.colors.green} strokeWidth={2.5} />
+                    <Text style={styles.actionDoneText}>{t('chatActionDone')}</Text>
+                  </View>
+                ) : (
+                  <PressableScale
+                    style={styles.actionBtn}
+                    onPress={() => chat.applyAction(m.id)}
+                    accessibilityLabel={t('chatActionApply')}
+                  >
+                    <Text style={styles.actionBtnText}>{t('chatActionApply')}</Text>
+                  </PressableScale>
+                )}
+              </View>
+            ) : null}
           </Animated.View>
         ))}
 
@@ -217,8 +242,59 @@ export const ChatScreen: React.FC = () => {
   );
 };
 
+/** One line describing exactly what confirming would change. */
+function actionSummary(
+  action: NonNullable<ChatMessage['action']>,
+  t: (k: never) => string
+): string {
+  const n = affectedTrades(action).length;
+  if (action.kind === 'add_tag') {
+    return (t('chatActionTag' as never) as string)
+      .replace('{tag}', action.tag ?? '')
+      .replace('{n}', String(n));
+  }
+  if (action.kind === 'set_mental_state') {
+    return (t('chatActionMental' as never) as string)
+      .replace('{state}', action.mentalState ?? '')
+      .replace('{n}', String(n));
+  }
+  return (t('chatActionFilter' as never) as string).replace('{n}', String(n));
+}
+
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
+    actionBox: {
+      marginTop: 9,
+      paddingTop: 9,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.cardBorder,
+      gap: 7,
+    },
+    actionSummary: {
+      color: theme.colors.textPrimary,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      lineHeight: 15,
+    },
+    actionBtn: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 7,
+      backgroundColor: theme.colors.primary,
+    },
+    actionBtnText: {
+      color: theme.colors.background,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+    },
+    actionDone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    actionDoneText: {
+      color: theme.colors.green,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+    },
     container: { flex: 1, backgroundColor: theme.colors.background },
     header: {
       flexDirection: 'row',

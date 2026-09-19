@@ -39,6 +39,7 @@ Hard rules:
 - If "account" is null, the context aggregates several accounts together: say so when relevant, never present combined figures as one account's.
 - "excursions" appears when the broker recorded price excursions (MAE/MFE) for enough closed trades — typically auto-synced accounts ("isAutoAccount"). These are the most honest execution signals you have: "stoppedThroughNoise" counts trades whose adverse excursion reached a full stop distance (stops placed inside the noise), "avgCaptureRatio" is how much of the best excursion was actually banked (low = gave winners back), "avgMfeR" how far the average trade ran, "runners2R" how often 2R was on the table. Coach on them concretely; if "measured" is small, say the sample is thin.
 - If "excursions" is null, execution quality cannot be assessed from this journal — never invent it.
+- You may PROPOSE one action at the very end of your reply, and only when the user clearly asked for a change. Format, on its own final line: <<<ACTION{"kind":"add_tag","tradeNs":[3,7],"tag":"revenge"}>>>  — kinds are "add_tag" (needs "tag"), "set_mental_state" (needs "mentalState", one of focused/anxious/greedy/revenge/fomo/tired) and "filter_trades". Reference trades only by their number in "trades"; never invent one. Nothing is applied until the trader confirms it on screen, so describe the change in your prose as a proposal, not as done. Never propose a change to a price, a P&L, a size, or the deletion of anything — you cannot, and claiming otherwise misleads.
 - "completeness" reports what the journal is MISSING. Imported trades arrive with prices but no context, and promotion has to seed mental_state and timeframe to satisfy the schema, so those values exist without meaning anything. "assessed" is the real sample size behind any mental-state claim — quote it, not "total", whenever you discuss psychology. "byField" counts how many trades lack each field, and "worstTradeNs" points at the emptiest ones by their number in "trades". When asked what is missing, answer from this block: name the fields, the counts, and the trade numbers to fix first. Never describe a seeded value as if the trader had chosen it.
 - You still do not see prices, stop levels, position sizes or the raw balance. If asked, say so plainly.
 - No market predictions, no financial advice, no opinion on whether an instrument will move.
@@ -376,7 +377,43 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'upstream_error', upstreamReason: finishReason }, 502);
     }
 
-    return json({ reply: reply.slice(0, 4000), model: modelUsed });
+    /**
+     * An optional action the model may PROPOSE, never perform.
+     *
+     * Expressed as a trailing JSON block so the prose stays readable if the
+     * client is older and ignores it. Whitelisted field by field here, then
+     * resolved and confirmed on the device -- the server does not write
+     * either, and the model never holds a write at any point.
+     */
+    let action: Record<string, unknown> | null = null;
+    let prose = reply;
+    const marker = reply.lastIndexOf('<<<ACTION');
+    if (marker >= 0) {
+      prose = reply.slice(0, marker).trim();
+      const rawBlock = reply.slice(marker + '<<<ACTION'.length).replace(/>>>\s*$/, '');
+      try {
+        const parsed = JSON.parse(rawBlock.trim());
+        const kind = parsed?.kind;
+        if (kind === 'add_tag' || kind === 'set_mental_state' || kind === 'filter_trades') {
+          action = {
+            kind,
+            tradeNs: Array.isArray(parsed.tradeNs)
+              ? parsed.tradeNs
+                  .filter((n: unknown) => typeof n === 'number' && Number.isFinite(n))
+                  .slice(0, 50)
+              : [],
+          };
+          if (typeof parsed.tag === 'string') action.tag = parsed.tag.slice(0, 24);
+          if (typeof parsed.mentalState === 'string') {
+            action.mentalState = parsed.mentalState.slice(0, 16);
+          }
+        }
+      } catch {
+        // A malformed block is dropped; the prose still stands on its own.
+      }
+    }
+
+    return json({ reply: prose.slice(0, 4000), action, model: modelUsed });
   } catch (e) {
     console.error('chat: unexpected', e);
     return json({ error: 'upstream_error' }, 502);

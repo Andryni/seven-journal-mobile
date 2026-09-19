@@ -440,18 +440,15 @@ function buildChatCompleteness(
   };
 }
 
-export function buildChatContext(params: {
-  trades: Trade[];
-  account?: TradingAccount | null;
-  locale?: string;
-  /** Trade the user tapped "ask about this" on, if any. */
-  focusTradeId?: string | null;
-  /** Whether the rule engine currently locks the session. */
-  isLocked?: boolean;
-}): ChatContext {
-  const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
-
-  // Open positions have no result to reason about.
+/**
+ * The exact ordered trades sent to the model as "trades".
+ *
+ * Exported because trade numbers in a proposed action are indices into this
+ * list. Resolving them anywhere else -- or recomputing the ordering slightly
+ * differently -- would let "trade 3" mean two different trades, which is how
+ * a confirmation dialog ends up applying a change to the wrong row.
+ */
+export function contextWindow(trades: Trade[], focusTradeId: string | null = null): Trade[] {
   const closed = trades.filter(t => t.pnl !== null && t.pnl !== undefined);
 
   const ordered = [...closed].sort(
@@ -470,6 +467,23 @@ export function buildChatContext(params: {
     const focused = ordered.find(t => t.id === focusTradeId);
     if (focused) window = [focused, ...window.slice(0, MAX_CHAT_TRADES - 1)];
   }
+  return window;
+}
+
+export function buildChatContext(params: {
+  trades: Trade[];
+  account?: TradingAccount | null;
+  locale?: string;
+  /** Trade the user tapped "ask about this" on, if any. */
+  focusTradeId?: string | null;
+  /** Whether the rule engine currently locks the session. */
+  isLocked?: boolean;
+}): ChatContext {
+  const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
+
+  // Open positions have no result to reason about.
+  const closed = trades.filter(t => t.pnl !== null && t.pnl !== undefined);
+  const window = contextWindow(trades, focusTradeId);
 
   const chatTrades = window.map((t, i) => toChatTrade(t, i + 1));
   const focusIndex = focusTradeId
