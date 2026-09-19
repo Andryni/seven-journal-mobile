@@ -10,6 +10,9 @@ import { PressableScale } from '../components/ui/PressableScale';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PickerModal } from '../components/ui/PickerModal';
 import { ConnectorsPanel } from '../components/sync/ConnectorCard';
+import { ReconcileCard } from '../components/sync/ReconcileCard';
+import { reconcileBalance } from '../features/sync/reconcileBalance';
+import { useTrades } from '../features/trades/useTrades';
 import { QueueCard } from '../components/sync/QueueCard';
 import { SetupSheet } from '../components/sync/SetupSheet';
 import { useAccounts } from '../features/accounts/useAccounts';
@@ -48,6 +51,35 @@ export const AutoJournalScreen: React.FC = () => {
     dismissAll,
   } = useSyncQueue();
   const { accounts } = useAccounts();
+  const { trades } = useTrades();
+
+  /**
+   * Reconciliation, one card per connector that routes to a journal account
+   * and has reported a balance. Both conditions matter: without routing there
+   * is no journal side to compare, and without a broker balance there is
+   * nothing to compare it to.
+   */
+  const reconciliations = useMemo(
+    () =>
+      connectors
+        .filter(c => c.account_id && typeof c.broker_balance === 'number')
+        .map(c => {
+          const acc = accounts.find(a => a.id === c.account_id) ?? null;
+          return {
+            id: c.id,
+            label: c.label,
+            currency: c.broker_currency ?? acc?.currency ?? null,
+            result: reconcileBalance({
+              account: acc,
+              trades: trades.filter(tr => tr.account_id === c.account_id),
+              brokerBalance: c.broker_balance,
+              brokerAt: c.broker_state_at,
+            }),
+          };
+        })
+        .filter(r => r.result.verdict !== 'unknown'),
+    [connectors, accounts, trades]
+  );
 
   // Setup sheet for a freshly created connector (secret shown exactly once).
   const [setup, setSetup] = useState<{ secret: string; label: string } | null>(null);
@@ -108,6 +140,11 @@ export const AutoJournalScreen: React.FC = () => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* ----------------------------------------------- reconciliation ----- */}
+      {reconciliations.map(r => (
+        <ReconcileCard key={r.id} result={r.result} currency={r.currency} />
+      ))}
+
       {/* ------------------------------------------------ connecteurs ------- */}
       <Text style={styles.sectionTitle}>{t('syncConnectorsTitle')}</Text>
       <ConnectorsPanel

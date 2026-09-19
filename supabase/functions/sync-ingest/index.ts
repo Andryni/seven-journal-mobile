@@ -201,10 +201,27 @@ Deno.serve(async (req: Request) => {
       ? (body.open_ids as unknown[]).map((x) => str(x, 64)).filter((x): x is string => !!x)
       : [];
 
-    await admin
-      .from('sync_ingest_accounts')
-      .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'ok', last_error: null })
-      .eq('id', ingestId);
+    /**
+     * Broker-reported state, v1.14. Absent from older EAs, so each field is
+     * only written when present -- overwriting a known balance with null on
+     * an upgrade-lagging terminal would erase the reconciliation silently.
+     */
+    const beat: Record<string, unknown> = {
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: 'ok',
+      last_error: null,
+    };
+    const balance = num(body.balance);
+    const equity = num(body.equity);
+    const currency = str(body.currency, 8);
+    if (balance !== null) {
+      beat.broker_balance = balance;
+      beat.broker_state_at = new Date().toISOString();
+    }
+    if (equity !== null) beat.broker_equity = equity;
+    if (currency) beat.broker_currency = currency.toUpperCase();
+
+    await admin.from('sync_ingest_accounts').update(beat).eq('id', ingestId);
 
     if (openIds.length > 0) {
       await admin

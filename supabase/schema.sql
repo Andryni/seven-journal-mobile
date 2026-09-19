@@ -476,6 +476,22 @@ create table if not exists public.sync_ingest_accounts (
 create index if not exists sync_ingest_accounts_user_idx
   on public.sync_ingest_accounts (user_id);
 
+-- Broker-reported account state, from the v1.14 heartbeat.
+--
+-- The journal derives a balance by summing P&L; the broker KNOWS it. The gap
+-- between the two is information -- uncaptured fees, a trade the bridge
+-- missed, a deposit or withdrawal never recorded. Without it a missing trade
+-- is silent, and the statistics quietly describe an incomplete history.
+--
+-- Nullable on purpose: an older EA, or a connector that has never beaten,
+-- reports nothing. "Unknown" and "matches" must never be conflated, so the
+-- reconciliation card stays hidden rather than claiming agreement.
+alter table public.sync_ingest_accounts
+  add column if not exists broker_balance   numeric,
+  add column if not exists broker_equity    numeric,
+  add column if not exists broker_currency  text,
+  add column if not exists broker_state_at  timestamptz;
+
 -- A journal account may be fed by more than one connector (an MT5 demo and a
 -- cTrader demo can both belong to "50k Paper Trading"), so the association is
 -- its own table, not a column on either side. Feeds the "synchronised" badge

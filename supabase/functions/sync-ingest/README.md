@@ -24,6 +24,22 @@ npx supabase functions deploy sync-ingest
 Aucune variable personnalisée : la fonction utilise `SUPABASE_URL` et
 `SUPABASE_SERVICE_ROLE_KEY`, fournies par Supabase à l'exécution.
 
+## Réconciliation de solde (EA v1.14+)
+
+Le heartbeat porte désormais `balance`, `equity` et `currency`. Le journal
+additionne les P&L pour connaître le solde ; le courtier, lui, **le connaît**.
+L'écart est une information : frais non capturés, trade raté par le pont,
+dépôt ou retrait non enregistré.
+
+Sans cela, un trade manquant ne se voit jamais — les statistiques décrivent un
+historique incomplet en paraissant parfaitement saines.
+
+Les colonnes sont **nullables** : un EA plus ancien n'envoie rien, et la carte
+reste masquée. « Inconnu » et « concordant » ne doivent jamais être confondus.
+
+> Pensez à recompiler l'EA dans MetaEditor après un `git pull` : le `.ex5`
+> n'est pas versionné.
+
 ## Endpoints & codes de retour
 
 `POST /functions/v1/sync-ingest` — `Authorization: Bearer <secret du connecteur>`

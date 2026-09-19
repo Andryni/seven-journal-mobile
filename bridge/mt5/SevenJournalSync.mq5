@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.13"
+#property version   "1.14"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -262,7 +262,20 @@ void SendHeartbeat()
       ids += "\"" + IntegerToString((long)PositionGetInteger(POSITION_IDENTIFIER)) + "\"";
      }
 
-   string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]}";
+   // v1.14 : le heartbeat porte aussi le solde et l'equity du compte.
+   //
+   // Le journal additionne les P&L pour connaitre le solde ; le courtier, lui,
+   // le CONNAIT. L'ecart entre les deux est une information : frais non
+   // captures, trade rate par le pont, depot ou retrait non enregistre.
+   // Sans cette ligne, un trade manquant ne se voit jamais.
+   //
+   // Envoye sur le heartbeat et non sur les events : c'est un etat, pas un
+   // evenement, et il doit arriver meme un jour sans aucun trade.
+   string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]"
+                 + ",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE), 2)
+                 + ",\"equity\":" + Num(AccountInfoDouble(ACCOUNT_EQUITY), 2)
+                 + ",\"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\""
+                 + "}";
    string code;
    PostJson(body, code);
   }

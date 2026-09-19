@@ -27,6 +27,15 @@ export interface IngestAccountRow {
   last_sync_at: string | null;
   last_sync_status: 'ok' | 'error' | 'empty' | null;
   last_error: string | null;
+  /**
+   * Broker-reported state from the v1.14 heartbeat. Null on an older EA or a
+   * connector that has never beaten — which is why the reconciliation card
+   * distinguishes "unknown" from "matches".
+   */
+  broker_balance: number | null;
+  broker_equity: number | null;
+  broker_currency: string | null;
+  broker_state_at: string | null;
 }
 
 export interface StagingWithConnector extends SyncTradeRow {
@@ -116,10 +125,33 @@ export function useSyncQueue() {
       const { data, error } = await supabase
         .from('sync_ingest_accounts')
         .select(
-          'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error',
+          'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error, broker_balance, broker_equity, broker_currency, broker_state_at',
         )
         .order('created_at', { ascending: true });
-      if (error) throw error;
+
+      /**
+       * Retry without the v1.14 columns on an unmigrated database.
+       *
+       * Same reasoning as POST_RELEASE_COLUMNS for trades: a user who has not
+       * run the latest schema.sql would otherwise lose the whole connectors
+       * panel over a reconciliation feature they have not enabled yet.
+       */
+      if (error) {
+        const { data: legacy, error: legacyError } = await supabase
+          .from('sync_ingest_accounts')
+          .select(
+            'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error',
+          )
+          .order('created_at', { ascending: true });
+        if (legacyError) throw legacyError;
+        return (legacy ?? []).map((row) => ({
+          ...row,
+          broker_balance: null,
+          broker_equity: null,
+          broker_currency: null,
+          broker_state_at: null,
+        })) as IngestAccountRow[];
+      }
       return data ?? [];
     },
   });
