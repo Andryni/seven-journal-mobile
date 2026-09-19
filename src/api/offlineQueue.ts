@@ -67,7 +67,7 @@ export function resumeQueuedMutations(queryClient: QueryClient): void {
 export function installOnlineManager(queryClient: QueryClient): void {
   onlineManager.setEventListener(setOnline => {
     return NetInfo.addEventListener(state => {
-      setOnline(!!state.isConnected && state.isInternetReachable !== false);
+      setOnline(isOnline(state));
       if (state.isConnected) {
         resumeQueuedMutations(queryClient);
       }
@@ -94,3 +94,33 @@ export function pendingOfflineWrites(mutations: Mutation[]): number {
 export function isQueuedMutation(m: Mutation): boolean {
   return Array.isArray(m.options.mutationKey) && m.options.mutationKey[1] === 'queue';
 }
+
+/**
+ * Reachability, with the benefit of the doubt.
+ *
+ * NetInfo's `isInternetReachable` is a PROBE, not a fact: Android confirms
+ * connectivity against a Google endpoint, and captive portals, firewalled
+ * networks or slow DNS (our own gateway hit `EAI_AGAIN` on stable Google
+ * hosts minutes apart) report `false` — or hang and report `null` — while
+ * the app's actual endpoints answer fine. Treating "unknown" as offline
+ * pauses every mutation and fakes an outage the network does not have.
+ *
+ * Only a positive `false` means unreachable. `null`/`undefined` (probe
+ * pending, or a state shape without the field) means we do not know, and
+ * "we do not know" must not stop the journal from writing — a failed write
+ * retries and queues exactly as before, so the optimistic path costs
+ * nothing when the network is truly down.
+ */
+export function isReachable(v: boolean | null | undefined): boolean {
+  return v !== false;
+}
+
+export function isOnline(state: {
+  isConnected: boolean | null;
+  isInternetReachable: boolean | null | undefined;
+}): boolean {
+  return !!state.isConnected && isReachable(state.isInternetReachable);
+}
+
+/** Exported for the offlineQueue tests; not a public surface. */
+export const __testables = { isReachable, isOnline };

@@ -6,7 +6,7 @@ import { CloudOff, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { useT } from '../../i18n';
-import { isQueuedMutation } from '../../api/offlineQueue';
+import { isQueuedMutation, isOnline } from '../../api/offlineQueue';
 
 /**
  * Connectivity strip. Offline state used to be completely invisible: a trade
@@ -28,7 +28,7 @@ export const OfflineBanner: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOffline(!(state.isConnected && state.isInternetReachable !== false));
+      setIsOffline(!isOnline(state));
     });
     return () => unsubscribe();
   }, []);

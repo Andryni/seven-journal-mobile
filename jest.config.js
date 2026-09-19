@@ -22,6 +22,11 @@ module.exports = {
         '/.expo/',
         '/__render__/',
       ],
+      // The real netinfo ships TypeScript in its commonjs entry; see
+      // jest-shims/netinfo.js for the tiny API surface logic tests need.
+      moduleNameMapper: {
+        '^@react-native-community/netinfo$': '<rootDir>/jest-shims/netinfo.js',
+      },
       moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
       transform: {
         '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json', diagnostics: false }],
