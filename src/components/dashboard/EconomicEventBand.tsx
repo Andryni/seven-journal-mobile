@@ -17,18 +17,37 @@ import { bannerEvent, minutesUntil } from '../../features/calendar/economicEvent
  * needs before the session is not a table of releases — it is whether
  * something is about to move the market in the next few hours.
  *
- * Renders nothing at all when there is no event within the window. An empty
- * frame saying "no events" would cost the same vertical space as the
- * information it lacks.
+ * Renders the next release, or — when the week's calendar IS loaded and
+ * nothing is imminent — a calm "no major release" line. Silence was the old
+ * behaviour and read as a bug: the trader could not tell "all clear" from
+ * "the calendar is broken". The all-clear is now stated, quietly; a FAILED
+ * feed still renders nothing, because asserting "no news" without the feed
+ * would be the one claim this band must never make.
  */
 export const EconomicEventBand: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { events } = useEconomicCalendar();
+  const { events, isLoading } = useEconomicCalendar();
 
   const event = useMemo(() => bannerEvent(events), [events]);
-  if (!event) return null;
+  // Feed still loading or unreachable: no claim. Loaded and quiet: all-clear.
+  if (!event && (isLoading || events.length === 0)) return null;
+  if (!event) {
+    return (
+      <Animated.View
+        entering={FadeIn.duration(260)}
+        style={styles.band}
+        accessibilityRole="text"
+        accessibilityLabel={t('ecoNone')}
+      >
+        <CalendarClock size={13} color={theme.colors.textMuted} strokeWidth={2} />
+        <Text style={styles.title} numberOfLines={1}>
+          {t('ecoNone')}
+        </Text>
+      </Animated.View>
+    );
+  }
 
   const mins = minutesUntil(event);
   const past = mins < 0;

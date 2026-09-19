@@ -56,6 +56,33 @@ describe('parseEvent — trusting nothing', () => {
     expect(parseEvent(row({ impact: 'Holiday' }))!.impact).toBe('Holiday');
   });
 
+  it('accepts the normalised shape the Edge Function emits (currency/at)', () => {
+    // The function was emitting its own normalised variant while this parser
+    // kept reading the raw feed's field names: every event was dropped and
+    // the dashboard band silently never rendered. This is the regression
+    // test for that bug.
+    const e = parseEvent({
+      title: 'Core CPI m/m',
+      currency: 'USD',
+      at: '2026-09-16T12:30:00.000Z',
+      impact: 'High',
+      forecast: '0.2%',
+      previous: '0.3%',
+    })!;
+    expect(e).not.toBeNull();
+    expect(e.currency).toBe('USD');
+    expect(e.at).toBe('2026-09-16T12:30:00.000Z');
+  });
+
+  it('still prefers the raw fields when both shapes are present', () => {
+    // `date` with offset and `at` ISO describe the same instant; whichever
+    // is parsed, the event must survive.
+    const e = parseEvent(
+      row({ currency: 'EUR', at: '2026-09-16T12:30:00.000Z' })
+    )!;
+    expect(e.currency).toBe('USD');
+  });
+
   it('treats blank forecast and previous as absent, not empty strings', () => {
     const e = parseEvent(row({ forecast: '', previous: '' }))!;
     expect(e.forecast).toBeNull();

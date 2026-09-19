@@ -67,14 +67,23 @@ function asString(x: unknown, max = 120): string | null {
  * Returning null rather than a partial event matters: a row with an
  * unparseable date would otherwise sort to 1970 and sit permanently at the
  * top of "what is coming".
+ *
+ * Accepts BOTH field conventions the pipeline has used: the raw feed's
+ * (country, date) and the normalised one (currency, at). The Edge Function
+ * returned its own normalised shape while this parser kept reading the raw
+ * one, so every event was dropped and the dashboard band silently never
+ * rendered. Tolerating both here is cheaper than coupling the deploy times.
  */
 export function parseEvent(raw: unknown): EconomicEvent | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
 
   const title = asString(r.title);
-  const currency = asString(r.country, 8);
-  const dateStr = asString(r.date, 40);
+  // `country` is the raw feed's name for the currency, `currency` the
+  // normalised one — accept either.
+  const currency = asString(r.country, 8) ?? asString(r.currency, 8);
+  // Same duality for the date: `date` raw (with offset), `at` normalised ISO.
+  const dateStr = asString(r.date, 40) ?? asString(r.at, 40);
   if (!title || !currency || !dateStr) return null;
 
   const parsed = new Date(dateStr);

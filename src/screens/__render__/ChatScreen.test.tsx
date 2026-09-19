@@ -56,8 +56,11 @@ describe('ChatScreen', () => {
         <ChatScreen />
       </Wrapper>
     );
+    // The mount itself fetches the shared calendar cache (the behavioural
+    // news detector reads it); only the CHAT function must stay silent.
     fireEvent.press(getByLabelText(/Envoyer|Send/i));
-    expect(mockInvoke).not.toHaveBeenCalled();
+    const chatCalls = mockInvoke.mock.calls.filter(([name]) => name === 'chat');
+    expect(chatCalls).toHaveLength(0);
   });
 
   it('survives repeated re-renders without reordering hooks', () => {

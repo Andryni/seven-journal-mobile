@@ -64,3 +64,14 @@ yarn-error.*
 supabase/.temp/
 adb_dumps/
 *.ex5
+
+# Build artefacts and local logs — never repo content, never EAS archive
+# content (the 199 MB upload warning came from the previous APK riding
+# along).
+*.apk
+build-apk.log
+eas-build.log
+easlist.tmp.json
+easview.tmp.json
+device-log.txt
+demo-missing-data.html

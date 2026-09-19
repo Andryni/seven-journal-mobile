@@ -52,6 +52,8 @@ import { DonutChart } from '../components/ui/DonutChart';
 import { GlowingEquityAreaChart } from '../components/ui/GlowingEquityAreaChart';
 import { BicolorBarChart } from '../components/ui/BicolorBarChart';
 import { ShareCardModal } from '../components/share/ShareCardModal';
+import { TradeFormModal } from '../components/trades/TradeFormModal';
+import { MissingDataCard } from '../components/analytics/MissingDataCard';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
 import { InsightsCard } from '../components/analytics/InsightsCard';
@@ -132,6 +134,11 @@ export const AnalyticsScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(routeContext?.params?.initialTab ?? 'perf');
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [shareModalVisible, setShareModalVisible] = useState(false);
+
+  /** Edit-from-analytics: the MissingDataCard opens the same form the
+      Trades screen uses, so completing a record never forces a screen hop. */
+  const [editTrade, setEditTrade] = useState<Trade | null>(null);
+  const [editVisible, setEditVisible] = useState(false);
 
   const dateRangeOptions = [
     { key: '7d' as const, labelKey: 'dateRange7d' as const },
@@ -446,6 +453,16 @@ export const AnalyticsScreen: React.FC = () => {
               )}
             </Card>
           </Animated.View>
+
+          {/* The journal's own audit: what the record is missing, trade by
+              trade, with one-tap access to the edit form. Renders nothing              when the journal is complete. */}
+          <MissingDataCard
+            trades={scopedTrades}
+            onEditTrade={tr => {
+              setEditTrade(tr);
+              setEditVisible(true);
+            }}
+          />
         </Animated.View>
       )}
 
@@ -1160,6 +1177,16 @@ export const AnalyticsScreen: React.FC = () => {
         onClose={() => setShareModalVisible(false)}
         trades={trades}
         accountName={selectedAccount?.name || 'Tous les comptes'}
+      />
+
+      {/* Same modals as the Trades screen, so a gap can be completed from          the card that named it. */}
+      <TradeFormModal
+        visible={editVisible}
+        onClose={() => {
+          setEditVisible(false);
+          setEditTrade(null);
+        }}
+        editingTrade={editTrade}
       />
     </ScrollView>
   );

@@ -2,6 +2,11 @@ import type { Trade, TradingAccount } from '../../types/domain';
 import { classifyPnl } from '../../utils/tradeOutcome';
 import { auditCompleteness } from '../trades/tradeCompleteness';
 import { isSameLocalDay, localDayKey } from '../../utils/formatDate';
+import { derivableR } from '../../utils/rDerivation';
+import type { BrokerCosts } from './chatActions';
+import { detectBehaviour, type BehaviourReport } from './behaviour';
+import { buildPostMortem, type PostMortem } from './postmortem';
+import { buildWeeklyReport, type WeeklyReport } from './weeklyReport';
 
 /**
  * The snapshot of the journal sent with a chat message.
@@ -78,7 +83,8 @@ export interface ChatStats {
 }
 
 export interface ChatContext {
-  v: 2;
+  /** v4 adds behaviour, postMortem and weekly; v3 clients never send them. */
+  v: 4;
   locale: string;
   accountType: string | null;
   stats: ChatStats;
@@ -111,6 +117,84 @@ export interface ChatContext {
    * pool that silently includes never-assessed imports.
    */
   completeness: ChatCompleteness | null;
+  /**
+   * What the NUMERIC record is missing, v3, per trade in the sent window.
+   *
+   * `completeness` above audits the context fields (mental, tags...); this
+   * audits the money and risk fields the trader is supposed to supply:
+   * the R-multiple, the stop, the target, the exit, the costs and the
+   * excursions. Imported rows are exactly where these are empty, and the
+   * user has asked the coach to name them. `rFillableNs` marks the trades
+   * whose R can be DERIVED on the device from entry, stop and exit — the
+   * one gap the app can close itself, offered as a confirmable action.
+   */
+  gaps: ChatGaps | null;
+  /**
+   * Relational habits the per-trade view cannot show, v4: revenge
+   * re-entries, days above the trader's own max-trades rule, and entries
+   * next to high-impact releases. All trade numbers reference the sent
+   * window; all computed here, never by the model.
+   */
+  behaviour: BehaviourReport | null;
+  /**
+   * The measured anatomy of the focused trade's loss, v4. Present only when
+   * the user opened the chat FROM a trade (focusTradeN) — a post-mortem of   * an unnamed trade is an accusation without an address.
+   */
+  postMortem: PostMortem | null;
+  /**
+   * The last-7-local-days review, v4: attribution by setup and session, fee   * cost, completeness and up to three quantified actions. Computed over the   * WHOLE closed history's last week, not the sent window.
+   */
+  weekly: WeeklyReport | null;
+}
+
+/** Numeric gaps of one trade, keyed by its number in `trades`. */
+export interface ChatTradeGaps {
+  n: number;
+  /** The stored R-multiple is null — the most common and most costly gap. */
+  r: boolean;
+  /** True when R can be derived on the device from entry, stop and exit. */
+  rFillable: boolean;
+  /** Stop-loss is absent or the schema-default 0 = "no stop recorded". */
+  stop: boolean;
+  /** Take-profit absent (0 counts: it is a real level the trader set). */
+  target: boolean;
+  /** No exit price recorded. */
+  exit: boolean;
+  /** Commission and swap both null: costs unknown, not zero. */
+  costs: boolean;
+  /**
+   * The missing costs exist in the broker's own staging record (auto accounts
+   * only). This is what licenses a `set_costs` proposal; without it the
+   * model would be guessing which trades the broker can back-fill.
+   */
+  costsFillable: boolean;
+  /** No MAE and no MFE recorded. */
+  excursions: boolean;
+  /** The missing stop/target/extremes are requestable from the broker terminal. */
+  excursionsFillable: boolean;
+  /** No note written. */
+  notes: boolean;
+}
+
+export interface ChatGaps {
+  /** Trade numbers (as in `trades`) carrying at least one numeric gap. */
+  withGaps: number[];
+  /** How many of the sent trades are missing each field. */
+  counts: {
+    r: number;
+    rFillable: number;
+    stop: number;
+    target: number;
+    exit: number;
+    costs: number;
+    costsFillable: number;
+    excursions: number;
+    /** Subset of `excursions` the terminal can rebuild (bridge-sourced). */
+    excursionsFillable: number;
+    notes: number;
+  };
+  /** Per-trade detail for the worst ones, capped. */
+  trades: ChatTradeGaps[];
 }
 
 export interface ChatCompleteness {
@@ -470,6 +554,88 @@ export function contextWindow(trades: Trade[], focusTradeId: string | null = nul
   return window;
 }
 
+/**
+ * Numeric gaps of one trade.
+ *
+ * Distinct from `tradeCompleteness`, which audits the CONTEXT fields only and
+ * deliberately excludes prices. This is the complementary audit: what the
+ * trader alone can fill in among the numbers. Everything is derived from
+ * what is already on the trade — nothing is invented, and "unknown" stays
+ * distinct from "zero" (a stored commission of 0 is a real "no fees", not
+ * a gap).
+ */
+export function numericGaps(trade: Trade): {
+  r: boolean;
+  rFillable: boolean;
+  stop: boolean;
+  target: boolean;
+  exit: boolean;
+  costs: boolean;
+  excursions: boolean;
+  /** The missing levels/extremes can be requested from the broker terminal. */
+  excursionsFillable: boolean;
+  notes: boolean;
+} {
+  // Schema default 0 means "no stop set", never a stop at price zero.
+  const hasStop = Number.isFinite(trade.stop_loss) && trade.stop_loss !== 0;
+  const hasTarget = Number.isFinite(trade.take_profit) && trade.take_profit !== 0;
+  const hasExit = Number.isFinite(trade.exit_price as number);
+  const hasR = trade.r_multiple != null && Number.isFinite(trade.r_multiple);
+
+  const hasExcursions = trade.mae_price != null || trade.mfe_price != null;
+  return {
+    r: !hasR,
+    rFillable: !hasR && derivableR(trade) !== null,
+    stop: !hasStop,
+    target: !hasTarget,
+    exit: !hasExit,
+    costs: trade.commission == null && trade.swap == null,
+    excursions: !hasExcursions,
+    // Only a bridge-sourced trade can be rebuilt by the terminal — a manual
+    // row has no staging counterpart, so a request would promise a fill
+    // that can never arrive.
+    excursionsFillable: !hasExcursions && trade.sync_source_id != null,
+    notes: !(trade.notes && trade.notes.trim().length > 0),
+  };
+}
+
+function buildChatGaps(
+  window: Trade[],
+  brokerCosts?: Map<string, BrokerCosts> | null
+): ChatGaps | null {
+  const perTrade: ChatTradeGaps[] = [];
+  const counts = {
+    r: 0, rFillable: 0, stop: 0, target: 0, exit: 0,
+    costs: 0, costsFillable: 0, excursions: 0, excursionsFillable: 0, notes: 0,
+  };
+
+  for (let i = 0; i < window.length; i++) {
+    const trade = window[i];
+    const g = numericGaps(trade);
+    // Fillability is data the trade row cannot know: it lives in the broker
+    // staging table, handed in by the caller (useChat, via the shared
+    // staging reader). No map means no fillability, which is the honest
+    // answer for a manual journal.
+    const costsFillable = g.costs && (brokerCosts?.has(trade.id) ?? false);
+    if (!(g.r || g.stop || g.target || g.exit || g.costs || g.excursions || g.notes)) continue;
+    const n = i + 1;
+    perTrade.push({ n, ...g, costsFillable });
+    if (g.excursionsFillable) counts.excursionsFillable += 1;
+    if (g.r) counts.r += 1;
+    if (g.rFillable) counts.rFillable += 1;
+    if (g.stop) counts.stop += 1;
+    if (g.target) counts.target += 1;
+    if (g.exit) counts.exit += 1;
+    if (g.costs) counts.costs += 1;
+    if (costsFillable) counts.costsFillable += 1;
+    if (g.excursions) counts.excursions += 1;
+    if (g.notes) counts.notes += 1;
+  }
+
+  if (perTrade.length === 0) return null;
+  return { withGaps: perTrade.map(g => g.n), counts, trades: perTrade.slice(0, 25) };
+}
+
 export function buildChatContext(params: {
   trades: Trade[];
   account?: TradingAccount | null;
@@ -478,8 +644,24 @@ export function buildChatContext(params: {
   focusTradeId?: string | null;
   /** Whether the rule engine currently locks the session. */
   isLocked?: boolean;
+  /**
+   * Broker-recorded costs for the sent trades, when the account is fed by a
+   * connector. Drives `costsFillable` in the gaps block; null on a manual
+   * journal, where nothing is fillable.
+   */
+  brokerCosts?: Map<string, BrokerCosts> | null;
+  /** High-impact calendar events, for the news-proximity detector. */
+  events?: import('../calendar/economicEvents').EconomicEvent[];
 }): ChatContext {
-  const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
+  const {
+    trades,
+    account = null,
+    locale = 'fr',
+    focusTradeId = null,
+    isLocked = false,
+    brokerCosts = null,
+    events = [],
+  } = params;
 
   // Open positions have no result to reason about.
   const closed = trades.filter(t => t.pnl !== null && t.pnl !== undefined);
@@ -490,8 +672,24 @@ export function buildChatContext(params: {
     ? window.findIndex(t => t.id === focusTradeId)
     : -1;
 
+  // Post-mortem: only for a focused trade, and only a loss — a winning
+  // trade asked about after the fact gets the excursion story, not an
+  // autopsy.
+  const focusTrade = focusTradeId ? window.find(t => t.id === focusTradeId) ?? null : null;
+  const postMortem =
+    focusTrade && (focusTrade.pnl ?? 0) < 0
+      ? buildPostMortem(focusTrade, focusIndex >= 0 ? focusIndex + 1 : null)
+      : null;
+
+  const behaviour =
+    closed.length > 0
+      ? detectBehaviour({ trades: closed, window, account, events })
+      : null;
+
+  const weekly = closed.length > 0 ? buildWeeklyReport(closed, 7) : null;
+
   return {
-    v: 2,
+    v: 4,
     locale,
     accountType: account?.type ?? null,
     // Stats cover the WHOLE history, not just the window: the model must not
@@ -503,5 +701,9 @@ export function buildChatContext(params: {
     excursions: computeChatExcursions(closed),
     isAutoAccount: account?.feed_mode === 'auto',
     completeness: buildChatCompleteness(closed, window),
+    gaps: buildChatGaps(window, brokerCosts),
+    behaviour,
+    postMortem,
+    weekly,
   };
 }

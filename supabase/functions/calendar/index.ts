@@ -4,6 +4,14 @@
  * Fetches the public ForexFactory JSON feed, keeps only high-impact events on
  * the currencies this journal trades, and caches the result in memory.
  *
+ * CONTRACT: the emitted rows ARE the client's EconomicEvent shape
+ * (title, currency, at, impact, forecast, previous — see
+ * src/features/calendar/economicEvents.ts). This function once emitted its
+ * own variant while the client parser kept reading the raw feed's field
+ * names, so every event was dropped client-side and the dashboard band
+ * silently never rendered. The client now tolerates both shapes, but do not
+ * rename anything here without checking that file.
+ *
  * Why server-side for a feed that needs no key:
  *
  *   1. One fetch serves every device. The feed is a courtesy from

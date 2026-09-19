@@ -239,7 +239,32 @@ Deno.serve(async (req: Request) => {
         .eq('status', 'pending')
         .eq('is_open', true);
     }
-    return json({ ok: true });
+
+    // ---- Request handout (chat -> EA round trip, schema.sql SECTION 5). ---
+    // The bridge polls nothing extra: pending back-fill requests ride along
+    // in the heartbeat response. Served is set BEFORE the terminal has
+    // rebuilt anything — at-most-once delivery, on purpose. A rebuild that
+    // fails (terminal offline mid-request) leaves the gaps in place and a
+    // NEW request can be queued, because the dedupe only guards rows still
+    // pending. An old EA simply ignores the field it never read.
+    const { data: pendingReqs } = await admin
+      .from('sync_requests')
+      .select('id, external_ids')
+      .eq('ingest_account_id', ingestId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    let requests: { id: string; external_ids: string[] }[] = [];
+    if (pendingReqs && pendingReqs.length > 0) {
+      await admin
+        .from('sync_requests')
+        .update({ status: 'served', served_at: new Date().toISOString() })
+        .in('id', pendingReqs.map((r) => r.id));
+      requests = pendingReqs.map((r) => ({ id: r.id, external_ids: r.external_ids ?? [] }));
+    }
+
+    return json(requests.length > 0 ? { ok: true, requests } : { ok: true });
   }
 
   if (type !== 'trades' && type !== 'batch') {
@@ -335,6 +360,27 @@ Deno.serve(async (req: Request) => {
     if (closingAnOpenRow && existing.status === 'promoted' && existing.resolved_trade_id) {
       const { error } = await admin.rpc('apply_broker_close', { p_staging_id: existing.id });
       if (!error) closedCompleted++;
+    }
+
+    // A rebuilt event for an already-journaled position back-fills ONLY the
+    // empty fields (apply_broker_refresh re-checks ownership against this
+    // connector). This is the answer side of the chat's request path — and
+    // it also means re-sending history with a NEWER EA (one that carries
+    // stop/take-profit) silently repairs older promotions that lack them.
+    if (
+      resolved &&
+      existing.resolved_trade_id &&
+      (ev.stop_loss != null || ev.take_profit != null || ev.mae_price != null || ev.mfe_price != null)
+    ) {
+      await admin.rpc('apply_broker_refresh', {
+        p_user_id: userId,
+        p_ingest_id: ingestId,
+        p_trade_id: existing.resolved_trade_id,
+        p_stop_loss: ev.stop_loss,
+        p_take_profit: ev.take_profit,
+        p_mae: ev.mae_price,
+        p_mfe: ev.mfe_price,
+      });
     }
   }
 

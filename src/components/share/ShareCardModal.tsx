@@ -18,6 +18,7 @@ import type { Trade } from '../../types/domain';
 import { useMoney } from '../../features/accounts/useMoney';
 import { PressableScale } from '../ui/PressableScale';
 import { Sparkline } from '../ui/Sparkline';
+import { SpacedLabel } from '../ui/SpacedLabel';
 import { useShareCard } from '../../features/share/useShareCard';
 import {
   selectTrades,
@@ -147,7 +148,14 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
                     resizeMode="contain"
                   />
                   <View>
-                    <Text style={styles.brandName}>SEVEN JOURNAL</Text>
+                    <SpacedLabel
+                      fontSize={10}
+                      fontFamily={theme.fonts.monoBold}
+                      letterSpacing={1.1}
+                      style={styles.brandName}
+                    >
+                      SEVEN JOURNAL
+                    </SpacedLabel>
                     <Text style={styles.brandAccount} numberOfLines={1}>
                       {accountName.toUpperCase()}
                     </Text>
@@ -395,9 +403,6 @@ const createStyles = (theme: AppTheme) =>
     brandMark: { width: 22, height: 22 },
     brandName: {
       color: theme.colors.textPrimary,
-      fontSize: 10,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 1.1,
     },
     brandAccount: {
       color: theme.colors.textMuted,

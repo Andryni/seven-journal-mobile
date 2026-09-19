@@ -24,6 +24,7 @@ import { scopeTrades } from '../features/accounts/accountScope';
 import { useChat, type ChatMessage } from '../features/chat/useChat';
 import { affectedTrades } from '../features/chat/chatActions';
 import { auditCompleteness } from '../features/trades/tradeCompleteness';
+import { derivableR } from '../utils/rDerivation';
 
 /**
  * Conversation with the journal.
@@ -80,6 +81,15 @@ export const ChatScreen: React.FC = () => {
     return closed.length > 0 && auditCompleteness(closed).incomplete > 0;
   }, [scoped]);
 
+  /** Closed trades whose R is absent but derivable from their own prices. */
+  const rFillableCount = useMemo(
+    () =>
+      scoped.filter(
+        tr => tr.pnl != null && tr.r_multiple == null && derivableR(tr) !== null
+      ).length,
+    [scoped]
+  );
+
   const suggestions = [
     t('chatSuggest1'),
     t('chatSuggest2'),
@@ -87,6 +97,12 @@ export const ChatScreen: React.FC = () => {
     // Only offered once the bridge has actually left gaps: suggesting it on a
     // hand-written journal would point at nothing.
     ...(hasGaps ? [t('chatSuggest4')] : []),
+    // And the one gap the coach can close itself — offered only when at
+    // least one trade would actually be filled.
+    ...(rFillableCount > 0 ? [t('chatSuggest5')] : []),
+    // The analyst prompts: offered only when there is a recent week to
+    // review, so the suggestion never opens an empty analysis.
+    ...(closedCount >= 5 ? [t('chatSuggestWeekly')] : []),
   ];
 
   const onSend = (text: string) => {
@@ -257,6 +273,17 @@ function actionSummary(
     return (t('chatActionMental' as never) as string)
       .replace('{state}', action.mentalState ?? '')
       .replace('{n}', String(n));
+  }
+  if (action.kind === 'set_r_multiple') {
+    return (t('chatActionR' as never) as string).replace('{n}', String(n));
+  }
+  if (action.kind === 'set_costs') {
+    return (t('chatActionCosts' as never) as string).replace('{n}', String(n));
+  }
+  if (action.kind === 'request_broker_fill') {
+    // n counts the REQUESTED trades, not changed ones: nothing changes yet —
+    // the terminal rebuilds them and only empty fields receive a value.
+    return (t('chatActionBroker' as never) as string).replace('{n}', String(action.trades.length));
   }
   return (t('chatActionFilter' as never) as string).replace('{n}', String(n));
 }

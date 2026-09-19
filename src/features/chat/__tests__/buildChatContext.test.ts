@@ -346,6 +346,78 @@ describe('broker excursions (MAE/MFE in R)', () => {
 });
 
 /**
+ * The v3 numeric gaps block.
+ *
+ * The user asks the coach "what is missing from my trades" — R, stops,
+ * targets, costs, notes — and expects trade numbers, not adverbs. The
+ * block must also tell the model which gaps IT can close (rFillable) versus
+ * which only the trader can.
+ */
+describe('numeric gaps block (v3)', () => {
+  const importNoNumbers = (over: Partial<Trade> = {}) =>
+    trade({
+      id: `g${Math.random().toString(36).slice(2, 7)}`,
+      exit_time: '2026-03-12T11:00:00',
+      r_multiple: null as never,
+      take_profit: 0,
+      exit_price: 2418.2,
+      commission: null as never,
+      swap: null as never,
+      mae_price: null as never,
+      mfe_price: null as never,
+      notes: null,
+      ...over,
+    } as Partial<Trade>);
+
+  it('is null when every sent trade is numerically complete', () => {
+    const complete = trade({ commission: 3, swap: 0, mae_price: 2397, mfe_price: 2422, notes: 'ok' });
+    expect(buildChatContext({ trades: [complete] }).gaps).toBeNull();
+  });
+
+  it('names the missing fields per trade number', () => {
+    const ctx = buildChatContext({ trades: [importNoNumbers()] });
+    const g = ctx.gaps!;
+    expect(g.withGaps).toEqual([1]);
+    expect(g.trades[0].r).toBe(true);
+    expect(g.trades[0].target).toBe(true); // take_profit 0 = "not set"
+    expect(g.trades[0].costs).toBe(true);
+    expect(g.trades[0].excursions).toBe(true);
+    expect(g.trades[0].notes).toBe(true);
+    expect(g.counts.r).toBe(1);
+  });
+
+  it('marks a trade with entry, stop and exit as rFillable', () => {
+    const ctx = buildChatContext({ trades: [importNoNumbers()] });
+    // The fixture trade: entry 2400.55, stop 2395, exit 2418.2 -> derivable.
+    expect(ctx.gaps!.trades[0].rFillable).toBe(true);
+    expect(ctx.gaps!.counts.rFillable).toBe(1);
+  });
+
+  it('does not mark rFillable when the stop is the schema default 0', () => {
+    const ctx = buildChatContext({ trades: [importNoNumbers({ stop_loss: 0 })] });
+    expect(ctx.gaps!.trades[0].rFillable).toBe(false);
+  });
+
+  it('distinguishes unknown costs (null) from zero costs (recorded)', () => {
+    const withZeroCosts = importNoNumbers({ commission: 0, swap: 0 });
+    expect(buildChatContext({ trades: [withZeroCosts] }).gaps!.trades[0].costs).toBe(false);
+  });
+
+  it('never sends a gap for an open position', () => {
+    // The window only carries closed trades; gaps are built from it, so an
+    // open trade must not appear even with every numeric field empty.
+    const ctx = buildChatContext({
+      trades: [trade({ id: 'open', pnl: null as never }), importNoNumbers()],
+    });
+    expect(ctx.gaps!.withGaps).toEqual([1]);
+  });
+
+  it('stays null on an empty journal', () => {
+    expect(buildChatContext({ trades: [] }).gaps).toBeNull();
+  });
+});
+
+/**
  * Completeness reaches the model.
  *
  * Imported trades carry a seeded mental_state that is indistinguishable from

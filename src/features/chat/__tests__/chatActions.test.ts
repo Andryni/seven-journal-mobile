@@ -200,6 +200,64 @@ describe('patchFor — additive and idempotent', () => {
   });
 });
 
+describe('set_r_multiple — the app derives, never the model', () => {
+  // entry 2400, stop 2395 (risk 5), exit 2410 => 2.0R
+  const derivable = (over: Partial<Trade> = {}) =>
+    trade({ r_multiple: null as never, stop_loss: 2395, ...over } as Partial<Trade>);
+
+  it('accepts the action and resolves every named trade', () => {
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1, 2] })!;
+    const res = resolveAction(parsed, [derivable({ id: 'a' }), derivable({ id: 'b' })]);
+    expect(res.ok).toBe(true);
+  });
+
+  it('refuses when one target cannot be derived from its prices', () => {
+    // A "fill what you can" would write nothing on trade b while the
+    // confirmation dialog claims both — refusing is the honest outcome.
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1, 2] })!;
+    const res = resolveAction(parsed, [derivable({ id: 'a' }), derivable({ id: 'b', stop_loss: 0 })]);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe('not_derivable');
+  });
+
+  it('derives the value on the device at patch time', () => {
+    const target = derivable();
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1] })!;
+    const res = resolveAction(parsed, [target]);
+    if (!res.ok) throw new Error('should resolve');
+    expect(patchFor(res.action, target)).toEqual({ r_multiple: 2 });
+  });
+
+  it('writes nothing when R is already stored', () => {
+    const target = trade({ r_multiple: 1.8 });
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1] })!;
+    const res = resolveAction(parsed, [target]);
+    // Resolution succeeds; the patch step is what makes it a no-op.
+    if (!res.ok) throw new Error('should resolve');
+    expect(patchFor(res.action, target)).toBeNull();
+    expect(affectedTrades(res.action)).toHaveLength(0);
+  });
+
+  it('never touches prices, pnl or size', () => {
+    const target = derivable();
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1] })!;
+    const res = resolveAction(parsed, [target]);
+    if (!res.ok) throw new Error('should resolve');
+    const patch = patchFor(res.action, target)!;
+    for (const forbidden of ['pnl', 'entry_price', 'exit_price', 'stop_loss', 'size']) {
+      expect(patch).not.toHaveProperty(forbidden);
+    }
+  });
+
+  it('respects the SELL direction', () => {
+    const target = derivable({ direction: 'SELL', stop_loss: 2405, exit_price: 2388 });
+    const parsed = parseAction({ kind: 'set_r_multiple', tradeNs: [1] })!;
+    const res = resolveAction(parsed, [target]);
+    if (!res.ok) throw new Error('should resolve');
+    expect(patchFor(res.action, target)).toEqual({ r_multiple: 2.4 });
+  });
+});
+
 describe('affectedTrades', () => {
   it('counts only the trades that would really change', () => {
     // The confirmation should say "2 trades", not "3", when one already
@@ -215,5 +273,37 @@ describe('affectedTrades', () => {
     );
     if (!res.ok) throw new Error('should resolve');
     expect(affectedTrades(res.action).map(t => t.id)).toEqual(['a', 'c']);
+  });
+});
+
+describe('request_broker_fill', () => {
+  it('resolves for bridge-sourced trades only', () => {
+    const bridge = trade({ id: 'a', sync_source_id: 'stg-1' });
+    const manual = trade({ id: 'b' });
+
+    const ok = resolveAction(parseAction({ kind: 'request_broker_fill', tradeNs: [1] })!, [bridge]);
+    expect(ok.ok).toBe(true);
+
+    // A manual trade has no staging counterpart: the terminal cannot rebuild
+    // it, so the whole proposal is refused rather than half-promise a fill.
+    const ko = resolveAction(parseAction({ kind: 'request_broker_fill', tradeNs: [1] })!, [manual]);
+    expect(ko).toEqual({ ok: false, reason: 'not_available' });
+  });
+
+  it('refuses when one target is manual (all-or-nothing)', () => {
+    const trades = [
+      trade({ id: 'a', sync_source_id: 'stg-1' }),
+      trade({ id: 'b' }),
+    ];
+    const res = resolveAction(parseAction({ kind: 'request_broker_fill', tradeNs: [1, 2] })!, trades);
+    expect(res).toEqual({ ok: false, reason: 'not_available' });
+  });
+
+  it('writes nothing into the journal (async fill, gap-only)', () => {
+    const bridge = trade({ id: 'a', sync_source_id: 'stg-1' });
+    const res = resolveAction(parseAction({ kind: 'request_broker_fill', tradeNs: [1] })!, [bridge]);
+    if (!res.ok) throw new Error('should resolve');
+    expect(patchFor(res.action, bridge)).toBeNull();
+    expect(affectedTrades(res.action)).toHaveLength(0);
   });
 });

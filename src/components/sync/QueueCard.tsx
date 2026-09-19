@@ -1,9 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  FadeIn,
+} from 'react-native-reanimated';
 import { Link2, X, Check, AlertTriangle } from 'lucide-react-native';
-import { useTheme } from '../../theme';
+import { useTheme, withAlpha } from '../../theme';
 import type { AppTheme } from '../../theme';
-import { withAlpha } from '../../theme';
+import { duration, easing } from '../../theme/motion';
 import { useT } from '../../i18n';
 import { Panel } from '../ui/Panel';
 import { PressableScale } from '../ui/PressableScale';
@@ -19,6 +27,10 @@ import {
  * Display-only: promote / link / dismiss are callbacks from the parent. The
  * pnl-gap warning renders itself when the broker and journal amounts
  * disagree — the one case where the card speaks before being asked.
+ *
+ * An open position is genuinely live state, so it is the one badge allowed to
+ * pulse (the same rule as LivePanel): a quiet breathing dot says "this number
+ * is still moving" without a single bounce.
  */
 export const QueueCard: React.FC<{
   card: QueueCardData;
@@ -35,6 +47,20 @@ export const QueueCard: React.FC<{
   const pnlColor =
     card.pnl == null ? theme.colors.textMuted : card.pnl >= 0 ? theme.colors.green : theme.colors.red;
 
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    if (!card.isOpen) return;
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1600, easing: easing.inOut }),
+        withTiming(0.35, { duration: 1600, easing: easing.inOut })
+      ),
+      -1
+    );
+  }, [card.isOpen, pulse]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
   return (
     <Panel>
       <View style={styles.head}>
@@ -43,7 +69,13 @@ export const QueueCard: React.FC<{
         </View>
         <Text style={styles.symbol}>{card.symbol}</Text>
         {card.isOpen ? (
-          <Badge label={t('syncOpenBadge')} variant="neutral" />
+          // Live badge with breathing dot: the position's numbers are still
+          // moving, and the badge is the only thing on the card allowed to
+          // carry a loop.
+          <View style={styles.openBadge}>
+            <Animated.View style={[styles.liveDot, pulseStyle]} />
+            <Text style={styles.openBadgeText}>{t('syncOpenBadge')}</Text>
+          </View>
         ) : card.closeReason ? (
           <Badge
             label={t('syncExitBadge', t(closeReasonLabel(card.closeReason)))}
@@ -96,6 +128,27 @@ const createStyles = (theme: AppTheme) =>
       borderRadius: 4,
     },
     dirText: {
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+    },
+    openBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 4,
+      backgroundColor: withAlpha(theme.colors.gold, 0.12),
+    },
+    liveDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: theme.colors.gold,
+    },
+    openBadgeText: {
+      color: theme.colors.goldLight,
       fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.5,

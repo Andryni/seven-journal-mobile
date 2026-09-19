@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.14"
+#property version   "1.15"
 #property strict
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
@@ -193,8 +193,10 @@ void DrawPanel()
 //+------------------------------------------------------------------+
 //| POST JSON vers le webhook. Retourne true si 2xx.                 |
 //| Retry x3 avec backoff pour les erreurs reseau transitoires.      |
+//| v1.15 : responseBody capture la reponse — le heartbeat y porte   |
+//| les demandes de back-fill a servir (voir ParseHeartbeatRequests). |
 //+------------------------------------------------------------------+
-bool PostJson(const string body, string &responseCode)
+bool PostJson(const string body, string &responseCode, string &responseBody)
   {
    char data[];
    char result[];
@@ -225,6 +227,7 @@ bool PostJson(const string body, string &responseCode)
       else if(status >= 200 && status < 300)
         {
          responseCode = IntegerToString(status);
+         responseBody = CharArrayToString(result);
          GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
          return(true);
         }
@@ -277,7 +280,123 @@ void SendHeartbeat()
                  + ",\"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\""
                  + "}";
    string code;
-   PostJson(body, code);
+   string resp;
+   if(!PostJson(body, code, resp)) return;
+
+   // v1.15 : reponse aux demandes de back-fill (chat -> EA). Le serveur
+   // envoie dans le heartbeat les positions a reconstruire ; chacune est
+   // renvoyee sur le canal normal "trades" ENRICHIE de ses extremes
+   // (MAE/MFE recalculs depuis les barres M1) et de ses niveaux SL/TP.
+   // Cote serveur, le trade deja journalise est complete SANS ecraser
+   // aucune valeur posee par le trader.
+   string reqIds[];
+   int reqN = ParseHeartbeatRequests(resp, reqIds);
+   if(reqN > 0)
+     {
+      string evs = "";
+      int    cnt = 0;
+      for(int i = 0; i < reqN; i++)
+        {
+         string ev = BuildPositionEvent(reqIds[i], false, 0, 0, true);
+         if(ev == "") continue;
+         if(evs != "") evs += ",";
+         evs += ev;
+         cnt++;
+        }
+      if(cnt > 0)
+        {
+         string flushBody = "{\"type\":\"trades\",\"events\":[" + evs + "]}";
+         string c2;
+         string dump2;
+         PostJson(flushBody, c2, dump2);
+         Print("SevenJournalSync: ", cnt,
+               " position(s) reconstruite(s) avec extremes pour back-fill");
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Parse minimal de la reponse heartbeat : ids demandes par le      |
+//| serveur sous {"ok":true,"requests":[{"id":..,"external_ids":[..]}]}. |
+//| Un vrai parseur JSON n'existe pas en MQL5 standard : on extrait  |
+//| chaque tableau "external_ids" par bornage de crochets — suffisant |
+//| pour un contrat que l'on controle des deux cotes.                |
+//+------------------------------------------------------------------+
+int ParseHeartbeatRequests(const string response, string &ids[])
+  {
+   ArrayResize(ids, 0);
+   if(StringFind(response, "\"requests\"") < 0) return(0);
+
+   int n = 0;
+   int from = 0;
+   while(true)
+     {
+      int q = StringFind(response, "\"external_ids\"", from);
+      if(q < 0) break;
+      int a = StringFind(response, "[", q);
+      int b = StringFind(response, "]", a);
+      if(a < 0 || b < 0 || b <= a) break;
+      string arr = StringSubstr(response, a + 1, b - a - 1);
+
+      string parts[];
+      int k = StringSplit(arr, ',', parts);
+      for(int i = 0; i < k; i++)
+        {
+         string v = parts[i];
+         StringReplace(v, "\"", "");
+         StringTrimLeft(v);
+         StringTrimRight(v);
+         if(StringLen(v) > 0)
+           {
+            ArrayResize(ids, n + 1);
+            ids[n] = v;
+            n++;
+           }
+        }
+      from = b;
+     }
+   return(n);
+  }
+
+//+------------------------------------------------------------------+
+//| Extremes de prix d'une position : MAE (pire adverse) et MFE      |
+//| (meilleur favorable), recalcules depuis les barres M1 locales.   |
+//| Sens-aware : pour un SELL l'adverse est AU-DESSUS du prix         |
+//| d'entree — c'est la convention du journal (maeR/mfeR en R).      |
+//| Les donnees viennent du terminal lui-meme : aucune donnee ne     |
+//| sort de la plate-forme que le trader n'y ait deja mise.          |
+//+------------------------------------------------------------------+
+bool PositionExtremes(const string symbol, const string direction,
+                      const datetime fromTime, const datetime toTime,
+                      double &maeOut, double &mfeOut)
+  {
+   if(symbol == "" || toTime <= 0) return(false);
+   datetime from = (fromTime > 0) ? fromTime : toTime;
+
+   double   hi = -DBL_MAX, lo = DBL_MAX;
+   bool     got = false;
+   datetime cursor = from;
+   while(cursor <= toTime)
+     {
+      MqlRates rates[];
+      int n = CopyRates(symbol, PERIOD_M1, cursor, toTime, rates);
+      if(n <= 0) break;              // plus de donnees locales
+      for(int i = 0; i < n; i++)
+        {
+         if(rates[i].time > toTime) break;
+         if(rates[i].high > hi) hi = rates[i].high;
+         if(rates[i].low  < lo) lo = rates[i].low;
+         got = true;
+        }
+      datetime last = rates[n - 1].time;
+      if(last <= cursor) break;      // anti-boucle
+      cursor = last + 60;
+     }
+   if(!got) return(false);
+
+   if(direction == "SELL") { maeOut = hi; mfeOut = lo; }
+   else                    { maeOut = lo; mfeOut = hi; }
+   return(true);
   }
 
 //+------------------------------------------------------------------+
@@ -288,7 +407,8 @@ bool FlushEvents(const string events, const int count)
    if(count <= 0) return(true);
    string body = "{\"type\":\"trades\",\"events\":[" + events + "]}";
    string code;
-   if(PostJson(body, code))
+   string dump;
+   if(PostJson(body, code, dump))
      {
       Print("SevenJournalSync: ", count, " position(s) envoyee(s) (HTTP ", code, ")");
       g_lastSendCount = count;
@@ -422,7 +542,8 @@ void ScanAndPush()
 //| Entrees sommees, sorties listees, pnl NET.                        |
 //+------------------------------------------------------------------+
 string BuildPositionEvent(const string posId, const bool isOpen,
-                          const double curSL = 0, const double curTP = 0)
+                          const double curSL = 0, const double curTP = 0,
+                          const bool includeExcursions = false)
   {
    long   posIdNum = StringToInteger(posId);
    if(!HistorySelectByPosition(posIdNum)) return("");
@@ -523,6 +644,18 @@ string BuildPositionEvent(const string posId, const bool isOpen,
       json += ",\"close_reason\":\"" + CloseReason(lastReason, pnl) + "\"";
       if(exitsCount > 1)   // une seule sortie = pas de detail partiel utile
          json += ",\"exits\":[" + exits + "]";
+
+      // v1.15 : extremes calcules a la demande (back-fill uniquement —
+      // scanner les M1 de chaque position a chaque scan serait cher).
+      if(includeExcursions)
+        {
+         double mae = 0, mfe = 0;
+         if(PositionExtremes(symbol, direction, inTime, lastOutTime, mae, mfe))
+           {
+            json += ",\"mae_price\":" + Num(mae, 8);
+            json += ",\"mfe_price\":" + Num(mfe, 8);
+           }
+        }
      }
 
    json += "}";

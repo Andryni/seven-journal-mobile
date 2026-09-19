@@ -49,6 +49,31 @@ const CONNECTORS_KEY = ['sync_connectors'] as const;
 const LINKED_ACCOUNTS_KEY = ['sync_linked_accounts'] as const;
 
 /**
+ * A database the schema.sql has not been re-run on fails the sync RPCs with
+ * precise Postgres errors (unknown function, missing column, old check
+ * constraint). The text itself names a SQL object, which means nothing on a
+ * phone screen — the actionable version is "re-run the schema", so a match
+ * appends exactly that.
+ */
+const SCHEMA_ISSUE_RE =
+  /does not exist|schema cache|could not find the function|could not find the rpc|violates check constraint/i;
+
+/**
+ * The server's own reason for a failed RPC, or the generic fallback.
+ *
+ * PostgrestError extends Error, so the `raise exception` text the SQL wrote
+ * ('no target account for staging …', 'staging row not pending') arrives here
+ * verbatim — showing it replaces an unexplained "failed" with the one string
+ * that names the cause. The SQLSTATE prefix ("P0001: ") is SQL noise on a
+ * toast and is stripped.
+ */
+function rpcErrorText(err: unknown, fallback: string): { text: string; needsSchema: boolean } {
+  if (!(err instanceof Error) || !err.message) return { text: fallback, needsSchema: false };
+  const msg = err.message.replace(/^P0001:\s*/, '').trim();
+  return { text: msg || fallback, needsSchema: SCHEMA_ISSUE_RE.test(msg) };
+}
+
+/**
  * Journal accounts currently fed by at least one connector.
  *
  * The Accounts screen badges these as "synchronised"; a dedicated tiny query
@@ -82,7 +107,11 @@ export function useSyncQueue() {
         .select(
           'id, external_id, payload, is_open, open_time, close_time, status, created_at, ingest_account_id',
         )
-        .eq('status', 'pending')
+        // stale rides along: an open position the heartbeat no longer sees
+        // is a RECOVERABLE state (the bridge re-sends it on sight), not a
+        // decision the user has to make — but hiding it made the queue lie
+        // about what the bridge knows.
+        .in('status', ['pending', 'stale'])
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -189,8 +218,8 @@ export function useSyncQueue() {
     onError: (err: unknown) => {
       // The RPC raises precise Postgres errors (no routing account, missing
       // journal columns) — surface the server's message, not a generic one.
-      const msg = err instanceof Error && err.message ? err.message : t('syncToastError');
-      showError(msg);
+      const { text, needsSchema } = rpcErrorText(err, t('syncToastError'));
+      showError(needsSchema ? `${text} — ${t('syncSchemaHint')}` : text);
     },
   });
 
@@ -208,7 +237,12 @@ export function useSyncQueue() {
       showSuccess(t('syncToastLinked'));
       invalidate();
     },
-    onError: () => showError(t('syncToastError')),
+    onError: (err: unknown) => {
+      // 'staging row not pending' is the "someone already promoted it on
+      // another device" case: the honest message beats a red retry loop.
+      const { text, needsSchema } = rpcErrorText(err, t('syncToastError'));
+      showError(needsSchema ? `${text} — ${t('syncSchemaHint')}` : text);
+    },
   });
 
   const dismissMutation = useMutation({
@@ -269,7 +303,9 @@ export function useSyncQueue() {
   // import). dismissAll maps every row through the same server enum.
   const promoteAllMutation = useMutation({
     mutationFn: async () => {
-      const rows = queueQuery.data ?? [];
+      // Only PENDING rows are promotable (the server skips the rest); stale
+      // rows must not be counted into the confirmation toast.
+      const rows = (queueQuery.data ?? []).filter((r) => r.status === 'pending');
       if (rows.length === 0) return 0;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non authentifié');
@@ -287,19 +323,22 @@ export function useSyncQueue() {
       invalidate();
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error && err.message ? err.message : t('syncToastError');
-      showError(msg);
+      const { text, needsSchema } = rpcErrorText(err, t('syncToastError'));
+      showError(needsSchema ? `${text} — ${t('syncSchemaHint')}` : text);
     },
   });
 
   const dismissAllMutation = useMutation({
     mutationFn: async () => {
-      const rows = queueQuery.data ?? [];
+      const rows = (queueQuery.data ?? []).filter((r) => r.status === 'pending');
       if (rows.length === 0) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non authentifié');
-      const { error } = await supabase.rpc('dismiss_sync_trade', {
-        p_staging_id: rows.map((r) => r.id),
+      // dismiss_sync_TRADES takes an uuid[] — the singular RPC used here
+      // before coerced the array to a string and rejected every id, so the
+      // bulk dismiss could only ever fail.
+      const { error } = await supabase.rpc('dismiss_sync_trades', {
+        p_staging_ids: rows.map((r) => r.id),
         p_reason: 'duplicate',
       });
       if (error) throw error;

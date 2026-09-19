@@ -39,8 +39,14 @@ Hard rules:
 - If "account" is null, the context aggregates several accounts together: say so when relevant, never present combined figures as one account's.
 - "excursions" appears when the broker recorded price excursions (MAE/MFE) for enough closed trades — typically auto-synced accounts ("isAutoAccount"). These are the most honest execution signals you have: "stoppedThroughNoise" counts trades whose adverse excursion reached a full stop distance (stops placed inside the noise), "avgCaptureRatio" is how much of the best excursion was actually banked (low = gave winners back), "avgMfeR" how far the average trade ran, "runners2R" how often 2R was on the table. Coach on them concretely; if "measured" is small, say the sample is thin.
 - If "excursions" is null, execution quality cannot be assessed from this journal — never invent it.
-- You may PROPOSE one action at the very end of your reply, and only when the user clearly asked for a change. Format, on its own final line: <<<ACTION{"kind":"add_tag","tradeNs":[3,7],"tag":"revenge"}>>>  — kinds are "add_tag" (needs "tag"), "set_mental_state" (needs "mentalState", one of focused/anxious/greedy/revenge/fomo/tired) and "filter_trades". Reference trades only by their number in "trades"; never invent one. Nothing is applied until the trader confirms it on screen, so describe the change in your prose as a proposal, not as done. Never propose a change to a price, a P&L, a size, or the deletion of anything — you cannot, and claiming otherwise misleads.
-- "completeness" reports what the journal is MISSING. Imported trades arrive with prices but no context, and promotion has to seed mental_state and timeframe to satisfy the schema, so those values exist without meaning anything. "assessed" is the real sample size behind any mental-state claim — quote it, not "total", whenever you discuss psychology. "byField" counts how many trades lack each field, and "worstTradeNs" points at the emptiest ones by their number in "trades". When asked what is missing, answer from this block: name the fields, the counts, and the trade numbers to fix first. Never describe a seeded value as if the trader had chosen it.
+- You may PROPOSE one action at the very end of your reply, and only when the user clearly asked for a change. Format, on its own final line: <<<ACTION{"kind":"add_tag","tradeNs":[3,7],"tag":"revenge"}>>>  — kinds are "add_tag" (needs "tag"), "set_mental_state" (needs "mentalState", one of focused/anxious/greedy/revenge/fomo/tired), "filter_trades", "set_r_multiple", "set_costs" and "request_broker_fill" (the last three take no fields; EVERY named trade must be flagged "rFillable" — respectively "costsFillable", "excursionsFillable" — in "gaps", because the app refuses a proposal that names even one non-fillable trade). Reference trades only by their number in "trades"; never invent one. Nothing is applied until the trader confirms it on screen, so describe the change in your prose as a proposal, not as done. Never propose a change to a price, a P&L, a size, or the deletion of anything — you cannot, and claiming otherwise misleads.
+- "completeness" reports what the journal is MISSING. Imported trades arrive with prices but no context, and promotion has to seed mental_state and timeframe to satisfy the schema, so those values exist without meaning anything. "assessed" is the real sample size behind any mental-state claim — quote it, not "total", whenever you discuss psychology. "byField" counts how many trades lack each field, and "worstTradeNs" points at the emptiest ones by their number in "trades". Never describe a seeded value as if the trader had chosen it.
+- "gaps" reports what the NUMERIC record of the sent trades is missing, trade by trade: "r" (no R-multiple stored), "stop" (no stop-loss), "target" (no take-profit), "exit" (no exit price), "costs" (commission and swap both unknown), "excursions" (no MAE/MFE) and "notes" (no note written). When the trader asks what is missing — from their trades, their imports, or a specific trade — answer from THIS block first: name the fields and the trade numbers, most damaging first (a missing R or stop distorts every risk statistic; missing costs distort net results).
+- What the app CAN fill in versus what only the trader can: "rFillable" marks trades whose R-multiple can be derived on the device from their own entry, stop and exit — propose "set_r_multiple" for those. "costsFillable" marks trades whose missing commission and swap exist in the broker's own record — propose "set_costs" for those. The app supplies the numbers at confirmation in both cases; you never compute or state them. "excursionsFillable" marks bridge-sourced trades whose missing stop, target or MAE/MFE can be REBUILT by the trader's own MT5 terminal — propose "request_broker_fill" for those and explain that the terminal will re-send the levels at its next sync; nothing changes instantly, and the terminal fills only what is still empty. Everything else in "gaps" is ONLY the trader's to supply: the timeframe, the setup, and above all the notes and the mental state. You may PROPOSE tags and mental states as actions, but notes, setups and strategy are the trader's judgement — for those, say what to write and why, then stop.
+- These flag names are CONTRACT, not vocabulary. Never write `excursionsFillable`, `rFillable`, `costsFillable`, `isAutoAccount` or any other JSON field name in your reply, never put field names in backticks, and never claim a flag "is false" — the trader has no screen showing flags, so quoting them reads as a malfunction. When "excursionsFillable" is false for the trades in question, say instead that the terminal captured no stop/target levels to resend, and fall back to proposing "request_broker_fill" for the bridge-sourced trades anyway (the terminal rechecks at its next sync) or explaining the fields stay manual. When it is true, say the terminal CAN resend the missing levels and propose the action.
+- "behaviour" reports RELATIONAL habits measured across the sequence of trades — quote the numbers, never generalise beyond them: "revenge" lists a losing trade (by number) followed within minutes by a same-pair re-entry of at least the same size, with each reaction's minutesAfter and their combined extraPnl; "overtrading" lists local days above the trader's OWN max_trades_per_day rule with that day's net P&L — if the list is empty, the rule is either not set or respected, say which only if you can tell; "news" lists entries within 30 minutes of a high-impact release in one of the pair's currencies. Every number here was measured on the device; your job is to connect them into one honest sentence per finding, name the trades by number, and stop at the evidence. Never moralise without a number.
+- "postMortem" appears when the trader opened the chat FROM one losing trade (focusTradeN). It is the measured anatomy of that loss: "stoppedThroughNoise" (adverse excursion ≥ 1R — the stop sat inside the noise), "nearMiss", "giveBack" (a real gain handed back), "lowCapture" (banked under half the move), "costsAteIt" (fees ≥ 15% of the loss), "noStop", "revengeTagged" (the trader's own mental-state tag), "noExcursions" (the journal cannot see the path — say so). Quote the mae/mfe/capture values present; sequence the findings into a diagnosis and one corrective suggestion. A finding list is evidence, not verdict: the trader still decides what it means.
+- "weekly" is the last-7-local-days review, precomputed: trades, netPnl, winRatePct, avgR with its honest rSample, costs, incomplete count, attribution by setup and by session (label, trades, totalR, netPnl), and up to three "actions" keyed fillGaps / sessionFocus / cutCosts / reduceTargets / noAction. When the trader asks for a weekly report or "where is my edge", structure the answer as: the four headline numbers, where R concentrated (setup and session, with their samples), the cost line, then the actions as numbered suggestions. If rSample is small, say the week is thin before claiming an edge anywhere.
 - You still do not see prices, stop levels, position sizes or the raw balance. If asked, say so plainly.
 - No market predictions, no financial advice, no opinion on whether an instrument will move.
 - Be direct and specific. Refer to trades by their number ("trade 4"). Prefer one concrete observation over three hedged ones.
@@ -78,10 +84,11 @@ const str = (x: unknown, max = 40): string | null =>
 function sanitizeContext(input: unknown): Record<string, unknown> | null {
   if (typeof input !== 'object' || input === null) return null;
   const c = input as Record<string, unknown>;
-  // v2 adds the derived account block (limits, lock, progress); v1 clients
-  // are gone with the release that shipped v2, but both are accepted so a
+  // v2 adds the derived account block (limits, lock, progress); v3 adds the
+  // numeric `gaps` audit; v4 adds behaviour, postMortem and weekly. v1..v3
+  // clients are gone with their releases, but all four are accepted so a
   // stale bundle cannot brick the chat.
-  if (c.v !== 1 && c.v !== 2) return null;
+  if (c.v !== 1 && c.v !== 2 && c.v !== 3 && c.v !== 4) return null;
 
   const s = (c.stats ?? {}) as Record<string, unknown>;
   const stats = {
@@ -198,7 +205,228 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     };
   }
 
-  return {
+  // Gaps, v3: what the NUMERIC record is missing, per sent trade. The
+  // booleans are coerced to real booleans and the trade numbers are
+  // intersected with the trades actually forwarded -- a number outside the
+  // window would invite the model to describe a trade it does not have.
+  let gapsBlock: Record<string, unknown> | null = null;
+  if (c.gaps && typeof c.gaps === 'object') {
+    const g = c.gaps as Record<string, unknown>;
+    const sentNs = new Set(trades.map(t => t.n));
+    const flag = (x: unknown): boolean => x === true;
+    const rawGapTrades = Array.isArray(g.trades) ? g.trades : [];
+    const gapTrades = rawGapTrades
+      .slice(0, 40)
+      .map((t): Record<string, unknown> | null => {
+        if (typeof t !== 'object' || t === null) return null;
+        const q = t as Record<string, unknown>;
+        const n = num(q.n);
+        if (n === null || !sentNs.has(n)) return null;
+        return {
+          n: Math.round(n),
+          r: flag(q.r),
+          rFillable: flag(q.rFillable),
+          stop: flag(q.stop),
+          target: flag(q.target),
+          exit: flag(q.exit),
+          costs: flag(q.costs),
+          costsFillable: flag(q.costsFillable),
+          excursions: flag(q.excursions),
+          excursionsFillable: flag(q.excursionsFillable),
+          notes: flag(q.notes),
+        };
+      })
+      .filter((x): x is Record<string, unknown> => x !== null)
+      .slice(0, 25);
+    const rawCounts = (g.counts ?? {}) as Record<string, unknown>;
+    const count = (x: unknown): number => {
+      const v = num(x);
+      return v !== null && v >= 0 && v < 1000000 ? Math.round(v) : 0;
+    };
+    gapsBlock = {
+      withGaps: Array.isArray(g.withGaps)
+        ? g.withGaps.map(count).filter(n => n > 0 && sentNs.has(n)).slice(0, 60)
+        : [],
+      counts: {
+        r: count(rawCounts.r),
+        rFillable: count(rawCounts.rFillable),
+        stop: count(rawCounts.stop),
+        target: count(rawCounts.target),
+        exit: count(rawCounts.exit),
+        costs: count(rawCounts.costs),
+        costsFillable: count(rawCounts.costsFillable),
+        excursions: count(rawCounts.excursions),
+        excursionsFillable: count(rawCounts.excursionsFillable),
+        notes: count(rawCounts.notes),
+      },
+      trades: gapTrades,
+    };
+  }
+
+  // Behaviour, v4: relational findings with their trade numbers, minutes
+  // and P&L. Counts are clamped, trade numbers intersected with the sent
+  // window, and every nested object is whitelisted field by field -- same
+  // discipline as the rest of the context.
+  let behaviourBlock: Record<string, unknown> | null = null;
+  if (c.behaviour && typeof c.behaviour === 'object') {
+    const b = c.behaviour as Record<string, unknown>;
+    const sentNs = new Set(trades.map(t => t.n));
+    const cnt = (x: unknown): number => {
+      const v = num(x);
+      return v !== null && v >= -1000000000 && v < 1000000000 ? v : 0;
+    };
+    const revenge = Array.isArray(b.revenge) ? b.revenge : [];
+    const overtrading = Array.isArray(b.overtrading) ? b.overtrading : [];
+    const news = Array.isArray(b.news) ? b.news : [];
+    behaviourBlock = {
+      revenge: revenge.slice(0, 10).map((x): Record<string, unknown> | null => {
+        if (typeof x !== 'object' || x === null) return null;
+        const q = x as Record<string, unknown>;
+        const triggerN = num(q.triggerN);
+        if (triggerN === null || !sentNs.has(triggerN)) return null;
+        return {
+          kind: 'revenge',
+          triggerN: Math.round(triggerN),
+          reactions: (Array.isArray(q.reactions) ? q.reactions : [])
+            .slice(0, 5)
+            .map((y): Record<string, unknown> | null => {
+              if (typeof y !== 'object' || y === null) return null;
+              const w = y as Record<string, unknown>;
+              const n = num(w.n);
+              if (n === null || !sentNs.has(n)) return null;
+              return {
+                n: Math.round(n),
+                minutesAfter: cnt(w.minutesAfter),
+                samePair: w.samePair === true,
+              };
+            })
+            .filter((y): y is Record<string, unknown> => y !== null),
+          extraPnl: cnt(q.extraPnl),
+        };
+      }).filter((x): x is Record<string, unknown> => x !== null),
+      overtrading: overtrading.slice(0, 7).map((x): Record<string, unknown> | null => {
+        if (typeof x !== 'object' || x === null) return null;
+        const q = x as Record<string, unknown>;
+        return {
+          kind: 'overtrading',
+          date: str(q.date, 10) ?? '',
+          trades: cnt(q.trades),
+          limit: cnt(q.limit),
+          dayPnl: cnt(q.dayPnl),
+        };
+      }).filter((x): x is Record<string, unknown> => x !== null),
+      news: news.slice(0, 10).map((x): Record<string, unknown> | null => {
+        if (typeof x !== 'object' || x === null) return null;
+        const q = x as Record<string, unknown>;
+        const n = num(q.n);
+        if (n === null || !sentNs.has(n)) return null;
+        return {
+          kind: 'news',
+          n: Math.round(n),
+          eventTitle: str(q.eventTitle, 60) ?? '',
+          eventCurrency: str(q.eventCurrency, 8) ?? '',
+          minutesFromEvent: cnt(q.minutesFromEvent),
+        };
+      }).filter((x): x is Record<string, unknown> => x !== null),
+      examined: cnt(b.examined),
+    };
+  }
+
+  // Post-mortem, v4: the measured anatomy of the focused trade's loss.
+  let postMortemBlock: Record<string, unknown> | null = null;
+  if (c.postMortem && typeof c.postMortem === 'object') {
+    const p = c.postMortem as Record<string, unknown>;
+    const ALLOWED_KEYS = [
+      'stoppedThroughNoise',
+      'nearMiss',
+      'giveBack',
+      'lowCapture',
+      'costsAteIt',
+      'noStop',
+      'revengeTagged',
+      'noExcursions',
+    ];
+    const ratio = (x: unknown): number | null => {
+      const v = num(x);
+      return v !== null && v >= -50 && v <= 50 ? v : null;
+    };
+    postMortemBlock = {
+      n: num(p.n),
+      isLoss: p.isLoss === true,
+      findings: (Array.isArray(p.findings) ? p.findings : [])
+        .slice(0, 8)
+        .map((x): Record<string, unknown> | null => {
+          if (typeof x !== 'object' || x === null) return null;
+          const q = x as Record<string, unknown>;
+          if (typeof q.key !== 'string' || !ALLOWED_KEYS.includes(q.key)) return null;
+          const out: Record<string, unknown> = { key: q.key };
+          const v = ratio(q.value);
+          if (v !== null) out.value = v;
+          return out;
+        })
+        .filter((x): x is Record<string, unknown> => x !== null),
+      session: str(p.session, 20),
+      mental: str(p.mental, 20),
+      mae: ratio(p.mae),
+      mfe: ratio(p.mfe),
+      capture: ratio(p.capture),
+      costShareOfLoss: ratio(p.costShareOfLoss),
+    };
+  }
+
+  // Weekly, v4: the last-7-days attribution and actions.
+  let weeklyBlock: Record<string, unknown> | null = null;
+  if (c.weekly && typeof c.weekly === 'object') {
+    const w = c.weekly as Record<string, unknown>;
+    const cnt = (x: unknown): number => {
+      const v = num(x);
+      return v !== null && v >= 0 && v < 1000000 ? Math.round(v) : 0;
+    };
+    const money = (x: unknown): number | null => {
+      const v = num(x);
+      return v !== null && v >= -1000000000 && v < 1000000000 ? v : null;
+    };
+    const bucket = (x: unknown): Record<string, unknown> | null => {
+      if (typeof x !== 'object' || x === null) return null;
+      const q = x as Record<string, unknown>;
+      return {
+        label: str(q.label, 24) ?? '',
+        trades: cnt(q.trades),
+        totalR: money(q.totalR),
+        rSample: cnt(q.rSample),
+        netPnl: money(q.netPnl),
+      };
+    };
+    const ACTION_KEYS = ['fillGaps', 'tightenStop', 'sessionFocus', 'cutCosts', 'reduceTargets', 'noAction'];
+    weeklyBlock = {
+      days: cnt(w.days),
+      trades: cnt(w.trades),
+      netPnl: money(w.netPnl) ?? 0,
+      winRatePct: money(w.winRatePct),
+      avgR: money(w.avgR),
+      rSample: cnt(w.rSample),
+      costs: money(w.costs),
+      incomplete: cnt(w.incomplete),
+      bySetup: (Array.isArray(w.bySetup) ? w.bySetup : []).slice(0, 5)
+        .map(bucket).filter((x): x is Record<string, unknown> => x !== null),
+      bySession: (Array.isArray(w.bySession) ? w.bySession : []).slice(0, 4)
+        .map(bucket).filter((x): x is Record<string, unknown> => x !== null),
+      actions: (Array.isArray(w.actions) ? w.actions : []).slice(0, 3)
+        .map((x): Record<string, unknown> | null => {
+          if (typeof x !== 'object' || x === null) return null;
+          const q = x as Record<string, unknown>;
+          if (typeof q.key !== 'string' || !ACTION_KEYS.includes(q.key)) return null;
+          const out: Record<string, unknown> = { key: q.key };
+          const v = money(q.value);
+          if (v !== null) out.value = v;
+          if (typeof q.label === 'string') out.label = q.label.slice(0, 24);
+          return out;
+        })
+        .filter((x): x is Record<string, unknown> => x !== null),
+    };
+  }
+
+  const contextOut = {
     locale: str(c.locale, 8) ?? 'fr',
     accountType: str(c.accountType, 24),
     stats,
@@ -208,7 +436,13 @@ function sanitizeContext(input: unknown): Record<string, unknown> | null {
     excursions: excursionsBlock,
     isAutoAccount: c.isAutoAccount === true,
     completeness: completenessBlock,
-  };
+    gaps: gapsBlock,
+    behaviour: behaviourBlock,
+    postMortem: postMortemBlock,
+    weekly: weeklyBlock,
+  } as Record<string, unknown> & { v: number };
+  contextOut.v = typeof c.v === 'number' ? c.v : 4;
+  return contextOut;
 }
 
 interface ChatTurn {
@@ -394,7 +628,7 @@ Deno.serve(async (req: Request) => {
       try {
         const parsed = JSON.parse(rawBlock.trim());
         const kind = parsed?.kind;
-        if (kind === 'add_tag' || kind === 'set_mental_state' || kind === 'filter_trades') {
+        if (kind === 'add_tag' || kind === 'set_mental_state' || kind === 'filter_trades' || kind === 'set_r_multiple' || kind === 'set_costs' || kind === 'request_broker_fill') {
           action = {
             kind,
             tradeNs: Array.isArray(parsed.tradeNs)

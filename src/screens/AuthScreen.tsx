@@ -18,6 +18,7 @@ import * as AuthSession from 'expo-auth-session';
 import { supabase } from '../api/supabaseClient';
 import { withAlpha } from '../theme';
 import { useTheme } from '../theme';
+import { SpacedLabel } from '../components/ui/SpacedLabel';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
 import Reanimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
@@ -257,7 +258,14 @@ export const AuthScreen: React.FC = () => {
                 accentColor={theme.colors.primaryLight}
                 style={styles.brandRow}
               />
-              <Text style={styles.tagline}>QUANTITATIVE TRADING TERMINAL</Text>
+              <SpacedLabel
+                fontSize={9}
+                fontFamily={theme.fonts.monoBold}
+                letterSpacing={1.5}
+                style={styles.tagline}
+              >
+                QUANTITATIVE TRADING TERMINAL
+              </SpacedLabel>
             </Reanimated.View>
 
             {/* Welcome text */}
@@ -558,9 +566,6 @@ const createStyles = (theme: AppTheme) =>
     },
     tagline: {
       color: theme.colors.textMuted,
-      fontSize: 9,
-      fontFamily: theme.fonts.monoBold,
-      letterSpacing: 1.5,
     },
     welcomeText: {
       color: theme.colors.textSecondary,

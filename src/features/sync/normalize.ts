@@ -97,6 +97,13 @@ export interface QueueCard {
   exitsCount: number;
   /** |journal pnl - broker pnl| recorded at link time, surfaced on the card. */
   pnlGap: number | null;
+  /**
+   * An open position the heartbeat no longer sees: the terminal closed the
+   * app, moved on, or the row predates a connector's re-install. Recoverable
+   * by design (the bridge re-sends it on sight), so it shows as its own
+   * quiet state instead of polluting the pending count.
+   */
+  isStale?: boolean;
 }
 
 export function toQueueCard(row: SyncTradeRow): QueueCard {
@@ -117,5 +124,6 @@ export function toQueueCard(row: SyncTradeRow): QueueCard {
     closeReason: (p.close_reason as CloseReason) ?? null,
     exitsCount: Array.isArray(p.exits) ? p.exits.length : 0,
     pnlGap: num(p.pnl_gap),
+    isStale: row.status === 'stale',
   };
 }

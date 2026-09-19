@@ -1,14 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { X, CheckCheck, Inbox } from 'lucide-react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  LinearTransition,
+} from 'react-native-reanimated';
+import { X, CheckCheck, Inbox, Zap, Ban } from 'lucide-react-native';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
+import { withAlpha } from '../theme';
 import { useT, localeFor } from '../i18n';
 import { Panel } from '../components/ui/Panel';
 import { PressableScale } from '../components/ui/PressableScale';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PickerModal } from '../components/ui/PickerModal';
+import { SkeletonRows } from '../components/ui/Skeleton';
 import { ConnectorsPanel } from '../components/sync/ConnectorCard';
 import { ReconcileCard } from '../components/sync/ReconcileCard';
 import { reconcileBalance } from '../features/sync/reconcileBalance';
@@ -27,6 +34,12 @@ import { toQueueCard } from '../features/sync/normalize';
  * components/sync (ConnectorCard, QueueCard, SetupSheet), every rule lives
  * server-side (dedupe, matching, promotion), every projection in
  * normalize.ts. The human decides; the app makes the decision one tap.
+ *
+ * Motion follows the shared grammar (theme/motion): entrances are fast and
+ * settling, never bouncy; cards animate in with a short stagger; the layout
+ * reflows smoothly when a card is promoted or dismissed rather than the list
+ * jumping. Loading renders as rows shaped like the queue itself, so the
+ * screen settles into place instead of swapping a spinner for content.
  */
 export const AutoJournalScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -134,6 +147,18 @@ export const AutoJournalScreen: React.FC = () => {
     [lang],
   );
 
+  // Pending rows are the only ones carrying a decision; stale rows render as
+  // their own quiet panel below, so the badge counts exactly the cards shown.
+  const pendingCount = queue.filter((r) => r.status === 'pending').length;
+  // The card list mirrors that rule: a stale row's promote/link/dismiss would
+  // all no-op server-side (every RPC guards on status = 'pending'), so
+  // rendering decision buttons for it would promise an action the server
+  // refuses. The stale panel above is their whole UI.
+  const pendingRows = useMemo(
+    () => queue.filter((r) => r.status === 'pending'),
+    [queue]
+  );
+
   return (
     <ScrollView
       style={styles.container}
@@ -157,11 +182,20 @@ export const AutoJournalScreen: React.FC = () => {
 
       {/* ---------------------------------------------------- file ---------- */}
       <View style={styles.queueHeader}>
-        <Text style={styles.sectionTitle}>{t('syncQueueTitle')}</Text>
-        {queue.length > 1 ? (
+        <View style={styles.queueTitleRow}>
+          <Text style={styles.sectionTitle}>{t('syncQueueTitle')}</Text>
+          {pendingCount > 0 ? (
+            // The number the bulk actions act on, visible without reading a
+            // single card: a queue's job is to say how much work is waiting.
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{pendingCount}</Text>
+            </View>
+          ) : null}
+        </View>
+        {pendingCount > 1 ? (
           <View style={styles.bulkRow}>
             <PressableScale
-              style={styles.bulkBtn}
+              style={[styles.bulkBtn, styles.bulkPromoteBtn]}
               onPress={() =>
                 Alert.alert(
                   t('syncBulkPromoteTitle'),
@@ -178,8 +212,8 @@ export const AutoJournalScreen: React.FC = () => {
               disabled={isPromotingAll}
               accessibilityLabel={t('syncBulkPromoteTitle')}
             >
-              <CheckCheck size={12} color={theme.colors.green} strokeWidth={2} />
-              <Text style={styles.bulkBtnText}>{t('syncBulkPromote')}</Text>
+              <CheckCheck size={13} color={theme.colors.background} strokeWidth={2.4} />
+              <Text style={styles.bulkPromoteText}>{t('syncBulkPromote')}</Text>
             </PressableScale>
             <PressableScale
               style={styles.bulkBtn}
@@ -199,30 +233,50 @@ export const AutoJournalScreen: React.FC = () => {
               }
               accessibilityLabel={t('syncBulkDismissTitle')}
             >
-              <X size={12} color={theme.colors.redLight} strokeWidth={2} />
+              <Ban size={13} color={theme.colors.redLight} strokeWidth={2} />
               <Text style={styles.bulkBtnText}>{t('syncBulkDismiss')}</Text>
             </PressableScale>
           </View>
         ) : null}
       </View>
-      {isLoadingQueue ? (
+      {/* Open positions the heartbeat no longer sees. Recoverable by design
+          — the bridge re-sends them on sight — so they get a quiet note, not
+          decision cards: the queue must not fake decisions the user cannot
+          actually make. */}
+      {queue.some((r) => r.status === 'stale') ? (
         <Panel>
-          <Text style={styles.loadingText}>{t('loading')}</Text>
+          <Text style={styles.staleTitle}>{t('syncStaleTitle')}</Text>
+          <Text style={styles.staleBody}>{t('syncStaleBody')}</Text>
         </Panel>
-      ) : queue.length === 0 ? (
-        <EmptyState
-          icon={<Inbox size={26} color={theme.colors.textMuted} strokeWidth={1.5} />}
-          title={t('syncQueueEmptyTitle')}
-          description={t('syncQueueEmptyBody')}
-        />
+      ) : null}
+
+      {isLoadingQueue ? (
+        // Rows shaped like the queue itself: the skeleton keeps the layout
+        // stable so content settles into place instead of jumping in.
+        <Panel>
+          <SkeletonRows rows={3} />
+        </Panel>
+      ) : pendingCount === 0 ? (
+        <Animated.View entering={FadeIn.duration(220)}>
+          <EmptyState
+            icon={<Inbox size={26} color={theme.colors.textMuted} strokeWidth={1.5} />}
+            title={t('syncQueueEmptyTitle')}
+            description={t('syncQueueEmptyBody')}
+          />
+        </Animated.View>
       ) : (
-        <View style={{ gap: theme.spacing.md }}>
-          {queue.map((row, i) => {
+        <View>
+          {pendingRows.map((row, i) => {
             const card = toQueueCard(row);
             return (
               <Animated.View
                 key={card.id}
-                entering={FadeIn.delay(i * 40).duration(220)}
+                // Layout on the wrapper is what makes promotion/dismissal a
+                // reflow instead of a jump; the entrance is the shared
+                // stagger (fast, settling — the motion grammar's rule).
+                layout={LinearTransition.duration(220)}
+                entering={FadeInDown.delay(Math.min(i, 6) * 45).duration(240)}
+                exiting={FadeOut.duration(160)}
               >
                 <QueueCard
                   card={card}
@@ -355,10 +409,45 @@ const createStyles = (theme: AppTheme) =>
       textTransform: 'uppercase',
       marginTop: theme.spacing.sm,
     },
+    queueTitleRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      flex: 1,
+    },
+    countBadge: {
+      minWidth: 22,
+      alignItems: 'center',
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: withAlpha(theme.colors.gold, 0.45),
+      backgroundColor: withAlpha(theme.colors.gold, 0.1),
+    },
+    countText: {
+      color: theme.colors.goldLight,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      fontVariant: ['tabular-nums' as const],
+    },
     loadingText: {
       color: theme.colors.textMuted,
       fontSize: theme.type.body,
       fontFamily: theme.fonts.sans,
+    },
+    staleTitle: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase' as const,
+    },
+    staleBody: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.label,
+      fontFamily: theme.fonts.sans,
+      marginTop: 4,
     },
     queueHeader: {
       flexDirection: 'row' as const,
@@ -369,14 +458,27 @@ const createStyles = (theme: AppTheme) =>
     bulkBtn: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 6,
+      gap: 5,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+      borderRadius: 7,
       backgroundColor: theme.colors.inputBg,
+      borderWidth: 1,
+      borderColor: theme.colors.cardBorder,
+    },
+    bulkPromoteBtn: {
+      backgroundColor: theme.colors.primary,
+      borderColor: 'transparent' as const,
     },
     bulkBtnText: {
       color: theme.colors.textSecondary,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.monoBold,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase' as const,
+    },
+    bulkPromoteText: {
+      color: theme.colors.background,
       fontSize: theme.type.micro,
       fontFamily: theme.fonts.monoBold,
       letterSpacing: 0.5,

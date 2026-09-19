@@ -49,11 +49,15 @@ const soon = (minutes: number, over: Record<string, unknown> = {}) => ({
 
 describe('EconomicEventBand', () => {
   it('renders nothing when the calendar is empty', () => {
+    // Empty feed = no data to claim anything from: silence stays honest.
     expect(renderBand([]).toJSON()).toBeNull();
   });
 
-  it('renders nothing when every event is days away', () => {
-    expect(renderBand([soon(60 * 48)]).toJSON()).toBeNull();
+  it('states the all-clear when events exist but none is imminent', () => {
+    // The old contract was silence here, which read as "the band is broken".
+    // A loaded week with nothing near is information: it is stated, calmly.
+    const { getByText } = renderBand([soon(60 * 48)]);
+    expect(getByText(/news majeure|major release/i)).toBeTruthy();
   });
 
   it('shows the next release with its currency', () => {

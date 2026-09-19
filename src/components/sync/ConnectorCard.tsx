@@ -74,6 +74,14 @@ export const ConnectorCard: React.FC<{
         <View style={{ flex: 1 }}>
           <Text style={styles.label}>{title}</Text>
           <Text style={styles.sub}>{sub}</Text>
+          {c.last_sync_status === 'error' && c.last_error ? (
+            // A connector that pushes but gets rejected must SAY why on the
+            // row itself: buried in a status dot, "error" reads as broken
+            // app, not as a rejected batch the terminal can fix.
+            <Text style={styles.err} numberOfLines={1}>
+              {c.last_error}
+            </Text>
+          ) : null}
         </View>
         <Text style={styles.platformHint}>
           {t('syncConnectorPlatform',
@@ -122,6 +130,12 @@ const createStyles = (theme: AppTheme) =>
     },
     sub: {
       color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sans,
+      marginTop: 2,
+    },
+    err: {
+      color: theme.colors.red,
       fontSize: theme.type.micro,
       fontFamily: theme.fonts.sans,
       marginTop: 2,

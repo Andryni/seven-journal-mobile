@@ -18,6 +18,7 @@ SystemUI.setBackgroundColorAsync('#0A0A0B');
 SplashScreen.preventAutoHideAsync();
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useAutoFillBroker } from './src/features/trades/useAutoFillBroker';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister, PERSIST_MAX_AGE } from './src/api/queryClient';
 import {
@@ -269,6 +270,7 @@ export default function App() {
         >
           <OfflineBanner />
           {session && <TopAccountBar />}
+          {session && <AutoFillBrokerWatcher />}
           <NavigationContainer
             theme={navTheme}
             /**
@@ -382,6 +384,20 @@ export default function App() {
       </GestureHandlerRootView>
     </PersistQueryClientProvider>
   );
+}
+
+/**
+ * Background broker-fill watcher, mounted only while a session is active.
+ *
+ * A separate component rather than a hook call in App's body on purpose: App
+ * IS the PersistQueryClientProvider, so any React-Query hook in its own body
+ * would run above the provider it renders and throw "No QueryClient set".
+ * As a child in the tree it sits under the provider like every screen, and
+ * renders nothing.
+ */
+function AutoFillBrokerWatcher() {
+  useAutoFillBroker();
+  return null;
 }
 
 const styles = StyleSheet.create({

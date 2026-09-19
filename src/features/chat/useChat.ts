@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../api/supabaseClient';
+import { useToast } from '../../store/toastStore';
+import { useT } from '../../i18n';
 import { buildChatContext, contextWindow } from './buildChatContext';
 import { parseAction, resolveAction, patchFor, type ResolvedAction } from './chatActions';
 import { useTrades } from '../trades/useTrades';
+import { useBrokerCostMap } from '../sync/useBrokerCosts';
+import { useEconomicCalendar } from '../calendar/useEconomicCalendar';
+import { useFillHistory } from '../trades/useFillHistory';
+import type { FillKind, FillSource } from '../trades/fillHistory';
 import type { Trade, TradingAccount } from '../../types/domain';
 
 /**
@@ -62,12 +68,29 @@ export function useChat(params: {
 }) {
   const { trades, account = null, locale = 'fr', focusTradeId = null, isLocked = false } = params;
 
+  /**
+   * Broker-recorded costs, read once for the whole trade list. Only an
+   * auto-fed account can have staging rows; on a manual journal the map
+   * comes back empty and every costs-fill path honestly says "not
+   * available". Enables both the `costsFillable` flag in the gaps block
+   * and the device-side resolution of `set_costs` proposals.
+   */
+  const { costs: brokerCosts } = useBrokerCostMap(
+    useMemo(() => trades.map(t => t.id), [trades])
+  );
+  // High-impact events, for the news-proximity behavioural detector. Same
+  // cached query the dashboard band uses — no second fetch, ever.
+  const { events: calendarEvents } = useEconomicCalendar();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const { updateTrade } = useTrades();
+  const { logWrites } = useFillHistory();
+  const { showSuccess } = useToast();
+  const { t } = useT();
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -126,7 +149,15 @@ export function useChat(params: {
       setDetail(null);
 
       try {
-        const context = buildChatContext({ trades, account, locale, focusTradeId, isLocked });
+        const context = buildChatContext({
+          trades,
+          account,
+          locale,
+          focusTradeId,
+          isLocked,
+          brokerCosts,
+          events: calendarEvents,
+        });
         // The same ordered list the model sees as "trades", used below to
         // resolve any action it proposes against real trade ids.
         const sentWindow = contextWindow(trades, focusTradeId);
@@ -184,7 +215,12 @@ export function useChat(params: {
             action: (() => {
               const parsed = parseAction(data.action);
               if (!parsed) return null;
-              const resolved = resolveAction(parsed, sentWindow);
+              /**
+               * set_costs resolves against the broker map the DEVICE built
+               * from the staging table; if the model named a trade without
+               * broker data, the whole proposal is refused rather than               * half-filled.
+               */
+              const resolved = resolveAction(parsed, sentWindow, brokerCosts);
               return resolved.ok ? resolved.action : null;
             })(),
           },
@@ -214,10 +250,59 @@ export function useChat(params: {
       if (!action || message?.actionApplied) return;
 
       try {
+        const logged: Parameters<typeof logWrites>[0] = [];
+        if (action.kind === 'request_broker_fill') {
+          // Nothing is written into the journal here ON PURPOSE: the fill
+          // arrives asynchronously from the broker's own rebuild and only
+          // into EMPTY fields (apply_broker_refresh). The confirmation is a
+          // request to the terminal; the toast says exactly that, and the
+          // loop below (journal writes + audit log) is skipped entirely.
+          const { error: rpcErr } = await supabase.rpc('request_broker_fill', {
+            p_trade_ids: action.tradeIds,
+          });
+          if (rpcErr) throw rpcErr;
+          showSuccess(t('chatActionBrokerRequested').replace('{n}', String(action.trades.length)));
+          setMessages(prev =>
+            prev.map(m => (m.id === messageId ? { ...m, actionApplied: true } : m))
+          );
+          return;
+        }
         for (const trade of action.trades) {
           const patch = patchFor(action, trade);
           if (!patch) continue;
           await updateTrade({ id: trade.id, ...patch });
+          /**
+           * One history line per written field, mirroring the patch exactly:
+           * the audit log must never claim a write that did not happen, nor
+           * omit one that did. Values come from the patch itself, so the log
+           * and the journal cannot drift.
+           */
+          if ('r_multiple' in patch && patch.r_multiple != null) {
+            logged.push({ tradeId: trade.id, source: 'chat' as FillSource, kind: 'r_multiple' as FillKind, rMultiple: patch.r_multiple });
+          }
+          if ('commission' in patch) {
+            logged.push({
+              tradeId: trade.id,
+              source: 'chat' as FillSource,
+              kind: 'costs' as FillKind,
+              commission: patch.commission ?? 0,
+              swap: patch.swap ?? 0,
+            });
+          }
+          if ('tags' in patch && action.kind === 'add_tag') {
+            logged.push({ tradeId: trade.id, source: 'chat' as FillSource, kind: 'tag' as FillKind, detail: action.tag });
+          }
+          if ('mental_state' in patch && action.kind === 'set_mental_state') {
+            logged.push({ tradeId: trade.id, source: 'chat' as FillSource, kind: 'mental_state' as FillKind, detail: action.mentalState });
+          }
+        }
+        // Best-effort after the writes: a failed log must never roll back a
+        // confirmed journal write (see useFillHistory).
+        if (logged.length > 0) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) await logWrites(logged, user.id);
         }
         setMessages(prev =>
           prev.map(m => (m.id === messageId ? { ...m, actionApplied: true } : m))
@@ -229,7 +314,7 @@ export function useChat(params: {
         setError('unknown');
       }
     },
-    [messages, updateTrade]
+    [messages, updateTrade, logWrites]
   );
 
   const clear = useCallback(() => {

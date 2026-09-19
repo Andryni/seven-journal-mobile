@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import { CandleLoader } from '../ui/CandleLoader';
 import { BrandWordmark } from '../brand/BrandWordmark';
+import { SpacedLabel } from '../ui/SpacedLabel';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 
@@ -43,10 +44,17 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
           style={styles.wordmark}
         />
         {/* numberOfLines: an over-wide tagline must ellipsize, never wrap --
-            a second line would push the loader off the boot frame. */}
-        <Text style={styles.tagline} numberOfLines={1}>
+            a second line would push the loader off the boot frame. SpacedLabel
+            books the trailing letter-spacing gap so TERMINAL keeps its L. */}
+        <SpacedLabel
+          fontSize={9}
+          fontFamily={theme.fonts.mono}
+          letterSpacing={2.2}
+          style={styles.tagline}
+          numberOfLines={1}
+        >
           {caption ?? 'FINTECH TERMINAL'}
-        </Text>
+        </SpacedLabel>
 
         {/* Candles printing left to right: the same loader the rest of the
             app uses, so waiting always looks like the same thing. */}
@@ -75,8 +83,5 @@ const createStyles = (theme: AppTheme) =>
     tagline: {
       marginTop: 6,
       color: theme.colors.textMuted,
-      fontSize: 9,
-      fontFamily: theme.fonts.mono,
-      letterSpacing: 2.2,
     },
   });

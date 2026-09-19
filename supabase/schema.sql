@@ -354,6 +354,84 @@ create index if not exists trade_exits_user_idx
   on public.trade_exits (user_id);
 
 -- ---------------------------------------------------------------------------
+-- trade_fill_history
+-- Consumer: src/features/trades/fillHistory.ts + useFillHistory.ts
+--
+-- Change history for values the APP writes on the trader's behalf: the
+-- one-tap "complete from broker" button (per-row fill and batch), and the
+-- chat's confirmed actions (set_r_multiple, set_costs, tags, mental state).
+-- Answers "qui a rempli quoi, quand": every auto-written figure can be traced
+-- to its origin — device derivation from the trade's own prices, broker
+-- record, or a coach proposal the trader explicitly confirmed.
+--
+-- One row per (trade, kind) write; costs and R are separate decisions with
+-- separate timestamps. Insert-only by design: history is appended, never
+-- rewritten — a correction is a new row, which is also what makes a failed
+-- partial batch harmless to replay.
+--
+-- Deliberately NOT a general write audit: edits made by hand in the trade
+-- form are the trader's own and carry no provenance problem. Only the two
+-- writer surfaces that act FOR the trader are tracked.
+-- ---------------------------------------------------------------------------
+create table if not exists public.trade_fill_history (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  trade_id   uuid not null references public.trades(id) on delete cascade,
+  -- Which surface wrote the value. Every 'chat' row was still confirmed by
+  -- the trader in the UI — the coach cannot write — so 'chat' names the
+  -- ORIGIN of the proposal, not an unsupervised writer. 'auto' marks the
+  -- background completion that runs after each bridge sync: same device
+  -- derivation as the button, no press because the trader already opted in
+  -- by connecting the bridge. 'user' marks a REVERSAL: an undo from the
+  -- history pressed by the trader.
+  source     text not null check (source in ('app_button','chat','auto','user')),
+  -- What kind of value was written.
+  kind       text not null check (kind in ('costs','r_multiple','tag','mental_state')),
+  -- Numeric magnitude for costs (commission + swap, positive) and
+  -- r_multiple (the derived R). 0 for the textual kinds.
+  value      numeric not null default 0,
+  -- The written value itself when it is text (tag, mental state).
+  detail     text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists trade_fill_history_trade_idx
+  on public.trade_fill_history (trade_id, created_at desc);
+create index if not exists trade_fill_history_user_idx
+  on public.trade_fill_history (user_id, created_at desc);
+
+-- The first release of this table shipped the CHECK without 'auto'; databases
+-- created from it carry the narrow constraint and would reject the background
+-- writer. Drop-and-recreate is idempotent and keeps one name.
+alter table public.trade_fill_history
+  drop constraint if exists trade_fill_history_source_check;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.trade_fill_history'::regclass
+      and conname = 'trade_fill_history_source_check'
+  ) then
+    alter table public.trade_fill_history
+      add constraint trade_fill_history_source_check
+      check (source in ('app_button','chat','auto','user'));
+  end if;
+end $$;
+
+do $$
+begin
+  execute 'alter table public.trade_fill_history enable row level security';
+  execute 'drop policy if exists trade_fill_history_owner on public.trade_fill_history';
+  execute $policy$
+    create policy trade_fill_history_owner on public.trade_fill_history
+      for all
+      to authenticated
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id)
+  $policy$;
+end $$;
+
+-- ---------------------------------------------------------------------------
 create table if not exists public.playbook_setups (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references auth.users(id) on delete cascade,
@@ -1198,7 +1276,18 @@ grant execute on function public.create_sync_ingest_account(text, text, uuid) to
 -- ---------------------------------------------------------------------------
 do $sync$
 begin
-  if exists (select 1 from pg_namespace where nspname = 'cron') then
+  -- Guard BOTH the schema and the table: a project can have pg_cron ENABLED
+  -- (the cron schema exists) without cron.job yet (the extension's objects
+  -- land in the schema only after its CREATE EXTENSION completes / on next
+  -- connect). Probing cron.job there raises `relation does not exist`, which
+  -- kills any multi-statement execution of this file (SQL Editor runs it in
+  -- ONE transaction) — everything after this block silently never applied.
+  if exists (select 1 from pg_namespace where nspname = 'cron')
+     and exists (
+       select 1 from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'cron' and c.relname = 'job'
+     ) then
     if not exists (select 1 from cron.job where jobname = 'purge-sync-raw') then
       perform cron.schedule('purge-sync-raw', '30 3 * * *',
         $job$select public.purge_old_sync_events()$job$);
@@ -1536,3 +1625,148 @@ begin
     );
   end loop;
 end $$;
+
+-- ============================================================================
+-- SECTION 5 — BROKER BACK-FILL REQUESTS (the chat -> EA round trip)
+--
+-- The bridge is write-only, so the app cannot "pull" a missing stop, target
+-- or excursion from the terminal. It does not have to: the EA can rebuild any
+-- position from its own history, including the MAE/MFE the close event never
+-- carried (computed from M1 highs/lows over the position's lifetime). The
+-- missing piece was a queue the EA can poll.
+--
+-- Flow: the coach proposes request_broker_fill on bridge-sourced trades ->
+-- request_broker_fill() queues one row per staging id -> the EA's periodic
+-- poll ("type":"poll_requests") receives the external ids and re-sends those
+-- positions enriched with stop_loss/take_profit/mae_price/mfe_price ->
+-- sync-ingest refreshes the already-promoted journal trades through
+-- apply_broker_refresh(). The refresh is strictly gap-filling: a value the
+-- trader has set is never overwritten, and no journal row is ever created by
+-- this path (promotion remains the only door).
+-- ============================================================================
+
+create table if not exists public.sync_requests (
+  id uuid primary key default gen_random_uuid(),
+  ingest_account_id uuid not null references public.sync_ingest_accounts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  external_ids text[] not null,
+  -- Reserved for narrowing the rebuild; v1 always asks for everything the
+  -- bridge can recover, so the EA does not need to branch per field.
+  fields text[] not null default array['stop_loss','take_profit','mae','mfe'],
+  status text not null default 'pending' check (status in ('pending','served')),
+  created_at timestamptz not null default now(),
+  served_at timestamptz
+);
+
+create index if not exists sync_requests_pending_idx
+  on public.sync_requests (ingest_account_id, created_at)
+  where status = 'pending';
+
+alter table public.sync_requests enable row level security;
+drop policy if exists sync_requests_owner on public.sync_requests;
+create policy sync_requests_owner on public.sync_requests
+  for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Queue one back-fill request per pending bridge position. Bridge-sourced
+-- only (a manual trade has no staging row, so the terminal cannot help) and
+-- deduplicated while a request is still unserved: tapping the confirmation
+-- twice must not double the EA's work.
+create or replace function public.request_broker_fill(p_trade_ids uuid[])
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_count int := 0;
+  r record;
+begin
+  if v_uid is null or p_trade_ids is null or cardinality(p_trade_ids) = 0 then
+    raise exception 'P0001: invalid request';
+  end if;
+
+  for r in
+    select s.id as staging_id, s.ingest_account_id, s.external_id
+    from public.trades t
+    join public.sync_trades s on s.id = t.sync_source_id
+    where t.id = any(p_trade_ids)
+      and t.user_id = v_uid
+      and s.user_id = v_uid
+      and not exists (
+        select 1 from public.sync_requests q
+        where q.ingest_account_id = s.ingest_account_id
+          and q.status = 'pending'
+          and s.external_id = any(q.external_ids)
+      )
+  loop
+    insert into public.sync_requests (ingest_account_id, user_id, external_ids)
+    values (r.ingest_account_id, v_uid, array[r.external_id]);
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+grant execute on function public.request_broker_fill(uuid[]) to authenticated;
+revoke execute on function public.request_broker_fill(uuid[]) from anon;
+
+-- Refresh ONE journal trade from the broker's rebuilt event. Called by the
+-- sync-ingest function under the service role (auth.uid() is null there),
+-- which is why ownership is re-checked against BOTH the claimed user and the
+-- connector: a caller that knows ids but not the secret gets nothing, and
+-- one connector cannot touch another's trades. Every assignment only fills
+-- an EMPTY value -- this path must never be able to overwrite the trader.
+create or replace function public.apply_broker_refresh(
+  p_user_id uuid,
+  p_ingest_id uuid,
+  p_trade_id uuid,
+  p_stop_loss numeric default null,
+  p_take_profit numeric default null,
+  p_mae numeric default null,
+  p_mfe numeric default null
+)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_tgt uuid;
+begin
+  if v_uid is not null and v_uid <> p_user_id then
+    raise exception 'P0001: forbidden';
+  end if;
+
+  select t.id into v_tgt
+  from public.trades t
+  join public.sync_trades s on s.id = t.sync_source_id
+  where t.id = p_trade_id
+    and t.user_id = p_user_id
+    and s.ingest_account_id = p_ingest_id;
+  if not found then
+    return 0;
+  end if;
+
+  update public.trades set
+    stop_loss = case
+      when p_stop_loss is not null and p_stop_loss > 0
+           and (stop_loss is null or stop_loss = 0)
+        then p_stop_loss else stop_loss end,
+    take_profit = case
+      when p_take_profit is not null and p_take_profit > 0
+           and (take_profit is null or take_profit = 0)
+        then p_take_profit else take_profit end,
+    mae_price = coalesce(mae_price, p_mae),
+    mfe_price = coalesce(mfe_price, p_mfe)
+  where id = v_tgt;
+
+  return 1;
+end;
+$$;
+
+revoke execute on function public.apply_broker_refresh(uuid, uuid, uuid, numeric, numeric, numeric, numeric) from anon, authenticated;

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, Animated, useWindowDimensions } from 're
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { BrandWordmark } from '../brand/BrandWordmark';
+import { SpacedLabel } from '../ui/SpacedLabel';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
@@ -105,9 +106,17 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
             letterSpacing={3.4}
             style={[styles.wordmark, !fontsReady && styles.awaitingFonts]}
           />
-          <Text style={[styles.tagline, !fontsReady && styles.awaitingFonts]}>
+          {/* SpacedLabel, not a bare Text: the trailing letter-spacing gap
+              is unmeasured on Android and the final L of TERMINAL was the
+              reported casualty. Same cure as the wordmark's JOURNAL. */}
+          <SpacedLabel
+            fontSize={9}
+            fontFamily={theme.fonts.mono}
+            letterSpacing={2.2}
+            style={[styles.tagline, !fontsReady && styles.awaitingFonts]}
+          >
             FINTECH TERMINAL
-          </Text>
+          </SpacedLabel>
         </View>
       </Animated.View>
     </View>
@@ -132,9 +141,6 @@ const createStyles = (theme: AppTheme) =>
     tagline: {
       marginTop: 6,
       color: theme.colors.textMuted,
-      fontSize: 9,
-      fontFamily: theme.fonts.mono,
-      letterSpacing: 2.2,
     },
     awaitingFonts: { opacity: 0 },
   });

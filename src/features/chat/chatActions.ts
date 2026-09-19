@@ -1,5 +1,6 @@
 import type { Trade } from '../../types/domain';
 import { normalizeTags } from '../../utils/tradeTags';
+import { rPatchFor } from '../../utils/rDerivation';
 
 /**
  * Actions the coach may PROPOSE.
@@ -13,10 +14,12 @@ import { normalizeTags } from '../../utils/tradeTags';
  *
  *   1. Nothing here executes. Every function returns a described change; the
  *      UI renders it and the user confirms. The model never holds a write.
- *   2. Only additive, reversible context fields. Tags and mental state are
+ *   2. Only additive, reversible fields. Tags and mental state are
  *      journaling metadata a trader can change freely. Prices, P&L, size and
  *      deletion are absent from the type and therefore unreachable -- the
- *      model cannot propose what it cannot express.
+ *      model cannot propose what it cannot express. The one numeric field
+ *      allowed, r_multiple, is DERIVED on the device from the trade's own
+ *      prices at confirm time: the model names the trades, never the number.
  *   3. Targets are resolved against the trades actually sent, so a
  *      hallucinated trade number resolves to nothing instead of hitting a
  *      real row by accident.
@@ -25,7 +28,19 @@ import { normalizeTags } from '../../utils/tradeTags';
  * refusals, not the plumbing.
  */
 
-export type ChatActionKind = 'add_tag' | 'set_mental_state' | 'filter_trades';
+export type ChatActionKind =
+  | 'add_tag'
+  | 'set_mental_state'
+  | 'filter_trades'
+  | 'set_r_multiple'
+  | 'set_costs'
+  | 'request_broker_fill';
+
+/** Broker-recorded costs, as the shared staging reader normalises them. */
+export interface BrokerCosts {
+  commission: number;
+  swap: number;
+}
 
 /** Mental states the schema accepts. A CHECK constraint enforces these. */
 export const MENTAL_STATES = [
@@ -57,6 +72,13 @@ export interface ResolvedAction {
   trades: Trade[];
   tag?: string;
   mentalState?: MentalState;
+  /**
+   * For set_costs: the broker values, resolved from the staging reader at
+   * proposal time. The model never supplies them — it cannot express a
+   * number here even if it tried, and the Edge Function whitelist would
+   * strip it anyway. Carried so applyAction needs no second lookup.
+   */
+  costsByTradeId?: Record<string, BrokerCosts>;
 }
 
 /** Why a proposed action was refused. */
@@ -65,7 +87,9 @@ export type ActionRejection =
   | 'no_targets'
   | 'invalid_tag'
   | 'invalid_mental_state'
-  | 'too_many_targets';
+  | 'too_many_targets'
+  | 'not_derivable'
+  | 'not_available';
 
 /**
  * Upper bound on a single proposal.
@@ -82,7 +106,14 @@ export function parseAction(raw: unknown): ChatAction | null {
   const r = raw as Record<string, unknown>;
 
   const kind = r.kind;
-  if (kind !== 'add_tag' && kind !== 'set_mental_state' && kind !== 'filter_trades') {
+  if (
+    kind !== 'add_tag' &&
+    kind !== 'set_mental_state' &&
+    kind !== 'filter_trades' &&
+    kind !== 'set_r_multiple' &&
+    kind !== 'set_costs' &&
+    kind !== 'request_broker_fill'
+  ) {
     return null;
   }
 
@@ -110,12 +141,17 @@ export function parseAction(raw: unknown): ChatAction | null {
  */
 export function resolveAction(
   action: ChatAction,
-  window: Trade[]
+  window: Trade[],
+  /** Broker costs for set_costs; absent on every other kind. */
+  brokerCosts?: Map<string, BrokerCosts>
 ): { ok: true; action: ResolvedAction } | { ok: false; reason: ActionRejection } {
   if (
     action.kind !== 'add_tag' &&
     action.kind !== 'set_mental_state' &&
-    action.kind !== 'filter_trades'
+    action.kind !== 'filter_trades' &&
+    action.kind !== 'set_r_multiple' &&
+    action.kind !== 'set_costs' &&
+    action.kind !== 'request_broker_fill'
   ) {
     return { ok: false, reason: 'unknown_kind' };
   }
@@ -159,6 +195,64 @@ export function resolveAction(
     };
   }
 
+  if (action.kind === 'set_r_multiple') {
+    // The model names the trades; the NUMBER is derived on the device from
+    // entry, stop and exit at confirm time. A target that cannot be derived
+    // is refused outright: a "fill what you can" would write nothing on
+    // half the list while the confirmation dialog claims all of it —
+    // silently worse than refusing. A trade that already stores an R is a
+    // no-op, exactly like a tag already present: it neither fails the
+    // proposal nor gets written twice.
+    for (const t of trades) {
+      if (t.r_multiple != null && Number.isFinite(t.r_multiple)) continue;
+      if (rPatchFor(t) === null) return { ok: false, reason: 'not_derivable' };
+    }
+    return {
+      ok: true,
+      action: {
+        kind: 'set_r_multiple',
+        tradeIds: trades.map(t => t.id),
+        trades,
+      },
+    };
+  }
+
+  if (action.kind === 'set_costs') {
+    // Every target must have broker data, or the whole proposal is refused:
+    // same all-or-nothing rule as set_r_multiple. Values come from the map
+    // the device built from the staging table — the model only picked the
+    // trades, and could not have typed a number even by hallucination.
+    if (!brokerCosts) return { ok: false, reason: 'not_available' };
+    const costsByTradeId: Record<string, BrokerCosts> = {};
+    for (const t of trades) {
+      const c = brokerCosts.get(t.id);
+      if (!c) return { ok: false, reason: 'not_available' };
+      costsByTradeId[t.id] = c;
+    }
+    return {
+      ok: true,
+      action: {
+        kind: 'set_costs',
+        tradeIds: trades.map(t => t.id),
+        trades,
+        costsByTradeId,
+      },
+    };
+  }
+
+  if (action.kind === 'request_broker_fill') {
+    // The terminal can only rebuild positions it once carried: a manual
+    // trade has no staging row, so naming one would promise a fill that can
+    // never arrive. Same all-or-nothing discipline as set_costs.
+    for (const t of trades) {
+      if (!t.sync_source_id) return { ok: false, reason: 'not_available' };
+    }
+    return {
+      ok: true,
+      action: { kind: 'request_broker_fill', tradeIds: trades.map(t => t.id), trades },
+    };
+  }
+
   return {
     ok: true,
     action: { kind: 'filter_trades', tradeIds: trades.map(t => t.id), trades },
@@ -181,6 +275,28 @@ export function patchFor(action: ResolvedAction, trade: Trade): Partial<Trade> |
   if (action.kind === 'set_mental_state' && action.mentalState) {
     if (trade.mental_state === action.mentalState) return null;
     return { mental_state: action.mentalState } as Partial<Trade>;
+  }
+  if (action.kind === 'set_r_multiple') {
+    // Recomputed here, never carried from anywhere: the value the user
+    // confirms is the value the device derived from the trade's own prices.
+    return rPatchFor(trade);
+  }
+  if (action.kind === 'set_costs' && action.costsByTradeId) {
+    // Never overwrite: a trade with ANY recorded cost was touched by the
+    // trader (or the bridge), and the broker's number must not silently
+    // replace it. Partially-filled trades therefore no-op, which keeps the
+    // confirmation honest without a second dialog per field.
+    if (trade.commission != null || trade.swap != null) return null;
+    const c = action.costsByTradeId[trade.id];
+    if (!c) return null;
+    return { commission: c.commission, swap: c.swap } as Partial<Trade>;
+  }
+  if (action.kind === 'request_broker_fill') {
+    // No journal write BY DESIGN: the fill arrives asynchronously from the
+    // broker's own rebuild (apply_broker_refresh, gap-only). Returning null
+    // here keeps the confirmation counting honest and stops this path from
+    // ever logging a write that has not happened yet.
+    return null;
   }
   // filter_trades changes no data.
   return null;

@@ -1,2 +1,11 @@
 .agents/skills
 .claude/skills
+android/
+build-apk.log
+eas-build.log
+easlist.tmp.json
+easview.tmp.json
+device-log.txt
+demo-missing-data.html
+seven-journal-preview.apk
+screen1.png

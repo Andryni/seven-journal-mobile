@@ -26,6 +26,8 @@ import { useMoney } from '../../features/accounts/useMoney';
 import { formatSize, unitForMarket, INSTRUMENTS } from '../../utils/positionSizing';
 import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { useAccounts } from '../../features/accounts/useAccounts';
+import { useFillHistory } from '../../features/trades/useFillHistory';
+import { fillInfoForTrade, historyForTrade, historyWhen } from '../../features/trades/fillHistory';
 import { Badge } from '../ui/Badge';
 import { AssetGlyph } from '../ui/AssetGlyph';
 import { X, Edit3, Trash2, ExternalLink, Share2 } from 'lucide-react-native';
@@ -60,6 +62,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const unitLabel = useSizeUnitLabel(sizeUnit);
   const money = useMoney(accounts.find(a => a.id === trade?.account_id) ?? null);
   const { t, lang } = useT();
+  const { history, revertWrite } = useFillHistory();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const holdingTime = useMemo(
@@ -93,6 +96,46 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     if (isNearMiss(trade)) return t('excNoteNearMiss');
     return '';
   }, [trade, t]);
+
+  /**
+   * The provenance block: what this trade received from the app's own
+   * writers (button fill, confirmed chat actions), by whom and when. Empty
+   * for a hand-filled journal — silence, not a "nothing" panel.
+   */
+  const fillInfo = useMemo(
+    () => (trade ? fillInfoForTrade(history, trade.id) : null),
+    [history, trade]
+  );
+  /** The revertible lines (costs, r_multiple) — newest first, capped. */
+  const revertible = useMemo(() => {
+    if (!trade) return [];
+    return historyForTrade(history, trade.id, 8).filter(
+      e => (e.kind === 'costs' || e.kind === 'r_multiple') && e.source !== 'user'
+    );
+  }, [history, trade]);
+
+  const fillProvLine = useMemo(() => {
+    if (!fillInfo) return null;
+    const last = fillInfo.lastButton ?? fillInfo.lastChat;
+    if (!last) return null;
+    const iso = historyWhen(last);
+    const when = iso
+      ? new Date(iso).toLocaleString(localeFor(lang), {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    return {
+      by: last.source === 'app_button' ? t('fillProvByButton').replace('{when}', when) : t('fillProvByChat').replace('{when}', when),
+      counts: [
+        fillInfo.counts.costs > 0 ? t('fillProvCosts').replace('{n}', String(fillInfo.counts.costs)) : null,
+        fillInfo.counts.r > 0 ? t('fillProvR').replace('{n}', String(fillInfo.counts.r)) : null,
+        fillInfo.counts.other > 0 ? t('fillProvOther').replace('{n}', String(fillInfo.counts.other)) : null,
+      ].filter(Boolean) as string[],
+    };
+  }, [fillInfo, t, lang]);
 
   if (!trade) return null;
 
@@ -193,6 +236,43 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                     <Text style={styles.tagChipText}>{tag}</Text>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {fillProvLine && (
+              <View style={styles.fillProvBox}>
+                <Text style={styles.fillProvTitle}>{t('fillProvTitle')}</Text>
+                <View style={styles.fillProvChipRow}>
+                  {fillProvLine.counts.map((c, i) => (
+                    <View key={i} style={styles.fillProvChip}>
+                      <Text style={styles.fillProvChipText}>{c}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.fillProvBy}>{fillProvLine.by}</Text>
+                {revertible.length > 0 && (
+                  <View style={styles.fillProvUndoRow}>
+                    {revertible.map(e => {
+                      const label =
+                        e.kind === 'costs'
+                          ? t('fillProvUndoCosts')
+                          : t('fillProvUndoR');
+                      return (
+                        <TouchableOpacity
+                          key={e.id}
+                          style={styles.fillProvUndoBtn}
+                          onPress={() => {
+                            void revertWrite(e);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={label}
+                        >
+                          <Text style={styles.fillProvUndoText}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             )}
 
@@ -523,6 +603,64 @@ const createStyles = (theme: AppTheme) => StyleSheet.create({
     fontSize: 9,
     fontFamily: theme.fonts.mono,
     lineHeight: 13,
+  },
+  fillProvBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    backgroundColor: theme.colors.surface,
+  },
+  fillProvTitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  fillProvChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  fillProvChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: withAlpha(theme.colors.primary, 0.4),
+    backgroundColor: withAlpha(theme.colors.primary, 0.12),
+  },
+  fillProvChipText: {
+    color: theme.colors.primaryLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.mono,
+  },
+  fillProvBy: {
+    marginTop: 6,
+    color: theme.colors.textSecondary,
+    fontSize: 10,
+    fontFamily: theme.fonts.mono,
+  },
+  fillProvUndoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  fillProvUndoBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: withAlpha(theme.colors.red, 0.4),
+    backgroundColor: withAlpha(theme.colors.red, 0.1),
+  },
+  fillProvUndoText: {
+    color: theme.colors.redLight,
+    fontSize: 9,
+    fontFamily: theme.fonts.monoBold,
   },
   pnlBanner: {
     flexDirection: 'row',
