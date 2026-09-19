@@ -1,5 +1,6 @@
 .agents/skills
 .claude/skills
+node_modules/
 android/
 build-apk.log
 eas-build.log
