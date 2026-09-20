@@ -126,6 +126,28 @@ l'app se charge mais échoue sur les écrans qui lisent ces colonnes.
 L'app fonctionne entièrement sans. Voir `supabase/functions/coach/README.md`
 pour l'activer.
 
+### 4. Journal auto et alertes serveur (optionnel)
+
+Le pont MetaTrader 5 alimente le journal sans saisie manuelle, et l'app peut
+recevoir des alertes même fermée. Les deux se déploient à part :
+
+```bash
+npx supabase functions deploy sync-ingest   # pont MT5 → journal
+npx supabase functions deploy push          # alertes terminal muet / verrou
+```
+
+Puis, pour les alertes, planifier les balayages décrits dans
+`supabase/functions/push/README.md` (`pg_cron` + `pg_net`). Sans eux, la table
+des jetons se remplit mais rien n'est jamais envoyé — le mode de défaillance
+silencieux que ces alertes existent précisément pour couvrir.
+
+Le fichier de l'EA est **embarqué dans l'app** (`assets/ea/SevenJournalSync.mq5`)
+et partageable depuis la feuille de gestion d'un connecteur : plus besoin de
+transporter le fichier à la main, et la version annoncée par le terminal est
+comparée à celle qui est livrée.
+
+Détails du protocole : `docs/auto-journal-sync.md`, `bridge/mt5/README.md`.
+
 ## 🧪 Tester sur Expo Go
 
 ```bash
@@ -169,6 +191,8 @@ Pour les tester, il faut un development build (`npx expo run:android`).
 |---|---|
 | Écrans vides, aucune donnée | `.env` absent ou Metro non relancé avec `-c` |
 | Erreur SQL sur une colonne | `supabase/schema.sql` pas re-joué |
+| Connecteur silencieux | EA non recompilé, ou version antérieure à celle de l'app |
+| Aucune alerte reçue | `schema.sql` non re-joué, ou balayages `pg_cron` absents |
 | « incompatible SDK version » | Expo Go à mettre à jour (SDK 57) |
 | QR code sans effet | Réseaux différents → `npx expo start --tunnel` |
 

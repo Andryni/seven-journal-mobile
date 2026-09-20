@@ -3,6 +3,11 @@
 > Analyse au commit `241bbea`. Chaque point a été vérifié dans le code, pas
 > supposé. Classé par ce qui manque *structurellement* d'abord, puis par ce qui
 > différencierait l'app.
+>
+> **Mise à jour du 20/09/2026** : les chantiers livrés depuis cette analyse
+> sont barrés, la session y a ajouté sept capacités (voir §5). Restent
+> ouverts : le lien débrief ↔ trades (2.2) et trois points de design
+> (3.1, 3.2, 3.5).
 
 ---
 
@@ -86,17 +91,15 @@ l'envoi).
 la journée à côté. On note « j'ai été impatient » sans voir les 4 trades qui le
 prouvent.
 
-### 2.3 Pas de recherche ni de filtre avancé
+### 2.3 ~~Pas de recherche ni de filtre avancé~~ — livré
 
-`TradesScreen` a une recherche simple. Il manque le filtrage croisé (setup ×
-session × état mental × plage de R) qui transforme un journal en outil
-d'investigation.
+Le filtrage croisé setup × session × état mental × plage de R est en place sur
+l'écran des trades ; une recherche simple seule ne permet pas d'investiguer.
 
-### 2.4 Rien pour les captures d'écran en masse
+### 2.4 ~~Rien pour les captures d'écran en masse~~ — livré
 
-Les champs `screenshot_before_url` / `after_url` existent, mais il n'y a pas de
-galerie : impossible de revoir 20 setups d'affilée, ce qui est pourtant *la*
-façon dont on entraîne sa reconnaissance de patterns.
+La galerie existe : revoir vingt setups d'affilée, qui est *la* façon
+d'entraîner la reconnaissance de patterns.
 
 ---
 
@@ -114,7 +117,8 @@ façon dont on entraîne sa reconnaissance de patterns.
    réellement (un label seul ne dit pas quelle option est active).
 4. **Pas de retour visuel de chargement par section.** Un spinner plein écran
    masque tout ; des squelettes par panneau donneraient une impression de
-   vitesse très supérieure.
+   vitesse très supérieure. (Analytics a déjà les siens ; le reste de l'app
+   attend encore.)
 5. **Le mode clair n'est probablement pas testé.** 94 `rgba()` codés en dur
    subsistent dans les composants.
 
@@ -129,6 +133,36 @@ façon dont on entraîne sa reconnaissance de patterns.
 | ~~3~~ ✅ | ~~**Objectifs personnels + Lock Guard pour tous**~~ — livré | Étend votre meilleur différenciateur aux comptes non-prop. |
 | ~~4~~ ✅ | ~~**Tags libres + filtrage croisé**~~ — livré | Rend le journal interrogeable. |
 | ~~5~~ ✅ | ~~**Sorties partielles**~~ — livré | Le plus lourd ; à faire une fois les trois premiers en place. |
+| ~~6~~ ✅ | ~~**Push serveur**~~ — livré | Un garde-fou que personne n'entend n'est pas un garde-fou. |
+| ~~7~~ ✅ | ~~**Replay bougies via le terminal**~~ — livré (EA v1.17) | Le différenciateur : aucun concurrent mobile n'a de terminal à interroger. |
+| ~~8~~ ✅ | ~~**Contexte de news écrit sur le trade**~~ — livré | Espérance conditionnelle aux news + règle de fenêtre traçable. |
+| ~~9~~ ✅ | ~~**Pré-vol verrouillant**~~ — livré | L'argent est un indicateur retardé ; la checklist agit avant l'entrée. |
+| ~~10~~ ✅ | ~~**Coût de l'indiscipline cumulé**~~ — livré | L'idée d'AUDIT-2, rendue possible par les tags ; buckets exclusifs, zéro double compte. |
+| ~~11~~ ✅ | ~~**EA embarqué + OTA**~~ — livré | Corriger un terminal trop ancien sans passer par le PC. |
 
-Les idées « coût de l'indiscipline » et « trade jumeau » de `AUDIT-2.md` restent
-valables et deviennent nettement plus fortes une fois les tags (4) en place.
+## 5. Livré depuis l'analyse (session du 20/09/2026)
+
+Tout est en code, sous 1 193 tests, `tsc` et ESLint propres :
+
+1. **Alertes serveur (push).** Terminal muet, verrou déclenché : table de
+   jetons, Edge Function `push`, balayages `pg_cron` planifiés, inscription
+   depuis l'app avec interrupteur et désinscription à la déconnexion.
+2. **Replay de bougies.** L'app demande la fenêtre M1 d'un trade, le terminal
+   répond (EA v1.17), le détail affiche la bougie avec entrée, SL, TP, sortie
+   et MAE/MFE. Mise en cache par trade : une demande satisfaite ne repart
+   jamais vers le terminal.
+3. **Contexte de news écrit sur le trade**, avec garde de fenêtre à la saisie.
+4. **Pré-vol verrouillant.** La checklist du jour se coche avant
+   d'enregistrer ; l'oubli est daté, donc traçable.
+5. **Coût de l'indiscipline cumulé** — l'idée d'`AUDIT-2.md` : buckets
+   exclusifs (tilt, hors plan, revanche) comparés aux trades propres du
+   trader, en devise, sans jamais compter un trade deux fois.
+6. **OTA + EA embarqué.** Mise à jour à la volée proposée au lancement ; le
+   fichier de l'EA se partage depuis la feuille du connecteur.
+7. **Gestion des connecteurs** : renommer, régénérer le secret, mettre en
+   pause — sans supprimer ; et la version de l'EA est affichée, avec un
+   avertissement explicite quand le terminal est trop ancien pour répondre
+   aux demandes de complétion ou de bougies.
+
+Le « trade jumeau » d'`AUDIT-2.md` est également livré. Restent les points
+non barrés du §2.2 et du §3.
