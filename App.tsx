@@ -34,6 +34,7 @@ applyMutationDefaults(queryClient);
 // queue left paused by a previous session.
 installOnlineManager(queryClient);
 import { OfflineBanner } from './src/components/common/OfflineBanner';
+import { UpdateBanner } from './src/components/common/UpdateBanner';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -44,6 +45,7 @@ import { useUIStore } from './src/store/uiStore';
 import { TopAccountBar } from './src/components/common/TopAccountBar';
 import { GlobalAddTradeFab } from './src/components/trades/GlobalAddTradeFab';
 import { AnimatedSplashScreen } from './src/components/common/AnimatedSplashScreen';
+import { PushRegistrationWatcher } from './src/features/notifications/usePushServerAlerts';
 import { BootScreen } from './src/components/common/BootScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
@@ -269,8 +271,14 @@ export default function App() {
           edges={['top', 'left', 'right']}
         >
           <OfflineBanner />
+          {/* Renders nothing unless an already-downloaded update is waiting:
+              without it, a published fix waits for the next cold start. */}
+          <UpdateBanner />
           {session && <TopAccountBar />}
           {session && <AutoFillBrokerWatcher />}
+          {/* Renders nothing: keeps the device's server-alert registration in
+              step with the language and the token. See usePushServerAlerts. */}
+          {session && <PushRegistrationWatcher />}
           <NavigationContainer
             theme={navTheme}
             /**

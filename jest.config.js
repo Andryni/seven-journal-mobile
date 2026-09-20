@@ -26,6 +26,8 @@ module.exports = {
       // jest-shims/netinfo.js for the tiny API surface logic tests need.
       moduleNameMapper: {
         '^@react-native-community/netinfo$': '<rootDir>/jest-shims/netinfo.js',
+        // Bundled MQL5 source is an asset, not a module; see jest-shims/mq5.js.
+        '\\.mq5$': '<rootDir>/jest-shims/mq5.js',
       },
       moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
       transform: {
@@ -37,6 +39,7 @@ module.exports = {
       preset: 'jest-expo',
       // See jest-shims/setup-env.js: preset 0.87 vs react-native 0.86.
       moduleNameMapper: {
+        '\.mq5$': '<rootDir>/jest-shims/mq5.js',
         '^react-native/setup-env$': '<rootDir>/jest-shims/setup-env.js',
         // ESM-only package with 1000+ icon modules; see jest-shims/lucide.js.
         '^lucide-react-native$': '<rootDir>/jest-shims/lucide.js',

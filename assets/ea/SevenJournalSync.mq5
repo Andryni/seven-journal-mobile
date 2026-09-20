@@ -1,0 +1,947 @@
+//+------------------------------------------------------------------+
+//|                                            SevenJournalSync.mq5  |
+//|  Pont MT5 -> Seven Journal.                                      |
+//|                                                                  |
+//|  Pousse chaque position (ouverte puis fermee) vers le webhook    |
+//|  /sync-ingest. ECRITURE SEULE : le secret ne permet jamais de    |
+//|  lire quoi que ce soit. Le serveur dedupe par position id : un   |
+//|  renvoi est donc toujours inoffensif.                            |
+//|                                                                  |
+//|  Une ligne JSON PAR POSITION :                                   |
+//|   - entrees sommees (taille, prix moyen pondere, heure la plus   |
+//|     ancienne), sorties listees individuellement,                 |
+//|   - pnl NET = somme(profit) - somme(commission) - somme(swap).   |
+//|                                                                  |
+//|  Installation : voir bridge/mt5/README.md                        |
+//+------------------------------------------------------------------+
+#property copyright "Seven Journal"
+#property link      "https://seven-journal.app"
+#property version   "1.17"
+#property strict
+
+//--- Version annoncee au serveur dans le heartbeat.
+//| MQL5 n'expose pas la valeur de #property version a l'execution : celle-ci
+//| doit etre tenue a la main, en accord avec la propriete ci-dessus. L'app s'en
+//| sert pour dire au trader si son terminal sait repondre aux demandes de
+//| completion (v1.15 : oui pour les positions deja cloturees ; v1.16 : aussi
+//| pour les positions encore ouvertes) et de replay (v1.17 : renvoie les
+//| bougies M1 autour d'une position, pour que l'app dessine le trade).
+#define EA_VERSION "1.17"
+
+//--- Parametres (a renseigner apres creation du connecteur dans l'app)
+input string InpWebhookUrl     = "";    // URL du webhook (.../functions/v1/sync-ingest)
+input string InpSecret         = "";    // Secret du connecteur (write-only)
+input int    InpScanSeconds    = 15;    // Frequence de scan de l'historique (s)
+input int    InpBeatSeconds    = 60;    // Frequence du heartbeat (s)
+input int    InpTimeoutMs      = 10000; // Timeout WebRequest (ms)
+input int    InpOverlapMinutes = 120;   // Recouvrement du scan (sécurité anti-trou)
+input int    InpCandleMax      = 1500;  // Bougies M1 max renvoyees par demande de replay (v1.17)
+
+//--- Etat
+datetime g_lastScanFrom   = 0;     // watermark : on scanne l'historique a partir de la
+datetime g_lastScanAt     = 0;     // planification : dernier scan effectue
+datetime g_lastBeatAt     = 0;
+int      g_timer          = 5;     // tick d'horloge interne (s)
+bool     g_configOk       = false; // URL + secret renseignes
+int      g_lastSendCount  = 0;
+datetime g_lastSendAt     = 0;
+string   g_lastHttp       = "-";
+
+//+------------------------------------------------------------------+
+//| Init : validation des entrees + horloge                          |
+//+------------------------------------------------------------------+
+int OnInit()
+  {
+   // v1.11 : un parametre manquant n'est plus un suicide silencieux
+   // (INIT_PARAMETERS_INCORRECT se lit "failed with code 32767" dans le
+   // journal et personne ne comprend). L'EA reste charge, affiche le probleme
+   // EN CLAIR sur le graphique et en Alert, et se repare par un simple
+   // re-glissage avec les bons parametres.
+   if(StringLen(InpWebhookUrl) == 0 || StringLen(InpSecret) == 0)
+     {
+      Alert("SevenJournalSync : URL du webhook et secret du connecteur requis.",
+            " Re-attachez l'EA et remplissez l'onglet Parametres.");
+      Print("SevenJournalSync: renseignez l'URL du webhook et le secret du connecteur");
+      EventSetTimer(g_timer);
+      return(INIT_SUCCEEDED);
+     }
+   if(StringFind(InpWebhookUrl, "https://") != 0)
+     {
+      Alert("SevenJournalSync : l'URL du webhook doit commencer par https://");
+      Print("SevenJournalSync: l'URL doit etre en HTTPS");
+      EventSetTimer(g_timer);
+      return(INIT_SUCCEEDED);
+     }
+   g_configOk = true;
+
+   // Reprise apres redemarrage : on repart d'au moins une heure en arriere.
+   // Premier attachement : TOUT l'historique du compte est importe (le
+   // serveur dedoublonne, le terminal dedupe, aucun trade n'arrive deux fois).
+   // _v2 : v1.10 importe tout l'historique au premier attachement. Si une
+   // v1.00 a deja tourne, son ancien watermark (limite a 24 h) ne doit pas
+   // empecher l'import complet — d'ou le nouveau nom de variable.
+   datetime saved = (datetime)GlobalVariableGet("SevenJournalSync_watermark_v3");
+   if(saved > 0)
+      g_lastScanFrom = saved - InpOverlapMinutes * 60;
+   else
+      g_lastScanFrom = 0;
+
+   EventSetTimer(g_timer);
+   if(g_lastScanFrom == 0)
+      Print("SevenJournalSync: actif. Premier scan : historique complet du compte.");
+   else
+      Print("SevenJournalSync: actif. Premier scan depuis ", TimeToString(g_lastScanFrom));
+   return(INIT_SUCCEEDED);
+  }
+
+//+------------------------------------------------------------------+
+//| Deinit                                                           |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+   EventKillTimer();
+   ObjectsDeleteAll(0, "SJS_");
+  }
+
+//+------------------------------------------------------------------+
+//| Horloge : scan + heartbeat selon leurs frequences respectives    |
+//+------------------------------------------------------------------+
+void OnTimer()
+  {
+   datetime now = TimeCurrent();
+
+   DrawPanel();
+
+   // Parametres manquants : on attend le re-glissage plutot que d'echouer
+   // en boucle (chaque tentative n'est qu'un Print explicite).
+   if(!g_configOk)
+      return;
+
+   if(now - g_lastBeatAt >= InpBeatSeconds)
+     {
+      g_lastBeatAt = now;
+      SendHeartbeat();
+     }
+
+   if(now - g_lastScanAt >= InpScanSeconds)
+     {
+      g_lastScanAt = now;
+      ScanAndPush();
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Panneau de statut sur le graphique : etat visible sans ouvrir le |
+//| journal Experts. Cree une fois, mis a jour a chaque tick d'horloge. |
+//+------------------------------------------------------------------+
+void DrawPanel()
+  {
+   const string PREFIX = "SJS_";
+   if(ObjectFind(0, PREFIX + "BG") < 0)
+     {
+      ObjectCreate(0, PREFIX + "BG", OBJ_RECTANGLE_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_XDISTANCE, 8);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_YDISTANCE, 24);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_XSIZE, 240);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_YSIZE, 64);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BGCOLOR, C'20,22,28');
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_COLOR, C'20,22,28');
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BORDER_TYPE, BORDER_FLAT);
+      ObjectSetInteger(0, PREFIX + "BG", OBJPROP_BACK, false);
+
+      ObjectCreate(0, PREFIX + "L1", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_YDISTANCE, 30);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L1", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrWhite);
+
+      ObjectCreate(0, PREFIX + "L2", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_YDISTANCE, 46);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L2", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrSilver);
+
+      ObjectCreate(0, PREFIX + "L3", OBJ_LABEL, 0, 0, 0);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_XDISTANCE, 16);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_YDISTANCE, 62);
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_FONTSIZE, 8);
+      ObjectSetString(0, PREFIX + "L3", OBJPROP_FONT, "Consolas");
+      ObjectSetInteger(0, PREFIX + "L3", OBJPROP_COLOR, clrSilver);
+     }
+
+   string l1, l2, l3;
+   if(!g_configOk)
+     {
+      l1 = "SevenJournalSync — PARAMETRES MANQUANTS";
+      l2 = "Re-attachez l'EA : URL + secret";
+      l3 = "(onglet Parametres)";
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrOrange);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrWhite);
+     }
+   else
+     {
+      l1 = "SevenJournalSync — ACTIF";
+      l2 = StringFormat("Dernier envoi : %s  (HTTP %s)",
+             g_lastSendAt > 0 ? TimeToString(g_lastSendAt, TIME_DATE|TIME_MINUTES) : "-",
+             g_lastHttp);
+      l3 = StringFormat("Positions : %d   Scan %ds / Beat %ds",
+             g_lastSendCount, InpScanSeconds, InpBeatSeconds);
+      ObjectSetInteger(0, PREFIX + "L1", OBJPROP_COLOR, clrLime);
+      ObjectSetInteger(0, PREFIX + "L2", OBJPROP_COLOR, clrSilver);
+     }
+   ObjectSetString(0, PREFIX + "L1", OBJPROP_TEXT, l1);
+   ObjectSetString(0, PREFIX + "L2", OBJPROP_TEXT, l2);
+   ObjectSetString(0, PREFIX + "L3", OBJPROP_TEXT, l3);
+  }
+
+//+------------------------------------------------------------------+
+//| POST JSON vers le webhook. Retourne true si 2xx.                 |
+//| Retry x3 avec backoff pour les erreurs reseau transitoires.      |
+//| v1.15 : responseBody capture la reponse — le heartbeat y porte   |
+//| les demandes de back-fill a servir (voir ParseHeartbeatRequests). |
+//| v1.17 : il y porte aussi les demandes de replay (candle_requests) |
+//| servies par SendCandlesForRequests.                              |
+//+------------------------------------------------------------------+
+bool PostJson(const string body, string &responseCode, string &responseBody)
+  {
+   char data[];
+   char result[];
+   string headers = "Authorization: Bearer " + InpSecret + "\r\n" +
+                    "Content-Type: application/json\r\n";
+   string resultHeaders;
+
+   StringToCharArray(body, data, 0, StringLen(body), CP_UTF8);
+
+   for(int attempt = 0; attempt < 3; attempt++)
+     {
+      ResetLastError();
+      int status = WebRequest("POST", InpWebhookUrl, headers, InpTimeoutMs,
+                              data, result, resultHeaders);
+
+      if(status == -1)
+        {
+         int err = GetLastError();
+         if(err == 4014)
+           {
+            Print("SevenJournalSync: URL non autorisee. Options -> Expert Advisors ->",
+                  " Autoriser WebRequest pour : ", InpWebhookUrl);
+            responseCode = "url_not_allowed";
+            return(false);   // inutile de ressayer : c'est une config, pas un reseau
+           }
+         Print("SevenJournalSync: erreur reseau ", err, " (essai ", attempt + 1, "/3)");
+        }
+      else if(status >= 200 && status < 300)
+        {
+         responseCode = IntegerToString(status);
+         responseBody = CharArrayToString(result);
+         GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
+         return(true);
+        }
+      else
+        {
+         responseCode = IntegerToString(status);
+         Print("SevenJournalSync: HTTP ", status, " -> ", CharArrayToString(result));
+         // 4xx (sauf 429) : renvoyer ne changera rien, on abandonne.
+         if(status >= 400 && status < 500 && status != 429)
+           {
+            GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
+            return(false);
+           }
+        }
+
+      Sleep(1000 * (attempt + 1));   // backoff lineaire 1s, 2s
+     }
+
+   return(false);
+  }
+
+//+------------------------------------------------------------------+
+//| Heartbeat : la liste des positions actuellement ouvertes.        |
+//| Aucune donnee de trade : juste les ids, pour le statut du        |
+//| connecteur et la retraite des lignes disparues (stale).          |
+//+------------------------------------------------------------------+
+void SendHeartbeat()
+  {
+   string ids = "";
+   for(int i = 0; i < PositionsTotal(); i++)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(ids != "") ids += ",";
+      ids += "\"" + IntegerToString((long)PositionGetInteger(POSITION_IDENTIFIER)) + "\"";
+     }
+
+   // v1.14 : le heartbeat porte aussi le solde et l'equity du compte.
+   //
+   // Le journal additionne les P&L pour connaitre le solde ; le courtier, lui,
+   // le CONNAIT. L'ecart entre les deux est une information : frais non
+   // captures, trade rate par le pont, depot ou retrait non enregistre.
+   // Sans cette ligne, un trade manquant ne se voit jamais.
+   //
+   // Envoye sur le heartbeat et non sur les events : c'est un etat, pas un
+   // evenement, et il doit arriver meme un jour sans aucun trade.
+   //
+   // v1.16 : le heartbeat annonce aussi la version de l'EA. Sans elle, l'app ne
+   // peut pas distinguer un terminal qui ne repondra jamais a une demande de
+   // completion d'un terminal simplement silencieux — elle promettait donc des
+   // niveaux qui n'arriveraient pas, sans rien pour l'expliquer.
+   string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]"
+                 + ",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE), 2)
+                 + ",\"equity\":" + Num(AccountInfoDouble(ACCOUNT_EQUITY), 2)
+                 + ",\"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\""
+                 + ",\"ea_version\":\"" + EA_VERSION + "\""
+                 + "}";
+   string code;
+   string resp;
+   if(!PostJson(body, code, resp)) return;
+
+   // v1.15 : reponse aux demandes de back-fill (chat -> EA). Le serveur
+   // envoie dans le heartbeat les positions a reconstruire ; chacune est
+   // renvoyee sur le canal normal "trades" ENRICHIE de ses extremes
+   // (MAE/MFE recalculs depuis les barres M1) et de ses niveaux SL/TP.
+   // Cote serveur, le trade deja journalise est complete SANS ecraser
+   // aucune valeur posee par le trader.
+   string reqIds[];
+   int reqN = ParseHeartbeatRequests(resp, reqIds);
+   if(reqN > 0)
+     {
+      string evs = "";
+      int    cnt = 0;
+      for(int i = 0; i < reqN; i++)
+        {
+         // v1.16 : une demande peut viser une position ENCORE ouverte (le
+         // trader a promu une position vivante, puis a demande ses niveaux).
+         // La reconstruire comme fermee faisait croire au serveur que le
+         // broker venait de la clore : sortie datee 1970, P&L fantome, et la
+         // vraie cloture ne pouvait plus completer le trade. On detecte donc
+         // la position vivante et on renvoie son etat courant, SL/TP inclus.
+         double liveSL = 0, liveTP = 0;
+         bool   stillOpen = LivePositionLevels(reqIds[i], liveSL, liveTP);
+         string ev = BuildPositionEvent(reqIds[i], stillOpen, liveSL, liveTP, true);
+         if(ev == "") continue;
+         if(evs != "") evs += ",";
+         evs += ev;
+         cnt++;
+        }
+      if(cnt > 0)
+        {
+         string flushBody = "{\"type\":\"trades\",\"events\":[" + evs + "]}";
+         string c2;
+         string dump2;
+         PostJson(flushBody, c2, dump2);
+         Print("SevenJournalSync: ", cnt,
+               " position(s) reconstruite(s) avec extremes pour back-fill");
+        }
+     }
+
+   // v1.17 : demandes de replay (bougies). Traitees APRÈS le back-fill, et
+   // dans leur propre tableau — les deux reponses partent separement, donc un
+   // refus de l'une n'emporte pas l'autre.
+   string candleIds[];
+   int candleN = ParseCandleRequests(resp, candleIds);
+   if(candleN > 0) SendCandlesForRequests(candleIds, candleN);
+  }
+
+//+------------------------------------------------------------------+
+//| La demande de back-fill vise-t-elle une position encore vivante ? |
+//| Oui -> renvoie ses SL/TP courants (l'appelant reutilise l'index du |
+//| ticket selectionne, comme la 3e passe du scan).                   |
+//+------------------------------------------------------------------+
+bool LivePositionLevels(const string posId, double &sl, double &tp)
+  {
+   long want = StringToInteger(posId);
+   if(want == 0) return(false);
+
+   for(int i = 0; i < PositionsTotal(); i++)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(PositionGetInteger(POSITION_IDENTIFIER) != want) continue;
+
+      sl = PositionGetDouble(POSITION_SL);
+      tp = PositionGetDouble(POSITION_TP);
+      return(true);
+     }
+   return(false);
+  }
+
+//+------------------------------------------------------------------+
+//| Parse minimal de la reponse heartbeat : ids demandes par le      |
+//| serveur sous {"ok":true,"requests":[{"id":..,"external_ids":[..]}]}. |
+//| Un vrai parseur JSON n'existe pas en MQL5 standard : on extrait  |
+//| chaque tableau "external_ids" par bornage de crochets — suffisant |
+//| pour un contrat que l'on controle des deux cotes.                |
+//+------------------------------------------------------------------+
+int ParseHeartbeatRequests(const string response, string &ids[])
+  {
+   ArrayResize(ids, 0);
+   if(StringFind(response, "\"requests\"") < 0) return(0);
+
+   // v1.17 : les demandes de replay vivent dans leur PROPRE tableau
+   // ("candle_requests"), et ce scan par crochets ne sait pas distinguer les
+   // deux : sans cette coupure il servirait aussi les ids de bougies comme des
+   // demandes de completion, et reconstruirait des positions pour rien.
+   string scope = response;
+   int cut = StringFind(response, "\"candle_requests\"");
+   if(cut > 0) scope = StringSubstr(response, 0, cut);
+
+   int n = 0;
+   int from = 0;
+   while(true)
+     {
+      int q = StringFind(scope, "\"external_ids\"", from);
+      if(q < 0) break;
+      int a = StringFind(scope, "[", q);
+      int b = StringFind(scope, "]", a);
+      if(a < 0 || b < 0 || b <= a) break;
+      string arr = StringSubstr(scope, a + 1, b - a - 1);
+
+      string parts[];
+      int k = StringSplit(arr, ',', parts);
+      for(int i = 0; i < k; i++)
+        {
+         string v = parts[i];
+         StringReplace(v, "\"", "");
+         StringTrimLeft(v);
+         StringTrimRight(v);
+         if(StringLen(v) > 0)
+           {
+            ArrayResize(ids, n + 1);
+            ids[n] = v;
+            n++;
+           }
+        }
+      from = b;
+     }
+   return(n);
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Demandes de REPLAY : les ids a illustrer, lus dans le     |
+//| tableau "candle_requests" de la reponse heartbeat. Meme contrat   |
+//| de bordage par crochets que ParseHeartbeatRequests, mais sur la   |
+//| portion de reponse qui SUIT la cle — les deux tableaux ne se      |
+//| melangent donc jamais.                                            |
+//+------------------------------------------------------------------+
+int ParseCandleRequests(const string response, string &ids[])
+  {
+   ArrayResize(ids, 0);
+   int at = StringFind(response, "\"candle_requests\"");
+   if(at < 0) return(0);
+
+   string scope = StringSubstr(response, at);
+
+   int n = 0;
+   int from = 0;
+   while(true)
+     {
+      int q = StringFind(scope, "\"external_ids\"", from);
+      if(q < 0) break;
+      int a = StringFind(scope, "[", q);
+      int b = StringFind(scope, "]", a);
+      if(a < 0 || b < 0 || b <= a) break;
+      string arr = StringSubstr(scope, a + 1, b - a - 1);
+
+      string parts[];
+      int k = StringSplit(arr, ',', parts);
+      for(int i = 0; i < k; i++)
+        {
+         string v = parts[i];
+         StringReplace(v, "\"", "");
+         StringTrimLeft(v);
+         StringTrimRight(v);
+         if(StringLen(v) > 0)
+           {
+            ArrayResize(ids, n + 1);
+            ids[n] = v;
+            n++;
+           }
+        }
+      from = b;
+     }
+   return(n);
+  }
+
+//+------------------------------------------------------------------+
+//| Fenetre temporelle d'une position : symbole, premiere entree,    |
+//| derniere sortie (ou maintenant si elle est encore ouverte).      |
+//| Sert au replay : l'app demande les bougies de CETTE fenetre, pas  |
+//| d'un historique qu'elle devrait deviner.                          |
+//+------------------------------------------------------------------+
+bool PositionWindow(const string posId, string &symbol, datetime &fromTime, datetime &toTime)
+  {
+   long posIdNum = StringToInteger(posId);
+   if(posIdNum == 0) return(false);
+   if(!HistorySelectByPosition(posIdNum)) return(false);
+
+   symbol   = "";
+   fromTime = 0;
+   toTime   = 0;
+
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0) continue;
+
+      if(symbol == "") symbol = HistoryDealGetString(deal, DEAL_SYMBOL);
+
+      long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      datetime dTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+
+      if(entry == DEAL_ENTRY_IN)
+        {
+         if(fromTime == 0 || dTime < fromTime) fromTime = dTime;
+        }
+      else if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_OUT_BY || entry == DEAL_ENTRY_INOUT)
+        {
+         if(dTime > toTime) toTime = dTime;
+        }
+     }
+
+   if(symbol == "" || fromTime == 0) return(false);
+   // Position encore ouverte : la fenetre va jusqu'a maintenant.
+   if(toTime == 0) toTime = TimeCurrent();
+   if(toTime < fromTime) toTime = fromTime;
+   return(true);
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Bougies M1 autour d'une position, pour le replay cote    |
+//| app. Fenetre bornee : 15 minutes de contexte avant l'entree et   |
+//| apres la sortie, plafonnee a InpCandleMax barres. Le drapeau      |
+//| "truncated" est renvoye tel quel : un graphique partiel qui se    |
+//| presente comme complet serait pire que pas de graphique.          |
+//| Aucune donnee ne sort que le trader n'ait deja dans son terminal.|
+//+------------------------------------------------------------------+
+string BuildCandlesEvent(const string posId)
+  {
+   string   symbol;
+   datetime from = 0, to = 0;
+   if(!PositionWindow(posId, symbol, from, to)) return("");
+
+   const int PAD = 900;   // 15 minutes de contexte de chaque cote
+   datetime start = from - PAD;
+   datetime end   = to + PAD;
+
+   MqlRates rates[];
+   int n = CopyRates(symbol, PERIOD_M1, start, end, rates);
+   if(n <= 0) return("");
+
+   bool truncated = false;
+   if(n > InpCandleMax)
+     {
+      // Le DEBUT est garde : c'est l'entree du trade, la partie que le trader
+      // veut revoir. La fin est signalee manquante.
+      n = InpCandleMax;
+      truncated = true;
+     }
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+
+   string bars = "";
+   for(int i = 0; i < n; i++)
+     {
+      if(bars != "") bars += ",";
+      bars += "{\"t\":\"" + IsoTime(rates[i].time) + "\""
+              + ",\"o\":" + Num(rates[i].open, digits)
+              + ",\"h\":" + Num(rates[i].high, digits)
+              + ",\"l\":" + Num(rates[i].low, digits)
+              + ",\"c\":" + Num(rates[i].close, digits) + "}";
+     }
+
+   return("{\"external_id\":\"" + posId + "\""
+          + ",\"symbol\":\"" + JsonEscape(symbol) + "\""
+          + ",\"timeframe\":\"M1\""
+          + ",\"truncated\":" + (truncated ? "true" : "false")
+          + ",\"bars\":[" + bars + "]}");
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Repond aux demandes de replay du heartbeat, en un seul    |
+//| POST. Une demande sans donnees locales (historique purge) est     |
+//| simplement omise : le serveur garde la ligne sans bougies, et      |
+//| l'app peut redemander.                                            |
+//+------------------------------------------------------------------+
+void SendCandlesForRequests(const string &ids[], const int count)
+  {
+   string evs = "";
+   int    cnt = 0;
+
+   for(int i = 0; i < count; i++)
+     {
+      string ev = BuildCandlesEvent(ids[i]);
+      if(ev == "") continue;
+      if(evs != "") evs += ",";
+      evs += ev;
+      cnt++;
+     }
+
+   if(cnt == 0) return;
+
+   string body = "{\"type\":\"candles\",\"events\":[" + evs + "]}";
+   string code;
+   string dump;
+   if(PostJson(body, code, dump))
+      Print("SevenJournalSync: ", cnt, " jeu(x) de bougies envoye(s) pour replay");
+   else
+      Print("SevenJournalSync: replay refuse (HTTP ", code, ") — il sera redemande");
+  }
+
+//+------------------------------------------------------------------+
+//| Extremes de prix d'une position : MAE (pire adverse) et MFE      |
+//| (meilleur favorable), recalcules depuis les barres M1 locales.   |
+//| Sens-aware : pour un SELL l'adverse est AU-DESSUS du prix         |
+//| d'entree — c'est la convention du journal (maeR/mfeR en R).      |
+//| Les donnees viennent du terminal lui-meme : aucune donnee ne     |
+//| sort de la plate-forme que le trader n'y ait deja mise.          |
+//+------------------------------------------------------------------+
+bool PositionExtremes(const string symbol, const string direction,
+                      const datetime fromTime, const datetime toTime,
+                      double &maeOut, double &mfeOut)
+  {
+   if(symbol == "" || toTime <= 0) return(false);
+   datetime from = (fromTime > 0) ? fromTime : toTime;
+
+   double   hi = -DBL_MAX, lo = DBL_MAX;
+   bool     got = false;
+   datetime cursor = from;
+   while(cursor <= toTime)
+     {
+      MqlRates rates[];
+      int n = CopyRates(symbol, PERIOD_M1, cursor, toTime, rates);
+      if(n <= 0) break;              // plus de donnees locales
+      for(int i = 0; i < n; i++)
+        {
+         if(rates[i].time > toTime) break;
+         if(rates[i].high > hi) hi = rates[i].high;
+         if(rates[i].low  < lo) lo = rates[i].low;
+         got = true;
+        }
+      datetime last = rates[n - 1].time;
+      if(last <= cursor) break;      // anti-boucle
+      cursor = last + 60;
+     }
+   if(!got) return(false);
+
+   if(direction == "SELL") { maeOut = hi; mfeOut = lo; }
+   else                    { maeOut = lo; mfeOut = hi; }
+   return(true);
+  }
+
+//+------------------------------------------------------------------+
+//| Envoi d'un lot d'events. Retourne true si le serveur a accepte.  |
+//+------------------------------------------------------------------+
+bool FlushEvents(const string events, const int count)
+  {
+   if(count <= 0) return(true);
+   string body = "{\"type\":\"trades\",\"events\":[" + events + "]}";
+   string code;
+   string dump;
+   if(PostJson(body, code, dump))
+     {
+      Print("SevenJournalSync: ", count, " position(s) envoyee(s) (HTTP ", code, ")");
+      g_lastSendCount = count;
+      g_lastSendAt    = TimeCurrent();
+      g_lastHttp      = code;
+      return(true);
+     }
+   g_lastHttp = code;
+   return(false);
+  }
+
+//+------------------------------------------------------------------+
+//| Scan de l'historique : agregation par position id.               |
+//+------------------------------------------------------------------+
+void ScanAndPush()
+  {
+   datetime from = g_lastScanFrom - InpOverlapMinutes * 60;
+   datetime to   = TimeCurrent() + 60;
+
+   if(!HistorySelect(from, to)) return;
+
+   //--- 1re passe : collecter les ids de positions fermees (deal OUT) dans
+   //    un tableau. BuildPositionEvent re-selectionne l'historique via
+   //    HistorySelectByPosition : on ne peut PAS iterer les deals et
+   //    construire les positions en meme temps. On collecte les ids d'abord,
+   //    puis on construit position par position en passe 2.
+   string closedArr[];
+   int    closedN = 0;
+   ArrayResize(closedArr, 0, 256);
+
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0) continue;
+
+      long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      long posId = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+      if(posId == 0) continue;
+
+      if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_OUT_BY || entry == DEAL_ENTRY_INOUT)
+        {
+         string id = IntegerToString(posId);
+         bool known = false;
+         for(int k = 0; k < closedN; k++)
+            if(closedArr[k] == id) { known = true; break; }
+         if(!known)
+           {
+            ArrayResize(closedArr, closedN + 1);
+            closedArr[closedN] = id;
+            closedN++;
+           }
+        }
+     }
+
+   //--- 2e passe : construire les positions fermees (par id). L'envoi se
+   //    fait par lots de BATCH : la passerelle refuse un batch de plus de
+   //    500 events, et un premier import complet peut en contenir des
+   //    centaines (tout l'historique du compte est couvert au 1er attachement).
+   const int BATCH = 400;
+   string events = "";
+   int    count  = 0;
+   int    sent   = 0;
+   bool   allOk  = true;
+
+   for(int c = 0; c < closedN; c++)
+     {
+      string id = closedArr[c];
+      if(StringFind(events, "\"external_id\":\"" + id + "\"") >= 0) continue; // deja agregee
+
+      string ev = BuildPositionEvent(id, false);
+      if(ev == "") continue;
+
+      if(events != "") events += ",";
+      events += ev;
+      count++;
+      if(count >= BATCH)
+        {
+         if(FlushEvents(events, count)) sent += count; else allOk = false;
+         events = "";
+         count  = 0;
+        }
+     }
+
+   //--- 3e passe : les positions ouvertes (etat courant du terminal)
+   for(int p = 0; p < PositionsTotal(); p++)
+     {
+      ulong ticket = PositionGetTicket(p);
+      if(ticket == 0) continue;
+
+      string id = IntegerToString((long)PositionGetInteger(POSITION_IDENTIFIER));
+      if(StringFind(events, "\"external_id\":\"" + id + "\"") >= 0) continue;
+
+      // PositionGetTicket a selectionne la position : on lit SL/TP ICI,
+      // car BuildPositionEvent bascule le contexte sur l'historique.
+      double sl = PositionGetDouble(POSITION_SL);
+      double tp = PositionGetDouble(POSITION_TP);
+
+      string ev = BuildPositionEvent(id, true, sl, tp);
+      if(ev == "") continue;
+
+      if(events != "") events += ",";
+      events += ev;
+      count++;
+      if(count >= BATCH)
+        {
+         if(FlushEvents(events, count)) sent += count; else allOk = false;
+         events = "";
+         count  = 0;
+        }
+     }
+
+   if(count > 0)
+     {
+      if(FlushEvents(events, count)) sent += count; else allOk = false;
+     }
+
+   // Le watermark n'avance que si TOUT est parti : un lot refuse sera
+   // reconstruit au prochain scan (les lots deja acceptes y seront
+   // rededoublonnes par le serveur — un renvoi est toujours inoffensif).
+   if(allOk)
+     {
+      if(sent > 0) Print("SevenJournalSync: ", sent, " position(s) au total pour ce scan");
+      g_lastScanFrom = to;
+      GlobalVariableSet("SevenJournalSync_watermark_v3", (double)g_lastScanFrom);
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Construit le JSON d'UNE position (fermee ou ouverte).             |
+//| Entrees sommees, sorties listees, pnl NET.                        |
+//+------------------------------------------------------------------+
+string BuildPositionEvent(const string posId, const bool isOpen,
+                          const double curSL = 0, const double curTP = 0,
+                          const bool includeExcursions = false)
+  {
+   long   posIdNum = StringToInteger(posId);
+   if(!HistorySelectByPosition(posIdNum)) return("");
+
+   string symbol       = "";
+   string direction    = "BUY";
+   double inVol        = 0, inVolPrice = 0;
+   double outVol       = 0, outVolPrice = 0;
+   double profitSum    = 0, commSum = 0, swapSum = 0;
+   datetime inTime     = 0, lastOutTime = 0;
+   long     lastReason = -1;
+   string exits        = "";
+   int    exitsCount   = 0;
+   double histSL       = 0, histTP = 0;   // SL/TP vus sur les deals (fermées)
+
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0) continue;
+
+      long   dType  = HistoryDealGetInteger(deal, DEAL_TYPE);
+      long   dEntry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      double dVol   = HistoryDealGetDouble(deal, DEAL_VOLUME);
+      double dPrice = HistoryDealGetDouble(deal, DEAL_PRICE);
+      datetime dTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+
+      if(symbol == "") symbol = HistoryDealGetString(deal, DEAL_SYMBOL);
+
+      // Les frais portent sur TOUS les deals (entree comme sortie).
+      profitSum += HistoryDealGetDouble(deal, DEAL_PROFIT);
+      commSum   += MathAbs(HistoryDealGetDouble(deal, DEAL_COMMISSION));
+      swapSum   += HistoryDealGetDouble(deal, DEAL_SWAP);
+
+      if(dEntry == DEAL_ENTRY_IN)
+        {
+         if(inTime == 0 || dTime < inTime) inTime = dTime;
+         inVol      += dVol;
+         inVolPrice += dPrice * dVol;
+         if(dType == DEAL_TYPE_SELL) direction = "SELL";
+        }
+      else if(dEntry == DEAL_ENTRY_OUT || dEntry == DEAL_ENTRY_OUT_BY || dEntry == DEAL_ENTRY_INOUT)
+        {
+         // SL/TP historisés : le deal d'entrée (et les suivants) portent les
+         // niveaux du moment — le dernier non nul gagne. Sans ça, une position
+         // fermée arrive dans le journal sans ses niveaux (R non calculable).
+         double dSL = HistoryDealGetDouble(deal, DEAL_SL);
+         double dTP = HistoryDealGetDouble(deal, DEAL_TP);
+         if(dSL > 0) histSL = dSL;
+         if(dTP > 0) histTP = dTP;
+
+         outVol      += dVol;
+         outVolPrice += dPrice * dVol;
+         lastOutTime  = dTime;
+         lastReason   = HistoryDealGetInteger(deal, DEAL_REASON);
+
+         double dPnl = HistoryDealGetDouble(deal, DEAL_PROFIT)
+                     - MathAbs(HistoryDealGetDouble(deal, DEAL_COMMISSION))
+                     - MathAbs(HistoryDealGetDouble(deal, DEAL_SWAP));
+         if(exits != "") exits += ",";
+         exits += "{\"size\":" + Num(dVol, 2) +
+                  ",\"price\":" + Num(dPrice, 8) +
+                  ",\"exit_time\":\"" + IsoTime(dTime) + "\"" +
+                  ",\"pnl\":" + Num(dPnl, 2) + "}";
+         exitsCount++;
+        }
+     }
+
+   if(inVol <= 0) return("");
+
+   double entryPrice = inVolPrice / inVol;
+   double pnl        = profitSum - commSum - swapSum;
+
+   string json = "{\"external_id\":\"" + posId + "\"" +
+                 ",\"symbol\":\"" + JsonEscape(symbol) + "\"" +
+                 ",\"direction\":\"" + direction + "\"" +
+                 ",\"size\":" + Num(inVol, 2) +
+                 ",\"entry_price\":" + Num(entryPrice, 8) +
+                 ",\"entry_time\":\"" + IsoTime(inTime) + "\"" +
+                 ",\"is_open\":" + (isOpen ? "true" : "false");
+
+   if(isOpen)
+     {
+      // SL/TP courants de la position vivante, lus par l'appelant.
+      if(curSL > 0) json += ",\"stop_loss\":" + Num(curSL, 8);
+      if(curTP > 0) json += ",\"take_profit\":" + Num(curTP, 8);
+     }
+   else
+     {
+      if(histSL > 0) json += ",\"stop_loss\":" + Num(histSL, 8);
+      if(histTP > 0) json += ",\"take_profit\":" + Num(histTP, 8);
+      if(outVol > 0)
+         json += ",\"exit_price\":" + Num(outVolPrice / outVol, 8);
+      json += ",\"close_time\":\"" + IsoTime(lastOutTime) + "\"";
+      json += ",\"pnl\":" + Num(pnl, 2);
+      json += ",\"commission\":" + Num(commSum, 2);
+      json += ",\"swap\":" + Num(swapSum, 2);
+      json += ",\"close_reason\":\"" + CloseReason(lastReason, pnl) + "\"";
+      if(exitsCount > 1)   // une seule sortie = pas de detail partiel utile
+         json += ",\"exits\":[" + exits + "]";
+
+      // v1.15 : extremes calcules a la demande (back-fill uniquement —
+      // scanner les M1 de chaque position a chaque scan serait cher).
+      if(includeExcursions)
+        {
+         double mae = 0, mfe = 0;
+         if(PositionExtremes(symbol, direction, inTime, lastOutTime, mae, mfe))
+           {
+            json += ",\"mae_price\":" + Num(mae, 8);
+            json += ",\"mfe_price\":" + Num(mfe, 8);
+           }
+        }
+     }
+
+   json += "}";
+   return(json);
+  }
+
+//+------------------------------------------------------------------+
+//| Raison de cloture : raison du DERNIER deal OUT, avec repli BE.   |
+//+------------------------------------------------------------------+
+string CloseReason(const long lastReason, const double pnl)
+  {
+   if(lastReason == DEAL_REASON_TP) return("TP");
+   if(lastReason == DEAL_REASON_SL)
+     {
+      // Un stop déplacé au-delà de l'entrée (breakeven+) sort par SL mais
+      // n'est PAS une perte : le journal doit le compter comme BE.
+      if(pnl >= 0) return("BE");
+      return("SL");
+     }
+   if(MathAbs(pnl) < 0.01)          return("BE");
+   return("CLOSED");   // client, expert, mobile, stop-out, ...
+  }
+
+//+------------------------------------------------------------------+
+//| Utilitaires de formatage                                         |
+//+------------------------------------------------------------------+
+string Num(const double v, const int digits)
+  {
+   string s = DoubleToString(v, digits);
+   StringReplace(s, ",", ".");
+   return(s);
+  }
+
+string IsoTime(const datetime t)
+  {
+   // ISO-8601 UTC : 2026-09-18T09:31:22Z
+   // (TimeYear/TimeMonth/... n'existent qu'en MQL4 : on passe par la struct)
+   MqlDateTime tm;
+   TimeToStruct(t, tm);
+   return(StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ",
+                       tm.year, tm.mon, tm.day, tm.hour, tm.min, tm.sec));
+  }
+
+string JsonEscape(string s)
+  {
+   StringReplace(s, "\\", "\\\\");
+   StringReplace(s, "\"", "\\\"");
+   StringReplace(s, "\n", "\\n");
+   StringReplace(s, "\r", "\\r");
+   StringReplace(s, "\t", "\\t");
+   return(s);
+  }
+//+------------------------------------------------------------------+
