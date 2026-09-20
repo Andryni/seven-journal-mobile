@@ -16,8 +16,17 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.15"
+#property version   "1.17"
 #property strict
+
+//--- Version annoncee au serveur dans le heartbeat.
+//| MQL5 n'expose pas la valeur de #property version a l'execution : celle-ci
+//| doit etre tenue a la main, en accord avec la propriete ci-dessus. L'app s'en
+//| sert pour dire au trader si son terminal sait repondre aux demandes de
+//| completion (v1.15 : oui pour les positions deja cloturees ; v1.16 : aussi
+//| pour les positions encore ouvertes) et de replay (v1.17 : renvoie les
+//| bougies M1 autour d'une position, pour que l'app dessine le trade).
+#define EA_VERSION "1.17"
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
 input string InpWebhookUrl     = "";    // URL du webhook (.../functions/v1/sync-ingest)
@@ -26,6 +35,7 @@ input int    InpScanSeconds    = 15;    // Frequence de scan de l'historique (s)
 input int    InpBeatSeconds    = 60;    // Frequence du heartbeat (s)
 input int    InpTimeoutMs      = 10000; // Timeout WebRequest (ms)
 input int    InpOverlapMinutes = 120;   // Recouvrement du scan (sécurité anti-trou)
+input int    InpCandleMax      = 1500;  // Bougies M1 max renvoyees par demande de replay (v1.17)
 
 //--- Etat
 datetime g_lastScanFrom   = 0;     // watermark : on scanne l'historique a partir de la
@@ -195,6 +205,8 @@ void DrawPanel()
 //| Retry x3 avec backoff pour les erreurs reseau transitoires.      |
 //| v1.15 : responseBody capture la reponse — le heartbeat y porte   |
 //| les demandes de back-fill a servir (voir ParseHeartbeatRequests). |
+//| v1.17 : il y porte aussi les demandes de replay (candle_requests) |
+//| servies par SendCandlesForRequests.                              |
 //+------------------------------------------------------------------+
 bool PostJson(const string body, string &responseCode, string &responseBody)
   {
@@ -274,10 +286,16 @@ void SendHeartbeat()
    //
    // Envoye sur le heartbeat et non sur les events : c'est un etat, pas un
    // evenement, et il doit arriver meme un jour sans aucun trade.
+   //
+   // v1.16 : le heartbeat annonce aussi la version de l'EA. Sans elle, l'app ne
+   // peut pas distinguer un terminal qui ne repondra jamais a une demande de
+   // completion d'un terminal simplement silencieux — elle promettait donc des
+   // niveaux qui n'arriveraient pas, sans rien pour l'expliquer.
    string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]"
                  + ",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE), 2)
                  + ",\"equity\":" + Num(AccountInfoDouble(ACCOUNT_EQUITY), 2)
                  + ",\"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\""
+                 + ",\"ea_version\":\"" + EA_VERSION + "\""
                  + "}";
    string code;
    string resp;
@@ -297,7 +315,15 @@ void SendHeartbeat()
       int    cnt = 0;
       for(int i = 0; i < reqN; i++)
         {
-         string ev = BuildPositionEvent(reqIds[i], false, 0, 0, true);
+         // v1.16 : une demande peut viser une position ENCORE ouverte (le
+         // trader a promu une position vivante, puis a demande ses niveaux).
+         // La reconstruire comme fermee faisait croire au serveur que le
+         // broker venait de la clore : sortie datee 1970, P&L fantome, et la
+         // vraie cloture ne pouvait plus completer le trade. On detecte donc
+         // la position vivante et on renvoie son etat courant, SL/TP inclus.
+         double liveSL = 0, liveTP = 0;
+         bool   stillOpen = LivePositionLevels(reqIds[i], liveSL, liveTP);
+         string ev = BuildPositionEvent(reqIds[i], stillOpen, liveSL, liveTP, true);
          if(ev == "") continue;
          if(evs != "") evs += ",";
          evs += ev;
@@ -313,6 +339,36 @@ void SendHeartbeat()
                " position(s) reconstruite(s) avec extremes pour back-fill");
         }
      }
+
+   // v1.17 : demandes de replay (bougies). Traitees APRÈS le back-fill, et
+   // dans leur propre tableau — les deux reponses partent separement, donc un
+   // refus de l'une n'emporte pas l'autre.
+   string candleIds[];
+   int candleN = ParseCandleRequests(resp, candleIds);
+   if(candleN > 0) SendCandlesForRequests(candleIds, candleN);
+  }
+
+//+------------------------------------------------------------------+
+//| La demande de back-fill vise-t-elle une position encore vivante ? |
+//| Oui -> renvoie ses SL/TP courants (l'appelant reutilise l'index du |
+//| ticket selectionne, comme la 3e passe du scan).                   |
+//+------------------------------------------------------------------+
+bool LivePositionLevels(const string posId, double &sl, double &tp)
+  {
+   long want = StringToInteger(posId);
+   if(want == 0) return(false);
+
+   for(int i = 0; i < PositionsTotal(); i++)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(PositionGetInteger(POSITION_IDENTIFIER) != want) continue;
+
+      sl = PositionGetDouble(POSITION_SL);
+      tp = PositionGetDouble(POSITION_TP);
+      return(true);
+     }
+   return(false);
   }
 
 //+------------------------------------------------------------------+
@@ -327,16 +383,24 @@ int ParseHeartbeatRequests(const string response, string &ids[])
    ArrayResize(ids, 0);
    if(StringFind(response, "\"requests\"") < 0) return(0);
 
+   // v1.17 : les demandes de replay vivent dans leur PROPRE tableau
+   // ("candle_requests"), et ce scan par crochets ne sait pas distinguer les
+   // deux : sans cette coupure il servirait aussi les ids de bougies comme des
+   // demandes de completion, et reconstruirait des positions pour rien.
+   string scope = response;
+   int cut = StringFind(response, "\"candle_requests\"");
+   if(cut > 0) scope = StringSubstr(response, 0, cut);
+
    int n = 0;
    int from = 0;
    while(true)
      {
-      int q = StringFind(response, "\"external_ids\"", from);
+      int q = StringFind(scope, "\"external_ids\"", from);
       if(q < 0) break;
-      int a = StringFind(response, "[", q);
-      int b = StringFind(response, "]", a);
+      int a = StringFind(scope, "[", q);
+      int b = StringFind(scope, "]", a);
       if(a < 0 || b < 0 || b <= a) break;
-      string arr = StringSubstr(response, a + 1, b - a - 1);
+      string arr = StringSubstr(scope, a + 1, b - a - 1);
 
       string parts[];
       int k = StringSplit(arr, ',', parts);
@@ -356,6 +420,178 @@ int ParseHeartbeatRequests(const string response, string &ids[])
       from = b;
      }
    return(n);
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Demandes de REPLAY : les ids a illustrer, lus dans le     |
+//| tableau "candle_requests" de la reponse heartbeat. Meme contrat   |
+//| de bordage par crochets que ParseHeartbeatRequests, mais sur la   |
+//| portion de reponse qui SUIT la cle — les deux tableaux ne se      |
+//| melangent donc jamais.                                            |
+//+------------------------------------------------------------------+
+int ParseCandleRequests(const string response, string &ids[])
+  {
+   ArrayResize(ids, 0);
+   int at = StringFind(response, "\"candle_requests\"");
+   if(at < 0) return(0);
+
+   string scope = StringSubstr(response, at);
+
+   int n = 0;
+   int from = 0;
+   while(true)
+     {
+      int q = StringFind(scope, "\"external_ids\"", from);
+      if(q < 0) break;
+      int a = StringFind(scope, "[", q);
+      int b = StringFind(scope, "]", a);
+      if(a < 0 || b < 0 || b <= a) break;
+      string arr = StringSubstr(scope, a + 1, b - a - 1);
+
+      string parts[];
+      int k = StringSplit(arr, ',', parts);
+      for(int i = 0; i < k; i++)
+        {
+         string v = parts[i];
+         StringReplace(v, "\"", "");
+         StringTrimLeft(v);
+         StringTrimRight(v);
+         if(StringLen(v) > 0)
+           {
+            ArrayResize(ids, n + 1);
+            ids[n] = v;
+            n++;
+           }
+        }
+      from = b;
+     }
+   return(n);
+  }
+
+//+------------------------------------------------------------------+
+//| Fenetre temporelle d'une position : symbole, premiere entree,    |
+//| derniere sortie (ou maintenant si elle est encore ouverte).      |
+//| Sert au replay : l'app demande les bougies de CETTE fenetre, pas  |
+//| d'un historique qu'elle devrait deviner.                          |
+//+------------------------------------------------------------------+
+bool PositionWindow(const string posId, string &symbol, datetime &fromTime, datetime &toTime)
+  {
+   long posIdNum = StringToInteger(posId);
+   if(posIdNum == 0) return(false);
+   if(!HistorySelectByPosition(posIdNum)) return(false);
+
+   symbol   = "";
+   fromTime = 0;
+   toTime   = 0;
+
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0) continue;
+
+      if(symbol == "") symbol = HistoryDealGetString(deal, DEAL_SYMBOL);
+
+      long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      datetime dTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+
+      if(entry == DEAL_ENTRY_IN)
+        {
+         if(fromTime == 0 || dTime < fromTime) fromTime = dTime;
+        }
+      else if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_OUT_BY || entry == DEAL_ENTRY_INOUT)
+        {
+         if(dTime > toTime) toTime = dTime;
+        }
+     }
+
+   if(symbol == "" || fromTime == 0) return(false);
+   // Position encore ouverte : la fenetre va jusqu'a maintenant.
+   if(toTime == 0) toTime = TimeCurrent();
+   if(toTime < fromTime) toTime = fromTime;
+   return(true);
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Bougies M1 autour d'une position, pour le replay cote    |
+//| app. Fenetre bornee : 15 minutes de contexte avant l'entree et   |
+//| apres la sortie, plafonnee a InpCandleMax barres. Le drapeau      |
+//| "truncated" est renvoye tel quel : un graphique partiel qui se    |
+//| presente comme complet serait pire que pas de graphique.          |
+//| Aucune donnee ne sort que le trader n'ait deja dans son terminal.|
+//+------------------------------------------------------------------+
+string BuildCandlesEvent(const string posId)
+  {
+   string   symbol;
+   datetime from = 0, to = 0;
+   if(!PositionWindow(posId, symbol, from, to)) return("");
+
+   const int PAD = 900;   // 15 minutes de contexte de chaque cote
+   datetime start = from - PAD;
+   datetime end   = to + PAD;
+
+   MqlRates rates[];
+   int n = CopyRates(symbol, PERIOD_M1, start, end, rates);
+   if(n <= 0) return("");
+
+   bool truncated = false;
+   if(n > InpCandleMax)
+     {
+      // Le DEBUT est garde : c'est l'entree du trade, la partie que le trader
+      // veut revoir. La fin est signalee manquante.
+      n = InpCandleMax;
+      truncated = true;
+     }
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+
+   string bars = "";
+   for(int i = 0; i < n; i++)
+     {
+      if(bars != "") bars += ",";
+      bars += "{\"t\":\"" + IsoTime(rates[i].time) + "\""
+              + ",\"o\":" + Num(rates[i].open, digits)
+              + ",\"h\":" + Num(rates[i].high, digits)
+              + ",\"l\":" + Num(rates[i].low, digits)
+              + ",\"c\":" + Num(rates[i].close, digits) + "}";
+     }
+
+   return("{\"external_id\":\"" + posId + "\""
+          + ",\"symbol\":\"" + JsonEscape(symbol) + "\""
+          + ",\"timeframe\":\"M1\""
+          + ",\"truncated\":" + (truncated ? "true" : "false")
+          + ",\"bars\":[" + bars + "]}");
+  }
+
+//+------------------------------------------------------------------+
+//| v1.17 — Repond aux demandes de replay du heartbeat, en un seul    |
+//| POST. Une demande sans donnees locales (historique purge) est     |
+//| simplement omise : le serveur garde la ligne sans bougies, et      |
+//| l'app peut redemander.                                            |
+//+------------------------------------------------------------------+
+void SendCandlesForRequests(const string &ids[], const int count)
+  {
+   string evs = "";
+   int    cnt = 0;
+
+   for(int i = 0; i < count; i++)
+     {
+      string ev = BuildCandlesEvent(ids[i]);
+      if(ev == "") continue;
+      if(evs != "") evs += ",";
+      evs += ev;
+      cnt++;
+     }
+
+   if(cnt == 0) return;
+
+   string body = "{\"type\":\"candles\",\"events\":[" + evs + "]}";
+   string code;
+   string dump;
+   if(PostJson(body, code, dump))
+      Print("SevenJournalSync: ", cnt, " jeu(x) de bougies envoye(s) pour replay");
+   else
+      Print("SevenJournalSync: replay refuse (HTTP ", code, ") — il sera redemande");
   }
 
 //+------------------------------------------------------------------+

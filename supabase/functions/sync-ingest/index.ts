@@ -150,6 +150,59 @@ function parseEvent(raw: unknown): IngestEvent | null {
   };
 }
 
+/**
+ * Candles for one position, as the terminal produced them.
+ *
+ * Validated like every other bridge payload: unparseable bars are dropped one
+ * by one rather than failing the batch, the series is SORTED by time (a chart
+ * drawn in arrival order is a chart of nothing), and the count is capped — a
+ * terminal left attached for a month on one position must not be able to post
+ * an unbounded array into the database.
+ */
+const MAX_BARS = 2000;
+
+interface CandleEvent {
+  external_id: string;
+  timeframe: 'M1' | 'M5' | 'M15';
+  bars: { t: string; o: number; h: number; l: number; c: number }[];
+  truncated: boolean;
+}
+
+function parseCandles(raw: unknown): CandleEvent | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const e = raw as Record<string, unknown>;
+
+  const external_id = str(e.external_id, 64);
+  if (!external_id) return null;
+
+  const tf = str(e.timeframe, 4);
+  const timeframe: CandleEvent['timeframe'] = tf === 'M5' ? 'M5' : tf === 'M15' ? 'M15' : 'M1';
+
+  const rows = Array.isArray(e.bars) ? (e.bars as Record<string, unknown>[]) : [];
+  const bars = rows
+    .map((b) => {
+      const ms = Date.parse(String(b?.t ?? ''));
+      const o = num(b?.o);
+      const h = num(b?.h);
+      const l = num(b?.l);
+      const c = num(b?.c);
+      if (isNaN(ms) || o === null || h === null || l === null || c === null) return null;
+      return { t: new Date(ms).toISOString(), o, h, l, c };
+    })
+    .filter((b): b is { t: string; o: number; h: number; l: number; c: number } => b !== null)
+    .sort((a, b) => a.t.localeCompare(b.t))
+    .slice(0, MAX_BARS);
+
+  if (bars.length === 0) return null;
+
+  return {
+    external_id,
+    timeframe,
+    bars,
+    truncated: e.truncated === true || rows.length > MAX_BARS,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -220,6 +273,15 @@ Deno.serve(async (req: Request) => {
     }
     if (equity !== null) beat.broker_equity = equity;
     if (currency) beat.broker_currency = currency.toUpperCase();
+    /**
+     * Which EA build is attached (v1.16+). Written only when present, like the
+     * balance: a terminal that has not been updated keeps whatever it reported
+     * before rather than being silently reset to "unknown". The app reads NULL
+     * here as "older than the field", which is what licenses the upgrade
+     * warning instead of a promise the terminal cannot honour.
+     */
+    const eaVersion = str(body.ea_version, 16);
+    if (eaVersion) beat.ea_version = eaVersion;
 
     await admin.from('sync_ingest_accounts').update(beat).eq('id', ingestId);
 
@@ -247,24 +309,108 @@ Deno.serve(async (req: Request) => {
     // fails (terminal offline mid-request) leaves the gaps in place and a
     // NEW request can be queued, because the dedupe only guards rows still
     // pending. An old EA simply ignores the field it never read.
+    /**
+     * `select('*')`, not a column list: `kind` and `timeframe` only exist once
+     * schema.sql SECTION 9 has been run, and naming a column a database does
+     * not have makes PostgREST fail the WHOLE query. A database one migration
+     * behind would then stop serving back-fill requests as well — a new
+     * feature silently breaking an old one. Unknown extra columns are ignored.
+     */
     const { data: pendingReqs } = await admin
       .from('sync_requests')
-      .select('id, external_ids')
+      .select('*')
       .eq('ingest_account_id', ingestId)
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(10);
 
-    let requests: { id: string; external_ids: string[] }[] = [];
+    const requests: { id: string; external_ids: string[] }[] = [];
+    const candleRequests: { id: string; external_ids: string[]; timeframe: string }[] = [];
+
     if (pendingReqs && pendingReqs.length > 0) {
+      // Served BEFORE the terminal has answered: at-most-once delivery, on
+      // purpose (an offline terminal mid-request must be re-askable, and the
+      // dedupe only guards requests still pending).
       await admin
         .from('sync_requests')
         .update({ status: 'served', served_at: new Date().toISOString() })
         .in('id', pendingReqs.map((r) => r.id));
-      requests = pendingReqs.map((r) => ({ id: r.id, external_ids: r.external_ids ?? [] }));
+
+      for (const r of pendingReqs as Record<string, unknown>[]) {
+        const ids = Array.isArray(r.external_ids) ? (r.external_ids as string[]) : [];
+        if (ids.length === 0) continue;
+
+        if (r.kind === 'candles') {
+          candleRequests.push({
+            id: String(r.id),
+            external_ids: ids,
+            timeframe: str(r.timeframe, 8) ?? 'M1',
+          });
+        } else {
+          requests.push({ id: String(r.id), external_ids: ids });
+        }
+      }
     }
 
-    return json(requests.length > 0 ? { ok: true, requests } : { ok: true });
+    const handout: Record<string, unknown> = { ok: true };
+    if (requests.length > 0) handout.requests = requests;
+    // A separate key rather than a flag on each request: the EA's parser is a
+    // bracket scan (MQL5 has no JSON library), and keeping the two kinds in
+    // their own arrays is what lets it read them without a real parser.
+    if (candleRequests.length > 0) handout.candle_requests = candleRequests;
+    return json(handout);
+  }
+
+  // ---- Candles: the trade replay payload (schema.sql SECTION 9). ----------
+  // Answers ONE question the app asked about ONE position. Deliberately NOT
+  // archived into sync_raw_events: a 1500-bar array would bury the event log
+  // under megabytes of OHLC that is already stored once, in trade_candles.
+  if (type === 'candles') {
+    const events = Array.isArray(body.events) ? body.events : [];
+    if (events.length === 0 || events.length > 50) {
+      await admin
+        .from('sync_ingest_accounts')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          last_sync_status: 'error',
+          last_error: 'bad_candles_count',
+        })
+        .eq('id', ingestId);
+      return json({ error: 'bad_candles_count' }, 422);
+    }
+
+    let stored = 0;
+    let rejected = 0;
+
+    for (const raw of events) {
+      const ev = parseCandles(raw);
+      if (!ev) {
+        rejected++;
+        continue;
+      }
+
+      const { error } = await admin.rpc('store_trade_candles', {
+        p_user_id: userId,
+        p_ingest_id: ingestId,
+        p_external_id: ev.external_id,
+        p_timeframe: ev.timeframe,
+        p_bars: ev.bars,
+        p_truncated: ev.truncated,
+      });
+      if (error) rejected++;
+      else stored++;
+    }
+
+    await admin
+      .from('sync_ingest_accounts')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: stored > 0 ? 'ok' : 'error',
+        last_error: stored > 0 ? null : 'candles_rejected',
+      })
+      .eq('id', ingestId);
+
+    return json({ ok: true, stored, rejected });
   }
 
   if (type !== 'trades' && type !== 'batch') {
@@ -334,7 +480,35 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const closingAnOpenRow = existing.is_open === true && !ev.is_open;
+    /**
+     * Is this event actually a CLOSE?
+     *
+     * Not every `is_open: false` is one. A back-fill request (the chat's
+     * "ask the terminal for the missing levels") rebuilds a position from its
+     * own history — and a position that is STILL OPEN has no exit deal to
+     * read: no exit price, no close time, and a P&L made of entry commissions
+     * alone. The EA sends that rebuild on the normal channel, so the shape of
+     * the payload is the only thing telling the two apart.
+     *
+     * Taking such a payload as a close used to date the journal trade 1970,
+     * write a phantom P&L, and mark the staging row closed — after which the
+     * REAL close event could no longer complete the trade at all, because
+     * completing it is guarded on the row having been open. A live position's
+     * rebuild therefore updates the payload and nothing else.
+     *
+     * A close also has to be DATED: the EA stamps the epoch on such a rebuild
+     * (no OUT deal means no close time to report), and an event dated before
+     * the entry is not a close of that entry. A bridge that reports a close
+     * without an exit price, but with a real close time and a P&L, is still
+     * accepted — refusing it would leave the journal trade open forever.
+     */
+    const closeMs = ev.close_time != null ? Date.parse(ev.close_time) : NaN;
+    const datedAfterEntry = !Number.isNaN(closeMs) && closeMs > Date.parse(ev.entry_time);
+    const isRealClose =
+      !ev.is_open &&
+      (ev.exit_price != null || (ev.close_time != null && datedAfterEntry && ev.pnl != null));
+
+    const closingAnOpenRow = existing.is_open === true && isRealClose;
 
     // A bridge re-sending history (re-attach, deep import) must never re-queue
     // a resolved row: the journal already holds a promoted/linked trade, and
@@ -347,17 +521,29 @@ Deno.serve(async (req: Request) => {
       .from('sync_trades')
       .update({
         payload,
-        is_open: ev.is_open,
+        // A rebuild of a live position says `is_open: false` without being a
+        // close: the row keeps the state it had, so the real close still finds
+        // an open row to complete (see isRealClose above).
+        is_open: ev.is_open || (existing.is_open === true && !isRealClose),
         open_time: ev.entry_time,
-        close_time: ev.close_time,
+        // Neutralised the same way: the epoch is not a close time, and storing
+        // it would put "1 January 1970" on the queue card of a live position.
+        close_time: isRealClose ? ev.close_time : null,
         ...(resolved ? {} : { status: 'pending', resolved_by: null }),
       })
       .eq('id', existing.id);
     updated++;
 
-    // The position was already promoted while OPEN and has now closed:
-    // complete the journal trade instead of leaving a half-written one.
-    if (closingAnOpenRow && existing.status === 'promoted' && existing.resolved_trade_id) {
+    // The position was promoted while OPEN and has now closed: complete the
+    // journal trade instead of leaving a half-written one.
+    //
+    // The guard is the RESOLUTION, never the status: promoting an open position
+    // deliberately leaves its row `pending` (see promote_sync_trades) so this
+    // close event still finds it. `status === 'promoted'` is therefore never
+    // true here, and guarding on it silently skipped apply_broker_close — every
+    // open-position promotion stayed forever without an exit price, a P&L or an
+    // R multiple.
+    if (closingAnOpenRow && existing.resolution === 'created' && existing.resolved_trade_id) {
       const { error } = await admin.rpc('apply_broker_close', { p_staging_id: existing.id });
       if (!error) closedCompleted++;
     }
@@ -367,8 +553,16 @@ Deno.serve(async (req: Request) => {
     // connector). This is the answer side of the chat's request path — and
     // it also means re-sending history with a NEWER EA (one that carries
     // stop/take-profit) silently repairs older promotions that lack them.
+    //
+    // `journaled`, not `resolved`: a position promoted while OPEN keeps its
+    // row `pending` on purpose (the close event still has to complete it), so
+    // guarding on the STATUS skipped every one of those rows — the levels the
+    // coach had just promised the terminal would resend never landed for the
+    // open trades that needed them most. The resolution is what says "this
+    // row already produced a journal trade".
+    const journaled = existing.resolution === 'created' || existing.resolution === 'linked';
     if (
-      resolved &&
+      journaled &&
       existing.resolved_trade_id &&
       (ev.stop_loss != null || ev.take_profit != null || ev.mae_price != null || ev.mfe_price != null)
     ) {

@@ -480,8 +480,12 @@ create index if not exists daily_debriefs_user_idx
 
 -- ---------------------------------------------------------------------------
 -- user_checklists
--- Consumer: src/features/dashboard/useChecklist.ts
+-- Consumer: src/features/guard/useChecklist.ts (the pre-flight).
 -- Reads .order('sort_order').order('created_at'), updates { is_done }.
+--
+-- This table existed for a long time with NO reader: the comment here pointed
+-- at a hook that was never written, and the dashboard showed no checklist. It
+-- now backs the pre-flight (SECTION 10).
 -- ---------------------------------------------------------------------------
 create table if not exists public.user_checklists (
   id         uuid primary key default gen_random_uuid(),
@@ -568,7 +572,12 @@ alter table public.sync_ingest_accounts
   add column if not exists broker_balance   numeric,
   add column if not exists broker_equity    numeric,
   add column if not exists broker_currency  text,
-  add column if not exists broker_state_at  timestamptz;
+  add column if not exists broker_state_at  timestamptz,
+  -- Version the attached EA reports in its heartbeat (EA v1.16+). NULL is a
+  -- STATEMENT, not a gap: an older build has no field to fill, so a connector
+  -- that beats and reports no version is one the app must not promise a
+  -- completion request to. See src/features/sync/eaVersion.ts for the policy.
+  add column if not exists ea_version       text;
 
 -- A journal account may be fed by more than one connector (an MT5 demo and a
 -- cTrader demo can both belong to "50k Paper Trading"), so the association is
@@ -681,6 +690,25 @@ alter table public.trades
 alter table public.trades
   add column if not exists seeded_fields text[] not null default '{}';
 
+-- Macro context at entry: the high-impact release this trade sat next to.
+--
+-- The app already FETCHES the economic calendar (supabase/functions/calendar)
+-- and shows it as a band on the dashboard, but nothing recorded it at the
+-- moment of a trade -- so "do I lose money trading into CPI?" was a question
+-- the journal could not answer, even though every fact needed to answer it
+-- passed through the app twice.
+--
+-- `news_offset_min` is SIGNED on purpose: -3 is three minutes BEFORE the
+-- release, +12 twelve minutes after. The two are not the same behaviour, and a
+-- magnitude alone would erase the distinction the trader actually trades on.
+-- NULL means "not recorded" (no calendar in cache at save time, or an older
+-- app) and never "no news was published" -- the same rule the cost and
+-- excursion columns follow.
+alter table public.trades
+  add column if not exists news_event      text,
+  add column if not exists news_currency   text,
+  add column if not exists news_offset_min int;
+
 -- RLS: same owner-scoped shape as every other table. The Edge Function uses
 -- the service role, which bypasses RLS but derives user_id from the secret —
 -- see the function's first lookup.
@@ -746,6 +774,11 @@ $$;
 -- the app passes only `overrides` for journal fields the human chose
 -- (timeframe, setup_structures, session...), never for measured values.
 --
+-- An already-RESOLVED row is skipped, not promoted again: an open position is
+-- promoted while still open, which leaves its row `pending` on purpose (the
+-- close event has to complete the trade). Reasoning on `status` alone would
+-- re-create a second journal trade for the same position on a second tap.
+--
 -- p_batch: [{ staging_id, overrides? }, ...]
 create or replace function public.promote_sync_trades(p_batch jsonb)
 returns int
@@ -777,7 +810,7 @@ begin
   for v_row in
     select t.* from public.sync_trades t
     join _promote_batch b on b.staging_id = t.id
-    where t.user_id = v_uid and t.status = 'pending'
+    where t.user_id = v_uid and t.status = 'pending' and t.resolution is null
     for update
   loop
     select * into v_ingest from public.sync_ingest_accounts
@@ -944,8 +977,26 @@ begin
     result      = coalesce(v_row.payload->>'close_reason', 'CLOSED'),
     commission  = coalesce((v_row.payload->>'commission')::numeric, 0),
     swap        = coalesce((v_row.payload->>'swap')::numeric, 0),
-    mae_price   = (v_row.payload->>'mae_price')::numeric,
-    mfe_price   = (v_row.payload->>'mfe_price')::numeric,
+    -- Levels the entry event never carried, gap-filled exactly like
+    -- apply_broker_refresh: a position promoted while OPEN was journaled from
+    -- an event without stop/target, and without this the close left the trade
+    -- with an R computed from a stop it does not display. Only EMPTY values
+    -- are written: a level the trader set is never overwritten.
+    --
+    -- mae_price/mfe_price are gap-only too. A normal scan sends no excursion
+    -- (the M1 walk is only done on request), so assigning them verbatim wiped
+    -- whatever a back-fill had already recovered — a close event must not be
+    -- able to destroy the data it took a request to obtain.
+    stop_loss   = case
+      when coalesce((v_row.payload->>'stop_loss')::numeric, 0) > 0
+           and (stop_loss is null or stop_loss = 0)
+        then (v_row.payload->>'stop_loss')::numeric else stop_loss end,
+    take_profit = case
+      when coalesce((v_row.payload->>'take_profit')::numeric, 0) > 0
+           and (take_profit is null or take_profit = 0)
+        then (v_row.payload->>'take_profit')::numeric else take_profit end,
+    mae_price   = coalesce(mae_price, (v_row.payload->>'mae_price')::numeric),
+    mfe_price   = coalesce(mfe_price, (v_row.payload->>'mfe_price')::numeric),
     -- The trade was promoted while OPEN: promote_sync_trades could not
     -- compute R without an exit. Now the close payload supplies one, so the
     -- same guarded |move|/|risk| ratio lands here — a completed trade with a
@@ -1008,8 +1059,12 @@ begin
     raise exception 'P0001: unauthenticated';
   end if;
 
+  -- resolution is null: a row that already produced a journal trade (or was
+  -- linked/dismissed) is a decision already made, and re-linking it would
+  -- leave the trade the promote path created behind.
   select * into v_row from public.sync_trades
-  where id = p_staging_id and user_id = auth.uid() and status = 'pending'
+  where id = p_staging_id and user_id = auth.uid()
+    and status = 'pending' and resolution is null
   for update;
   if not found then
     raise exception 'P0001: staging row not pending';
@@ -1079,13 +1134,17 @@ begin
   if auth.uid() is null then
     raise exception 'P0001: unauthenticated';
   end if;
+  -- resolution is null: dismissing a row whose journal trade already exists
+  -- would strand that trade. sync-ingest skips dismissed rows, so the broker's
+  -- close event could never complete it.
   update public.sync_trades
      set status = 'dismissed',
          resolution = 'dismissed',
          dismiss_reason = left(coalesce(p_reason, 'not_mine'), 40),
          resolved_at = now(),
          resolved_by = 'user'
-   where id = p_staging_id and user_id = auth.uid() and status = 'pending';
+   where id = p_staging_id and user_id = auth.uid()
+     and status = 'pending' and resolution is null;
 end;
 $$;
 
@@ -1114,7 +1173,8 @@ begin
          resolved_by = 'user'
    where id = any(p_staging_ids)
      and user_id = auth.uid()
-     and status = 'pending';
+     and status = 'pending'
+     and resolution is null;
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -1264,6 +1324,149 @@ end;
 $$;
 
 grant execute on function public.create_sync_ingest_account(text, text, uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- sync.connector management — rename, rotate, pause
+--
+-- The only repair path used to be "delete the connector and create it again",
+-- which is the wrong answer to both things a trader actually needs:
+--   * a label that no longer describes the feed ("MT5 #2" on the account they
+--     now route to their funded challenge);
+--   * a secret that leaked (pasted in a screenshot, shared with a VPS owner,
+--     committed in a script). Rotating it is one UPDATE here — the row, its
+--     routing and its queue stay exactly where they are.
+-- Deleting instead would cascade into sync_trades and sync_raw_events and
+-- orphan the promoted trades' provenance, for a credential change.
+--
+-- Only the ROTATION ever hands a credential back, and only the new one, once
+-- (creation and rotation are the plaintext's only two appearances). Renaming
+-- and pausing return nothing. Pausing is the third repair: a feed can be
+-- silenced without losing its history.
+-- ---------------------------------------------------------------------------
+
+-- Rename a connector. Uniqueness is re-checked HERE, case-insensitively, so
+-- the app gets a sentence instead of a 23505 from the (case-sensitive) table
+-- constraint; the constraint stays as the backstop for every other writer.
+-- Returns void on purpose: returning the row would send the stored secret
+-- back to the client, and the whole contract is that the plaintext exists in
+-- exactly two moments — creation and rotation.
+create or replace function public.rename_sync_ingest_account(
+  p_id uuid,
+  p_label text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_label text;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  -- Whitespace is collapsed before truncation so "  MT5   #1 " and "MT5 #1"
+  -- cannot both exist as separate names.
+  v_label := left(regexp_replace(btrim(coalesce(p_label, '')), '\s+', ' ', 'g'), 60);
+  if v_label = '' then
+    raise exception 'P0001: empty connector label';
+  end if;
+
+  if exists (
+    select 1 from public.sync_ingest_accounts
+    where user_id = auth.uid()
+      and id <> p_id
+      and lower(label) = lower(v_label)
+  ) then
+    raise exception 'P0001: connector label already used';
+  end if;
+
+  update public.sync_ingest_accounts
+     set label = v_label
+   where id = p_id and user_id = auth.uid();
+
+  if not found then
+    raise exception 'P0001: unknown connector';
+  end if;
+end;
+$$;
+
+grant execute on function public.rename_sync_ingest_account(uuid, text) to authenticated;
+revoke execute on function public.rename_sync_ingest_account(uuid, text) from anon;
+
+-- Rotate a connector's secret: same row, same id, same routing, same queue,
+-- new credential. Returns the row including the plaintext secret ONCE —
+-- exactly like create_sync_ingest_account, and for the same reason: the app
+-- has to show it, and nothing exposes it afterwards.
+--
+-- The sync bookkeeping is reset because it described the OLD credential's
+-- health: leaving "Connecté, il y a 2 min" on a connector whose secret just
+-- changed would be the app claiming news it cannot have. Broker state and the
+-- resolved staging rows stay: they are history, not credentials.
+create or replace function public.rotate_sync_ingest_secret(p_id uuid)
+returns public.sync_ingest_accounts
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_acc public.sync_ingest_accounts%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  update public.sync_ingest_accounts
+     set secret           = replace(replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_'), '=', ''),
+         last_sync_at     = null,
+         last_sync_status = null,
+         last_error       = null
+   where id = p_id and user_id = auth.uid()
+  returning * into v_acc;
+
+  if not found then
+    raise exception 'P0001: unknown connector';
+  end if;
+
+  return v_acc;
+end;
+$$;
+
+grant execute on function public.rotate_sync_ingest_secret(uuid) to authenticated;
+revoke execute on function public.rotate_sync_ingest_secret(uuid) from anon;
+
+-- Pause / resume a feed. The ingest function already refuses a disabled
+-- connector (403 connector_disabled), so a single flag is the whole feature:
+-- nothing is deleted, nothing is unlinked, and resuming restores the same
+-- queue and the same routing.
+-- Also void, for the same reason as the rename.
+create or replace function public.set_sync_ingest_active(
+  p_id uuid,
+  p_is_active boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'P0001: unauthenticated';
+  end if;
+
+  update public.sync_ingest_accounts
+     set is_active = coalesce(p_is_active, true)
+   where id = p_id and user_id = auth.uid();
+
+  if not found then
+    raise exception 'P0001: unknown connector';
+  end if;
+end;
+$$;
+
+grant execute on function public.set_sync_ingest_active(uuid, boolean) to authenticated;
+revoke execute on function public.set_sync_ingest_active(uuid, boolean) from anon;
 
 -- ---------------------------------------------------------------------------
 -- sync.pg_cron — nightly retention
@@ -1770,3 +1973,617 @@ end;
 $$;
 
 revoke execute on function public.apply_broker_refresh(uuid, uuid, uuid, numeric, numeric, numeric, numeric) from anon, authenticated;
+
+-- ============================================================================
+-- SECTION 8 — PUSH SERVEUR (alertes qui atteignent le trader hors de l'app)
+-- ============================================================================
+-- Why this exists
+--
+-- Every notification the app fires today is LOCAL (src/features/
+-- notifications): a journaling reminder, a risk warning triggered from the
+-- gauge, a Sunday review prompt. All three need the app open -- which is
+-- exactly the situation the two most expensive failures never happen in:
+--
+--   * a terminal that STOPPED reporting. The auto-journal goes quiet, the
+--     history fills with holes, and the trader finds out days later, when the
+--     trades are no longer reconstructible;
+--   * a lock that JUST fired (loss limit, personal rule). That is the minute
+--     the trader must be told, because the next trade is the one that hurts.
+--
+-- The server already knows both -- sync_ingest_accounts.last_sync_at and
+-- daily_session_locks -- and has the numbers for a third (today's realised
+-- loss against effective_daily_loss_limit). What was missing was the channel
+-- and the memory.
+--
+-- The memory is push_alerts plus a CLAIM: the sweep runs on a schedule, and
+-- claim_push_alert() only answers true once the cooldown has elapsed, so a
+-- sweep every fifteen minutes tells the trader ONCE -- not ninety-six times.
+-- Two sweeps racing cannot double-send: the claim is a single atomic write.
+-- ============================================================================
+
+-- Device tokens. One row per DEVICE, not per user: the token identifies the
+-- handset, so a second login on the same phone rebinds this row instead of
+-- creating a copy that would multiply every alert by two.
+create table if not exists public.push_tokens (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  token       text not null unique,
+  platform    text not null check (platform in ('ios','android')),
+  -- Language of the device at registration time. A push is composed by the
+  -- DATABASE, long before the app can translate anything, so the preference
+  -- has to live here or every alert would arrive in French.
+  locale      text not null default 'fr' check (locale in ('fr','en')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  -- Set when Expo answers DeviceNotRegistered. The row stays: the app may hand
+  -- the same token back after a reinstall, and that must revive this row
+  -- rather than insert a second one.
+  disabled_at timestamptz
+);
+
+create index if not exists push_tokens_user_live_idx
+  on public.push_tokens (user_id) where disabled_at is null;
+
+-- The alert ledger. One row per (user, kind, subject); the subject is what
+-- the alert is ABOUT (a connector id, or the trading day for a lock), so one
+-- silent connector never mutes another.
+create table if not exists public.push_alerts (
+  id       uuid primary key default gen_random_uuid(),
+  user_id  uuid not null references auth.users(id) on delete cascade,
+  kind     text not null check (kind in ('connector_silent','lock','risk')),
+  subject  text not null,
+  sent_at  timestamptz not null default now(),
+  detail   jsonb,
+  unique (user_id, kind, subject)
+);
+
+create index if not exists push_alerts_user_time_idx
+  on public.push_alerts (user_id, sent_at desc);
+
+alter table public.push_tokens enable row level security;
+alter table public.push_alerts enable row level security;
+
+drop policy if exists push_tokens_owner on public.push_tokens;
+create policy push_tokens_owner on public.push_tokens
+  for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Read-only for the owner. The ledger is written by the sweep under the
+-- service role; a client writing it could silence its own alerts, which is
+-- the one thing this table exists to prevent.
+drop policy if exists push_alerts_owner on public.push_alerts;
+create policy push_alerts_owner on public.push_alerts
+  for select to authenticated
+  using (auth.uid() = user_id);
+
+-- Registration. Security definer because of the rebind: when a phone changes
+-- hands (or the same phone signs into another account) the row must follow the
+-- SESSION, and the unique constraint on the token is what makes that possible.
+create or replace function public.register_push_token(
+  p_token    text,
+  p_platform text,
+  p_locale   text default 'fr'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'P0001: not authenticated';
+  end if;
+  if p_token is null or length(p_token) < 10 or length(p_token) > 255 then
+    raise exception 'P0001: invalid token';
+  end if;
+  if p_platform not in ('ios','android') then
+    raise exception 'P0001: invalid platform';
+  end if;
+
+  insert into public.push_tokens (user_id, token, platform, locale)
+  values (v_uid, p_token, p_platform, case when p_locale = 'en' then 'en' else 'fr' end)
+  on conflict (token) do update
+    set user_id     = v_uid,
+        platform    = excluded.platform,
+        locale      = excluded.locale,
+        updated_at  = now(),
+        disabled_at = null;
+end;
+$$;
+
+grant execute on function public.register_push_token(text, text, text) to authenticated;
+revoke execute on function public.register_push_token(text, text, text) from anon;
+
+-- Called on sign-out. The device stops receiving the previous account's
+-- alerts immediately, without depending on the app being online again.
+create or replace function public.unregister_push_token(p_token text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    return;
+  end if;
+  delete from public.push_tokens where token = p_token and user_id = v_uid;
+end;
+$$;
+
+grant execute on function public.unregister_push_token(text) to authenticated;
+revoke execute on function public.unregister_push_token(text) from anon;
+
+-- The claim. Returns true only if this call is the one allowed to send: the
+-- insert conflicts on an existing alert and the update is gated by the
+-- cooldown, so the row is returned exactly once per cooldown window.
+create or replace function public.claim_push_alert(
+  p_user     uuid,
+  p_kind     text,
+  p_subject  text,
+  p_detail   jsonb,
+  p_cooldown interval
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  insert into public.push_alerts (user_id, kind, subject, detail)
+  values (p_user, p_kind, p_subject, p_detail)
+  on conflict (user_id, kind, subject) do update
+    set sent_at = now(),
+        detail  = excluded.detail
+    where public.push_alerts.sent_at < now() - p_cooldown
+  returning id into v_id;
+
+  return v_id is not null;
+end;
+$$;
+
+-- Service-role only: it writes alert rows and reads every account.
+revoke execute on function public.claim_push_alert(uuid, text, text, jsonb, interval)
+  from anon, authenticated;
+
+-- ============================================================================
+-- The sweep
+--
+-- One row per alert that is DUE. Claiming happens here, inside the same
+-- transaction as the read that decided the alert was due, so the decision and
+-- the memory cannot drift apart. The caller (supabase/functions/push) only
+-- has to deliver what it is given.
+--
+-- Text is composed here, in the recipient's locale: an OS push is rendered
+-- without the app running, so it cannot be translated later.
+-- ============================================================================
+create or replace function public.push_sweep(
+  p_silent_minutes int      default 45,
+  p_risk_pct       numeric  default 70,
+  p_cooldown       interval default interval '6 hours'
+)
+returns table (user_id uuid, kind text, subject text, title text, body text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r record;
+  v_locale text;
+begin
+  -- ---- 1. A terminal that went quiet, or never showed up. ----------------
+  -- `created_at < now() - 1h` spares the connector a fresh install is still
+  -- configuring: alerting on a secret the trader is still pasting would train
+  -- them to ignore the alert.
+  for r in
+    select a.user_id, a.id, a.label, a.last_sync_at,
+           (select t.locale from public.push_tokens t
+             where t.user_id = a.user_id and t.disabled_at is null
+             order by t.updated_at desc limit 1) as locale
+    from public.sync_ingest_accounts a
+    where a.is_active
+      and a.created_at < now() - interval '1 hour'
+      and (a.last_sync_at is null
+           or a.last_sync_at < now() - make_interval(mins => p_silent_minutes))
+  loop
+    v_locale := coalesce(r.locale, 'fr');
+
+    if public.claim_push_alert(
+         r.user_id, 'connector_silent', r.id::text,
+         jsonb_build_object('label', r.label, 'last_sync_at', r.last_sync_at),
+         p_cooldown
+       ) then
+      return query select
+        r.user_id,
+        'connector_silent',
+        r.id::text,
+        case when r.last_sync_at is null
+             then case when v_locale = 'en' then 'Connector never seen' else 'Connecteur jamais vu' end
+             else case when v_locale = 'en' then 'Terminal silent' else 'Terminal muet' end
+        end,
+        case when r.last_sync_at is null
+             then case when v_locale = 'en'
+                       then format('%s has never contacted the server. Check the URL and the secret in the terminal.', r.label)
+                       else format('%s n''a jamais contacté le serveur. Vérifiez l''URL et le secret dans le terminal.', r.label)
+                  end
+             else case when v_locale = 'en'
+                       then format('%s has sent nothing since %s UTC. Is the auto-journal still running?', r.label, to_char(r.last_sync_at at time zone 'UTC', 'DD/MM HH24:MI'))
+                       else format('%s n''a rien envoyé depuis %s UTC. Le journal auto tourne-t-il encore ?', r.label, to_char(r.last_sync_at at time zone 'UTC', 'DD/MM HH24:MI'))
+                  end
+        end;
+    end if;
+  end loop;
+
+  -- ---- 2. A lock that just fired. ----------------------------------------
+  -- Keyed on locked_at rather than the row's date: the date is the trader's
+  -- LOCAL trading day, and the sweep has no idea which timezone wrote it.
+  -- The exact rule is deliberately NOT in the notification -- the app renders
+  -- it from lock_code, localized; here the only job is to pull the trader in.
+  for r in
+    select l.user_id, l.date, l.id,
+           (select t.locale from public.push_tokens t
+             where t.user_id = l.user_id and t.disabled_at is null
+             order by t.updated_at desc limit 1) as locale
+    from public.daily_session_locks l
+    where l.is_locked
+      and l.locked_at > now() - interval '1 day'
+  loop
+    v_locale := coalesce(r.locale, 'fr');
+
+    if public.claim_push_alert(
+         r.user_id, 'lock', r.date::text,
+         jsonb_build_object('date', r.date),
+         p_cooldown
+       ) then
+      return query select
+        r.user_id,
+        'lock',
+        r.date::text,
+        case when v_locale = 'en' then 'Session locked' else 'Session verrouillée' end,
+        case when v_locale = 'en'
+             then 'Your trading day is locked. Open the app to see which rule fired.'
+             else 'Votre journée de trading est verrouillée. Ouvrez l''app pour voir la règle déclenchée.'
+        end;
+    end if;
+  end loop;
+
+  -- ---- 3. Daily loss allowance nearly spent. -----------------------------
+  -- The same shape the gauge uses: realised loss TODAY, in the account's own
+  -- trading day, against its effective limit. Alerts below the threshold are
+  -- left to the in-app gauge -- a notification for every 10% step would be
+  -- noise, and noise is how a real alert gets ignored.
+  for r in
+    with acc_limits as (
+      select a.*, public.effective_daily_loss_limit(a) as lim
+      from public.trading_accounts a
+    )
+    select al.user_id, al.id, al.name, al.lim,
+           al.currency,
+           -sum(t.pnl) as loss,
+           (select t.locale from public.push_tokens t
+             where t.user_id = al.user_id and t.disabled_at is null
+             order by t.updated_at desc limit 1) as locale
+    from acc_limits al
+    join public.trades t
+      on t.account_id = al.id
+     and t.user_id = al.user_id
+     and t.pnl is not null
+     and public.account_trading_day(coalesce(t.exit_time, t.entry_time), al.timezone)
+         = public.account_trading_day(now(), al.timezone)
+    where al.lim > 0
+    group by al.user_id, al.id, al.name, al.lim, al.currency
+    having sum(t.pnl) < 0
+       and -sum(t.pnl) >= al.lim * (p_risk_pct / 100.0)
+  loop
+    v_locale := coalesce(r.locale, 'fr');
+
+    if public.claim_push_alert(
+         r.user_id, 'risk', r.id::text,
+         jsonb_build_object('loss', r.loss, 'limit', r.lim, 'account', r.name),
+         p_cooldown
+       ) then
+      return query select
+        r.user_id,
+        'risk',
+        r.id::text,
+        case when v_locale = 'en' then 'Daily risk' else 'Risque quotidien' end,
+        case when v_locale = 'en'
+             then format('%s: %s%% of the daily loss limit used. There is little room left.', r.name, round(100 * r.loss / r.lim))
+             else format('%s : %s%% de la limite de perte quotidienne utilisée. Il reste peu de marge.', r.name, round(100 * r.loss / r.lim))
+        end;
+    end if;
+  end loop;
+end;
+$$;
+
+-- Service-role only (see the function's own note): the Edge Function calls it
+-- with the service role, and nothing else in the app may. A trader triggering
+-- their own sweep could only spam themselves, but the ledger is not a client
+-- concern either way.
+revoke execute on function public.push_sweep(int, numeric, interval) from anon, authenticated;
+
+-- ============================================================================
+-- SECTION 9 — TRADE REPLAY (les bougies du terminal)
+-- ============================================================================
+-- Why this exists
+--
+-- The journal can show a summary of a trade with the best screenshot the
+-- trader remembered to take. It cannot show what the price DID — and the price
+-- is the only thing that answers "was my stop too tight?", "did I exit into
+-- the first pullback?", "did I enter three candles before the move?".
+--
+-- The window to ask is short and known: the terminal holds M1 history locally
+-- (the EA already walks it for MAE/MFE, via CopyRates), and it is the same
+-- machine that reported the trade. So the app asks for the candles around ONE
+-- position, once, and caches them — the terminal is not a market data vendor,
+-- it answers a question and goes back to sleep.
+--
+-- Same round trip as the back-fill (SECTION 5), deliberately: pending requests
+-- ride along in the heartbeat RESPONSE and are marked served when handed over,
+-- so no polling loop was added anywhere. What is new is only the KIND of
+-- request, and a type of payload coming back.
+-- ============================================================================
+
+alter table public.sync_requests
+  add column if not exists kind text not null default 'backfill'
+    check (kind in ('backfill','candles')),
+  add column if not exists timeframe text not null default 'M1'
+    check (timeframe in ('M1','M5','M15'));
+
+-- The bars themselves. Keyed on the staging row (ingest_account_id,
+-- external_id) because that is what the terminal knows: it answers about a
+-- POSITION, and only the server can say which journal trade that became.
+-- `trade_id` is filled in at write time for exactly that reason — the app
+-- reads candles by trade, never by broker position id.
+create table if not exists public.trade_candles (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references auth.users(id) on delete cascade,
+  ingest_account_id uuid not null references public.sync_ingest_accounts(id) on delete cascade,
+  trade_id          uuid references public.trades(id) on delete cascade,
+  external_id       text not null,
+  timeframe         text not null default 'M1',
+  -- [{ t, o, h, l, c }, ...] exactly as the terminal produced it. Kept as
+  -- jsonb, not rows: the app renders one chart and never queries a bar.
+  bars              jsonb not null,
+  -- True when the terminal had to cap the window. Surfaced, never hidden: a
+  -- partial chart that claims to be complete is worse than no chart.
+  truncated         boolean not null default false,
+  fetched_at        timestamptz not null default now(),
+  unique (ingest_account_id, external_id, timeframe)
+);
+
+create index if not exists trade_candles_trade_idx
+  on public.trade_candles (trade_id);
+
+alter table public.trade_candles enable row level security;
+drop policy if exists trade_candles_owner on public.trade_candles;
+create policy trade_candles_owner on public.trade_candles
+  for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Ask the terminal for the candles of these journal trades. Same shape as
+-- request_broker_fill: bridge-sourced trades only (a hand-typed trade has no
+-- terminal to ask), one request per position, deduplicated while a request is
+-- still pending — asking twice must not make the EA do the work twice.
+create or replace function public.request_candles(p_trade_ids uuid[], p_timeframe text default 'M1')
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_tf  text := case when p_timeframe in ('M1','M5','M15') then p_timeframe else 'M1' end;
+  v_count int := 0;
+  r record;
+begin
+  if v_uid is null or p_trade_ids is null or cardinality(p_trade_ids) = 0 then
+    raise exception 'P0001: invalid request';
+  end if;
+
+  for r in
+    select s.ingest_account_id, s.external_id
+    from public.trades t
+    join public.sync_trades s on s.id = t.sync_source_id
+    where t.id = any(p_trade_ids)
+      and t.user_id = v_uid
+      and s.user_id = v_uid
+      and not exists (
+        select 1 from public.sync_requests q
+        where q.ingest_account_id = s.ingest_account_id
+          and q.status = 'pending'
+          and q.kind = 'candles'
+          and s.external_id = any(q.external_ids)
+      )
+  loop
+    insert into public.sync_requests (ingest_account_id, user_id, external_ids, fields, kind, timeframe)
+    values (r.ingest_account_id, v_uid, array[r.external_id], array['candles'], 'candles', v_tf);
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+grant execute on function public.request_candles(uuid[], text) to authenticated;
+revoke execute on function public.request_candles(uuid[], text) from anon;
+
+-- Store what came back. Service role only (called by sync-ingest): the payload
+-- is a broker artifact, not something a client may fabricate into its own
+-- history. `trade_id` is resolved from the staging row so the app can read
+-- candles by trade; when the position was never promoted the row is still
+-- stored, keyed on the staging identity, and simply never read.
+create or replace function public.store_trade_candles(
+  p_user_id    uuid,
+  p_ingest_id  uuid,
+  p_external_id text,
+  p_timeframe  text,
+  p_bars       jsonb,
+  p_truncated  boolean default false
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_trade uuid;
+  v_tf    text := case when p_timeframe in ('M1','M5','M15') then p_timeframe else 'M1' end;
+  v_id    uuid;
+begin
+  if p_user_id is null or p_ingest_id is null or p_external_id is null then
+    return null;
+  end if;
+  if p_bars is null or jsonb_typeof(p_bars) <> 'array' or jsonb_array_length(p_bars) = 0 then
+    return null;
+  end if;
+
+  select t.id into v_trade
+  from public.trades t
+  join public.sync_trades s on s.id = t.sync_source_id
+  where t.user_id = p_user_id
+    and s.ingest_account_id = p_ingest_id
+    and s.external_id = p_external_id
+  limit 1;
+
+  insert into public.trade_candles
+    (user_id, ingest_account_id, trade_id, external_id, timeframe, bars, truncated, fetched_at)
+  values
+    (p_user_id, p_ingest_id, v_trade, p_external_id, v_tf, p_bars, coalesce(p_truncated, false), now())
+  on conflict (ingest_account_id, external_id, timeframe) do update
+    set bars       = excluded.bars,
+        truncated  = excluded.truncated,
+        trade_id   = coalesce(excluded.trade_id, public.trade_candles.trade_id),
+        fetched_at = now()
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke execute on function public.store_trade_candles(uuid, uuid, text, text, jsonb, boolean)
+  from anon, authenticated;
+
+-- ============================================================================
+-- SECTION 10 — PRE-VOL (la checklist avant le premier trade du jour)
+-- ============================================================================
+-- Why this exists
+--
+-- The Lock Guard fires when the damage is done: it counts losses, trades taken
+-- and rules broken, all of which are already facts. A checklist is the only
+-- discipline device that acts BEFORE the trade — and it is the one every desk
+-- in the world uses, for the same reason: "je le savais" is not a rule.
+--
+-- user_checklists holds the trader's OWN items (the same table, finally read).
+-- This section adds the second half: what happened on a given day. Kept
+-- separate from the items on purpose — editing a checklist six months later
+-- must not rewrite what the trader actually agreed to before that session.
+-- ============================================================================
+
+create table if not exists public.checklist_completions (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  -- The trader's LOCAL day, like daily_session_locks.date: "done today" is a
+  -- statement about their session, not about UTC. The client sends its own
+  -- date for exactly that reason.
+  date         date not null,
+  completed_at timestamptz not null default now(),
+  -- The items as they were ticked, kept as a snapshot.
+  items        jsonb not null default '[]'::jsonb,
+  unique (user_id, date)
+);
+
+create index if not exists checklist_completions_user_idx
+  on public.checklist_completions (user_id, date desc);
+
+alter table public.checklist_completions enable row level security;
+drop policy if exists checklist_completions_owner on public.checklist_completions;
+create policy checklist_completions_owner on public.checklist_completions
+  for select to authenticated
+  using (auth.uid() = user_id);
+
+-- Created through a function, not a client INSERT: the (user_id, date) row is
+-- an upsert and the RLS policy above is read-only, so a re-tick on the same
+-- day must go through something that can write the owner's row safely.
+create or replace function public.complete_preflight(p_date date, p_items jsonb default '[]'::jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'P0001: not authenticated';
+  end if;
+  if p_date is null then
+    raise exception 'P0001: invalid date';
+  end if;
+
+  insert into public.checklist_completions (user_id, date, items)
+  values (v_uid, p_date, coalesce(p_items, '[]'::jsonb))
+  on conflict (user_id, date) do update
+    set completed_at = now(),
+        items        = excluded.items;
+end;
+$$;
+
+grant execute on function public.complete_preflight(date, jsonb) to authenticated;
+revoke execute on function public.complete_preflight(date, jsonb) from anon;
+
+-- ---------------------------------------------------------------------------
+-- Scheduling the sweep
+--
+-- pg_cron + pg_net turn the sweep into a job; both ship with Supabase. The
+-- block is deliberately FAIL-SOFT: a database without the extensions, or one
+-- where app.push_url / app.push_secret have not been set, schedules nothing
+-- and says so. The function can always be called by hand or by any external
+-- scheduler, so nothing here is load-bearing.
+--
+--   ALTER DATABASE postgres SET app.push_url    = 'https://<ref>.supabase.co/functions/v1/push';
+--   ALTER DATABASE postgres SET app.push_secret = '<the same value as PUSH_CRON_SECRET>';
+--
+-- Re-run this schema afterwards; the ALTERs only take effect on a new session.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron')
+     or not exists (select 1 from pg_extension where extname = 'pg_net') then
+    raise notice 'push sweep not scheduled: pg_cron and pg_net are required';
+    return;
+  end if;
+
+  if current_setting('app.push_url', true) is null then
+    raise notice 'push sweep not scheduled: app.push_url is not set (see the note above)';
+    return;
+  end if;
+
+  if exists (select 1 from cron.job where jobname = 'seven_push_sweep') then
+    perform cron.unschedule('seven_push_sweep');
+  end if;
+
+  perform cron.schedule('seven_push_sweep', '*/15 * * * *', $job$
+    select net.http_post(
+      url     := current_setting('app.push_url', true),
+      headers := jsonb_build_object(
+                   'Content-Type',  'application/json',
+                   'x-cron-secret', current_setting('app.push_secret', true)
+                 ),
+      body    := '{}'::jsonb
+    );
+  $job$);
+
+  raise notice 'push sweep scheduled every 15 minutes';
+exception when others then
+  -- Never fail the schema over a schedule: the tables and functions above are
+  -- what the app needs, and the sweep can be driven from anywhere.
+  raise notice 'push sweep not scheduled: %', sqlerrm;
+end $$;

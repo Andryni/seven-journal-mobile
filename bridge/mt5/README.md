@@ -90,6 +90,15 @@ complet, seules les nouvelles positions partent à chaque scan.
 > les deals — sans manipulation. Le serveur dédoublonnant par position, les
 > trades déjà promus ne reviennent pas dans la file : seuls leurs payloads
 > sont rafraîchis, et le R peut enfin être recalculé côté base.
+>
+> **v1.16 — demande de complétion sur une position ouverte :** quand l'app
+> demande au terminal de renvoyer les niveaux manquants (`request_broker_fill`),
+> la demande peut viser une position **encore ouverte**. Jusqu'ici l'EA la
+> reconstruisait comme fermée (aucun deal de sortie à lire) : le serveur y
+> voyait une clôture, datait le trade 1970 et la vraie clôture ne pouvait plus
+> le compléter. La v1.16 détecte la position vivante et renvoie son état
+> courant, SL/TP inclus. **Recompilez le `.mq5` (F7) puis re-attachez l'EA**
+> pour en bénéficier — le `.ex5` fourni ici est compilé depuis la v1.15.
 
 ## Comment ça marche
 
@@ -115,13 +124,19 @@ complet, seules les nouvelles positions partent à chaque scan.
   volume) ou laissez le terminal tourner sur une machine toujours allumée
 - **Un connecteur par compte broker** : créez un connecteur distinct dans
   l'app pour chaque terminal MT5 (le secret lie les events à un compte)
-- Le secret a tourné de travers / fuité ? Recréez le connecteur : l'ancien
-  secret est désactivé d'un coup
+- Le secret a tourné de travers / fuité ? **Appui long sur le connecteur dans
+  Journal auto → Régénérer le secret** : l'ancien devient inutilisable
+  immédiatement, mais le connecteur, son compte lié et sa file sont conservés.
+  Collez le nouveau secret dans l'onglet Paramètres de l'EA. Le même appui long
+  permet de renommer le connecteur ou de mettre son alimentation en pause sans
+  rien perdre
 
 ## Limites connues (v1)
 
-- MAE/MFE (excursions) ne sont pas encore calculés par l'EA — les colonnes
-  restent vides, les stats qui en dépendent s'adaptent
+- MAE/MFE (excursions) ne sont calculés qu'**à la demande** (demande de
+  complétion depuis le coach ou le bouton « compléter avec le broker ») : les
+  scanner à chaque passage sur toutes les positions coûterait trop cher. Sans
+  demande, les colonnes restent vides et les stats qui en dépendent s'adaptent
 - MT4 n'a pas d'identifiant de position : un pont MT4 dédié utilisera le
   ticket d'ordre (à venir)
 - Les dépôts/retraits ne sont pas des trades : ils ne passent pas par le pont

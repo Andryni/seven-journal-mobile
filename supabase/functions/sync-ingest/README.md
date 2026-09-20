@@ -38,7 +38,9 @@ Les colonnes sont **nullables** : un EA plus ancien n'envoie rien, et la carte
 reste masquée. « Inconnu » et « concordant » ne doivent jamais être confondus.
 
 > Pensez à recompiler l'EA dans MetaEditor après un `git pull` : le `.ex5`
-> n'est pas versionné.
+> n'est pas versionné. L'app affiche la version annoncée par le terminal dans
+> Journal auto (à côté de la plateforme, et en clair dans la gestion du
+> connecteur), précisément pour que ce geste ne soit pas oublié.
 
 ## Endpoints & codes de retour
 
@@ -64,12 +66,39 @@ complet et un exemple JSON.
 ### `type: "heartbeat"` (toutes les 60 s par l'EA)
 
 ```json
-{ "type": "heartbeat", "open_ids": ["123456", "123457"] }
+{
+  "type": "heartbeat",
+  "open_ids": ["123456", "123457"],
+  "balance": 25000.00,
+  "equity": 25120.50,
+  "currency": "USD",
+  "ea_version": "1.16"
+}
 ```
 
 Met à jour le statut du connecteur, ne crée aucune ligne. Les positions
 ouvertes en file qui n'apparaissent plus → `stale` (récupérable : le payload
 du trade qui réapparaît repasse la ligne en `pending`).
+
+#### Version de l'EA (v1.16+)
+
+`ea_version` est stockée telle quelle sur `sync_ingest_accounts.ea_version`, et
+**NULL est une information** : c'est un build antérieur au champ. L'app s'en
+sert pour décider si elle peut promettre la réponse à une demande de
+complétion (`request_broker_fill`) :
+
+| Version annoncée | Ce que l'app affiche |
+|---|---|
+| `1.16`+ | rien — le terminal peut renvoyer les niveaux, positions ouvertes comprises |
+| `1.15` | un avertissement **si une demande est en attente** : les positions déjà clôturées seront complétées, pas celles encore ouvertes |
+| < `1.15` | le terminal ne peut pas répondre aux demandes de complétion |
+| absent (heartbeat reçu) | build antérieur à la v1.16 : la complétion n'est pas garantie |
+| absent (aucun heartbeat) | rien — il n'y a rien à juger |
+
+Politique complète et seuils : `src/features/sync/eaVersion.ts`. Le champ est
+écrit **seulement s'il est présent**, comme le solde : un terminal qui n'a pas
+encore été mis à jour garde ce qu'il avait annoncé plutôt que de repasser à
+« inconnu ».
 
 ## Test rapide (curl)
 

@@ -81,6 +81,12 @@ et affiché sur la carte de la file.
   tout.
 - La création de connecteur passe par `create_sync_ingest_account`
   (secret généré côté serveur, `gen_random_bytes(32)`, affiché une fois).
+- **Réparer un connecteur ne veut plus dire le supprimer** :
+  `rename_sync_ingest_account` (nom, unicité revalidée),
+  `rotate_sync_ingest_secret` (même ligne, même id, même routage, même file,
+  nouveau secret renvoyé une fois et bookkeeping de sync remis à zéro) et
+  `set_sync_ingest_active` (pause/reprise ; l'Edge Function refuse déjà un
+  connecteur inactif avec 403).
 
 ## 6. Contrat payload (EA MT5)
 
@@ -88,6 +94,62 @@ Une ligne **par position** : deals d'entrée agrégés (taille, prix moyen
 pondéré, heure la plus ancienne), sorties listées, `pnl` NET
 (Σprofit − Σcommission − Σswap). Voir le README de `sync-ingest` pour
 l'exemple JSON complet, et `bridge/mt5/` pour le producteur.
+
+## 6bis. Aller-retour de complétion (chat → terminal → journal)
+
+Quand le journal ne peut pas dériver un R (SL ou sortie manquants) mais que la
+position vient du pont, le coach propose `request_broker_fill` :
+
+1. `sync_requests` reçoit une ligne par `external_id` (dédupliquée tant qu'une
+   demande est `pending`).
+2. La demande part dans la **réponse du heartbeat** suivant ; l'EA reconstruit
+   la position et la renvoie sur le canal `trades`, enrichie de
+   `stop_loss`/`take_profit`/`mae_price`/`mfe_price`.
+3. `apply_broker_refresh` ne remplit que les champs **vides** du trade déjà
+   journalisé (jamais d'écrasement, jamais de création).
+4. Côté app, `useAutoFillBroker` détecte que le R d'un trade existant est
+   devenu dérivable et l'écrit automatiquement (`brokerArrivals.ts`) : le
+   trader n'a plus à redemander.
+
+Invariants qui rendent la boucle sûre :
+
+- **Une reconstruction de position vivante n'est pas une clôture.** C'est un
+  événement `is_open:false` sans deal de sortie, donc sans `exit_price`. Il met
+  à jour le payload, jamais `is_open` ni `close_time` du staging : sinon le
+trade était daté 1970 et la vraie clôture ne pouvait plus le compléter.
+- **`resolution`, pas `status`, dit qu'un trade existe déjà** : une position
+  promue ouverte garde sa ligne `pending` (la clôture doit encore la
+  compléter). Toute garde basée sur `status='promoted'` loupe exactement ces
+  lignes-là.
+- `apply_broker_close` remplit aussi les SL/TP vides et n'écrase plus les
+  MAE/MFE déjà récupérés par un back-fill.
+- L'app affiche les demandes encore `pending` sur le connecteur : la promesse
+  "envoyé au terminal" devient vérifiable.
+- Le heartbeat annonce la **version de l'EA** (`ea_version`, v1.16+), donc
+  l'app sait si ce terminal SAIT répondre : version < 1.15 → la ligne du
+  connecteur le dit, absence de version → build antérieur à la v1.16 et un
+  avertissement (la complétion n'est pas garantie). Politique et seuils :
+  `src/features/sync/eaVersion.ts` ; payload : README de `sync-ingest`.
+
+## 6ter. Replay de bougies (v1.17+)
+
+Le même canal requête/réponse porte un second type de demande : l'app demande
+une **fenêtre de bougies M1** (`kind: 'candles'`, symbole + deux bornes), le
+terminal répond **une fois** sur le canal `trades` avec des barres OHLC.
+
+Règles qui gardent la fonctionnalité honnête :
+
+- La fenêtre demandée est calculée à partir du trade (entrée − marge, sortie +
+  marge) et **bornée** : un historique de courtier ne remonte pas indéfiniment,
+  et une demande hors de ce que le terminal a en mémoire est une demande
+  refusée, pas une demande qui bloque la file.
+- Le client **cache par trade** : une demande satisfaite n'est jamais renvoyée,
+  sinon chaque ouverture du détail relancerait le terminal.
+- Sans réponse, l'écran le dit et propose de (re)demander — il n'invente aucune
+  bougie de remplacement. C'est la même règle que pour les niveaux : la donnée
+  vient du broker ou elle n'est pas affichée.
+- Une version d'EA < 1.17 ne sait pas répondre aux bougies : le seuil est dans
+  `src/features/sync/eaVersion.ts`, comme celui de la complétion.
 
 ## 7. Tests d'acceptation
 
@@ -99,6 +161,16 @@ l'exemple JSON complet, et `bridge/mt5/` pour le producteur.
 6. Promotion de pertes du jour → Lock Guard se déclenche
 7. Deux imports identiques → 1 ligne
 8. Payload falsifié (user_id d'autrui) → ignoré (user_id vient du secret)
+9. Back-fill d'une position encore ouverte → payload rafraîchi, **aucune**
+   clôture écrite (pas d'exit_price, pas de date 1970)
+10. Clôture d'une position promue ouverte → exit_price, pnl, result, SL/TP
+    (gap-only) et R calculés
+11. Rotation de secret → même connecteur, même file, ancien secret rejeté
+    (401) au heartbeat suivant
+12. Demande de bougies sur un trade → réponse mise en cache, **aucune**
+    seconde demande à la réouverture ; trade hors historique → refus explicite
+13. Renommage / mise en pause d'un connecteur → la réponse ne renvoie
+    **jamais** le secret stocké (void, pas de SELECT de la ligne)
 
 ## 8. Hors scope v1
 
