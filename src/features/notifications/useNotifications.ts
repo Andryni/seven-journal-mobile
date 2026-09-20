@@ -42,6 +42,19 @@ export interface NotificationPrefs {
   weeklyDay: number;
   /** Local hour (0-23) for the weekly review. */
   weeklyHour: number;
+  /**
+   * Server-side alerts: the terminal went silent, a session lock fired, the
+   * daily allowance is nearly spent. Delivered by supabase/functions/push, so
+   * they arrive with the app CLOSED -- the one thing a local notification can
+   * never do, and precisely the failures that cost the most when they stay
+   * quiet. Off by default (see usePushServerAlerts).
+   */
+  serverAlerts: boolean;
+  /**
+   * The device token we last registered, kept so sign-out can let go of the
+   * device instead of leaving it subscribed to the previous account.
+   */
+  serverToken: string | null;
 }
 
 interface NotificationState extends NotificationPrefs {
@@ -59,6 +72,8 @@ export const useNotificationPrefs = create<NotificationState>()(
       weeklyReview: true,
       weeklyDay: 1,
       weeklyHour: 19,
+      serverAlerts: false,
+      serverToken: null,
       set: patch => set(patch),
     }),
     {

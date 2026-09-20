@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { Wallet, ChevronDown, Check, LogOut, Settings, Languages } from 'lucide-
 import { supabase } from '../../api/supabaseClient';
 import { formatCurrency, currencySymbol } from '../../utils/formatCurrency';
 import { BrandWordmark } from '../brand/BrandWordmark';
+import { unregisterPushToken } from '../../features/notifications/usePushServerAlerts';
 
 export const TopAccountBar: React.FC = () => {
   const { theme } = useTheme();
@@ -34,6 +35,23 @@ export const TopAccountBar: React.FC = () => {
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   const activeAccount = accounts.find(a => a.id === activeAccountId);
+
+  /**
+   * Sign out — after letting go of this device.
+   *
+   * The push registration belongs to the HANDSET: without this, a phone that
+   * signs out keeps receiving alerts about the account it just left, until
+   * someone logs in on it again. Best effort by design: an unregister that
+   * fails (offline) must never be able to block signing out.
+   */
+  const handleSignOut = useCallback(async () => {
+    try {
+      await unregisterPushToken();
+    } catch {
+      // The token rebinds to whoever logs in next; nothing to repair here.
+    }
+    await supabase.auth.signOut();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -112,7 +130,7 @@ export const TopAccountBar: React.FC = () => {
         </PressableScale>
         <PressableScale
           style={styles.iconBtn}
-          onPress={() => supabase.auth.signOut()}
+          onPress={handleSignOut}
           accessibilityLabel={t('logout')}
         >
           <LogOut size={14} color={theme.colors.textMuted} />

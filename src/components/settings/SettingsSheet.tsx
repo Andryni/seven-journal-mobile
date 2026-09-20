@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
-import { X, Bell, Fingerprint, Languages, Clock, Calculator, Pin } from 'lucide-react-native';
+import { X, Bell, Fingerprint, Languages, Clock, Calculator, Pin, RadioTower } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
@@ -10,6 +10,7 @@ import { Hairline } from '../ui/Panel';
 import { PressableScale } from '../ui/PressableScale';
 import { duration } from '../../theme/motion';
 import { useNotifications } from '../../features/notifications/useNotifications';
+import { usePushServerAlerts } from '../../features/notifications/usePushServerAlerts';
 import { useAppLock } from '../../features/security/useAppLock';
 import { usePinnedMonth } from '../../features/dashboard/usePinnedMonth';
 import { usePinnedWeek } from '../../features/dashboard/usePinnedWeek';
@@ -29,6 +30,7 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { lang, toggleLang } = useI18nStore();
   const notifications = useNotifications();
+  const pushAlerts = usePushServerAlerts();
   const appLock = useAppLock();
   const { pinned, toggle } = usePinnedMonth();
   const { pinned: pinnedWeek, toggle: toggleWeek } = usePinnedWeek();
@@ -44,6 +46,24 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
       } else {
         await notifications.disable();
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Server alerts. Each failure mode says WHICH failure it was: "unavailable"
+   * is Expo Go or a build without FCM, "denied" is the OS permission. Telling
+   * the trader "impossible" when they simply refused a prompt is how a
+   * working feature gets reported as broken.
+   */
+  const onToggleServerAlerts = async (next: boolean) => {
+    setBusy(true);
+    try {
+      const result = await pushAlerts.setEnabled(next);
+      if (next && result === 'denied') Alert.alert(t('serverAlerts'), t('serverAlertsDenied'));
+      if (next && result === 'unavailable') Alert.alert(t('serverAlerts'), t('serverAlertsUnavailable'));
+      if (next && result === 'error') Alert.alert(t('serverAlerts'), t('serverAlertsError'));
     } finally {
       setBusy(false);
     }
@@ -205,6 +225,29 @@ export const SettingsSheet: React.FC<{ visible: boolean; onClose: () => void }> 
                     />
                   </>
                 ) : null}
+                {/*
+                  Server alerts. Below the local ones on purpose: this is the
+                  switch that makes the phone speak when the app is closed, and
+                  it only means something once notifications themselves work.
+                */}
+                <Hairline inset={38} />
+                <Row
+                  icon={<RadioTower size={15} color={theme.colors.textMuted} strokeWidth={1.75} />}
+                  title={t('serverAlerts')}
+                  sub={t('serverAlertsDesc')}
+                  theme={theme}
+                  right={
+                    <Switch
+                      value={pushAlerts.enabled}
+                      onValueChange={onToggleServerAlerts}
+                      disabled={busy || !pushAlerts.supported}
+                      trackColor={trackColor}
+                      thumbColor={
+                        pushAlerts.enabled ? theme.colors.primary : theme.colors.textMuted
+                      }
+                    />
+                  }
+                />
               </>
             ) : null}
 
