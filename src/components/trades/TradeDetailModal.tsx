@@ -18,6 +18,9 @@ import { formatDuration } from '../../utils/formatDate';
 import { outcomeVariant } from '../../utils/tradeOutcome';
 import { tradeCost, hasCost, grossPnl } from '../../utils/tradingCosts';
 import { ExcursionBar } from './ExcursionBar';
+import { NewsBadge } from './NewsWindowNote';
+import { CandleReplay } from './CandleReplay';
+import { newsFromTrade } from '../../features/calendar/newsContextStore';
 import { PartialExitsPanel } from './PartialExitsPanel';
 import { captureRatio, isNearMiss, isGiveBack } from '../../utils/excursions';
 import { tagsOf } from '../../utils/tradeTags';
@@ -195,6 +198,18 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                 </Text>
               </View>
             </View>
+
+            {/* The macro context the trade was taken in. Sits right under the
+                result, because "this loss happened 3 minutes after CPI" is a
+                different fact from "this loss happened". */}
+            <NewsBadge context={newsFromTrade(trade)} />
+
+            {/*
+              The replay, only for trades that came through a bridge: a trade
+              typed by hand has no terminal to ask, and a button that can never
+              be answered is worse than no button.
+            */}
+            {trade.sync_source_id ? <CandleReplay trade={trade} /> : null}
 
             {showCosts && (
               <View style={styles.costBox}>
