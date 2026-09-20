@@ -19,7 +19,13 @@ interface PressableScaleProps {
   /** Scale when pressed (default 0.96) */
   pressedScale?: number;
   accessibilityLabel?: string;
-  accessibilityRole?: 'button' | 'link' | 'tab' | 'text';
+  /**
+   * 'checkbox' and 'switch' are here for the real toggles (the pre-flight
+   * items): a screen reader announces those differently from a button, and a
+   * rule the user cannot hear the state of is half a rule. A label alone does
+   * not say whether the box is ticked — accessibilityState does.
+   */
+  accessibilityRole?: 'button' | 'link' | 'tab' | 'text' | 'checkbox' | 'switch';
   /** Announce toggle state (selected/checked) to screen readers. */
   accessibilityState?: AccessibilityState;
   hitSlop?: number;

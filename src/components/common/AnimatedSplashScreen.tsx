@@ -3,15 +3,25 @@ import { View, Text, StyleSheet, Image, Animated, useWindowDimensions } from 're
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
 import { BrandWordmark } from '../brand/BrandWordmark';
+import {
+  BOOT_TAGLINE,
+  BOOT_WORDMARK,
+  BRAND_TAGLINE,
+  bootLockupLines,
+  lockupBoxWidth,
+} from '../brand/lockupGeometry';
 import { SpacedLabel } from '../ui/SpacedLabel';
 
 interface AnimatedSplashScreenProps {
   onAnimationFinish: () => void;
   /**
    * Whether the Google fonts have finished loading. The wordmark and tagline
-   * stay invisible until they are: measured in the fallback font, the real
-   * (wider) mono face paints over a too-narrow line and clips its tail -- the
-   * reported "the L of JOURNAL / the word TERMINAL sometimes vanish".
+   * are not MOUNTED before that -- see the note in the body: they used to be
+   * mounted and merely hidden, which laid them out in the fallback font and
+   * left the layout cache describing a narrower run of glyphs than the real
+   * face paints. That is the reported "the L of JOURNAL / the word TERMINAL
+   * sometimes vanish", and it is why the mark alone holds the screen until
+   * the fonts are in.
    */
   fontsReady?: boolean;
 }
@@ -35,6 +45,13 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
 
   // Same scale rule as BootScreen, so the mark never jumps between the two.
   const markSize = Math.max(72, Math.min(120, width * 0.2));
+
+  // The box both brand lines are given: the screen, floored at the worst-case
+  // width of the runs. Computed, never measured -- see lockupGeometry.
+  const lockupWidth = useMemo(
+    () => lockupBoxWidth(width - theme.spacing.lg * 2, bootLockupLines()),
+    [width, theme.spacing.lg]
+  );
 
   useEffect(() => {
     /**
@@ -97,26 +114,36 @@ export const AnimatedSplashScreen: React.FC<AnimatedSplashScreenProps> = ({
             style={{ width: markSize, height: markSize }}
             resizeMode="contain"
           />
-          {/* The mark needs no font and shows immediately; the wordmark and
-              tagline wait for fontsReady -- see the prop's doc. The mark keeps
-              the screen alive meanwhile, so nothing blank flashes. */}
-          <BrandWordmark
-            fontSize={17}
-            fontFamily={theme.fonts.monoBold}
-            letterSpacing={3.4}
-            style={[styles.wordmark, !fontsReady && styles.awaitingFonts]}
-          />
-          {/* SpacedLabel, not a bare Text: the trailing letter-spacing gap
-              is unmeasured on Android and the final L of TERMINAL was the
-              reported casualty. Same cure as the wordmark's JOURNAL. */}
-          <SpacedLabel
-            fontSize={9}
-            fontFamily={theme.fonts.mono}
-            letterSpacing={2.2}
-            style={[styles.tagline, !fontsReady && styles.awaitingFonts]}
-          >
-            FINTECH TERMINAL
-          </SpacedLabel>
+          {/* The mark needs no font and shows immediately. The text is not
+              rendered until fontsReady, and hidden would not be enough: a
+              mounted-but-transparent Text is still MEASURED, and the family
+              name does not change when the font file finally lands, so the
+              stale (fallback-font) layout survives and clips the tail of the
+              real face. Not mounting it is the only version of this that
+              cannot happen. */}
+          {fontsReady ? (
+            <>
+              <BrandWordmark
+                fontSize={BOOT_WORDMARK.fontSize}
+                fontFamily={theme.fonts.monoBold}
+                letterSpacing={BOOT_WORDMARK.letterSpacing}
+                maxFontSizeMultiplier={1.3}
+                style={[styles.wordmark, { width: lockupWidth }]}
+              />
+              {/* SpacedLabel, not a bare Text: the trailing letter-spacing gap
+                  is unmeasured on Android and the final L of TERMINAL was the
+                  reported casualty. Same cure as the wordmark's JOURNAL. */}
+              <SpacedLabel
+                fontSize={BOOT_TAGLINE.fontSize}
+                fontFamily={theme.fonts.mono}
+                letterSpacing={BOOT_TAGLINE.letterSpacing}
+                maxFontSizeMultiplier={1.3}
+                style={[styles.tagline, { width: lockupWidth }]}
+              >
+                {BRAND_TAGLINE}
+              </SpacedLabel>
+            </>
+          ) : null}
         </View>
       </Animated.View>
     </View>
@@ -133,14 +160,26 @@ const createStyles = (theme: AppTheme) =>
     },
     // Mirrors BootScreen's stack so the two boot surfaces read as one screen
     // when the splash hands over to it.
-    stack: { alignItems: 'center' },
+    //
+    // alignSelf stretch + padding, never a content-sized column: a text child
+    // of a shrink-to-fit parent is measured against a width the parent itself
+    // is deriving from that measurement, and any stale value clips the tail.
+    stack: {
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+    },
+    // Width comes from the caller (lockupGeometry), never from '100%' of a
+    // parent: the parent's width is itself resolved by a layout pass, and a
+    // resolved width is what cut the tail off this brand the first time.
     wordmark: {
       marginTop: theme.spacing.md,
       color: theme.colors.textPrimary,
+      textAlign: 'center',
     },
     tagline: {
       marginTop: 6,
       color: theme.colors.textMuted,
+      textAlign: 'center',
     },
-    awaitingFonts: { opacity: 0 },
   });

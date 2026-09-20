@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, ActivityIndicator, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Fingerprint } from 'lucide-react-native';
 import { useTheme } from '../theme';
@@ -8,6 +8,7 @@ import type { AppTheme } from '../theme';
 import { duration } from '../theme/motion';
 import { PressableScale } from '../components/ui/PressableScale';
 import { BrandWordmark } from '../components/brand/BrandWordmark';
+import { BRAND_WORDMARK, lockupBoxWidth } from '../components/brand/lockupGeometry';
 
 interface LockScreenProps {
   onAuthenticate: () => void;
@@ -22,6 +23,17 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onAuthenticate, isAuthen
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { width } = useWindowDimensions();
+
+  // Same computed box as the splash and boot screen, so the wordmark cannot
+  // lose its L here either -- see lockupGeometry.
+  const wordmarkWidth = useMemo(
+    () =>
+      lockupBoxWidth(width - theme.spacing.lg * 2, [
+        { text: BRAND_WORDMARK, fontSize: theme.type.title, letterSpacing: 4, mono: true },
+      ]),
+    [width, theme.spacing.lg, theme.type.title]
+  );
 
   useEffect(() => {
     onAuthenticate();
@@ -41,7 +53,8 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onAuthenticate, isAuthen
           fontSize={theme.type.title}
           fontFamily={theme.fonts.monoBold}
           letterSpacing={4}
-          style={styles.wordmark}
+          maxFontSizeMultiplier={1.3}
+          style={[styles.wordmark, { width: wordmarkWidth }]}
         />
         <View style={styles.rule} />
 
@@ -73,10 +86,19 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    content: { alignItems: 'center' },
+    // Stretched for the same reason as the boot and splash lockups: the
+    // wordmark must not be measured against a width this column derives from
+    // the measurement itself, or its final L is the casualty.
+    content: {
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+    },
     logo: { width: 68, height: 68, marginBottom: theme.spacing.lg },
+    // Width from the caller (lockupGeometry).
     wordmark: {
       color: theme.colors.textPrimary,
+      textAlign: 'center',
     },
     rule: {
       width: 28,

@@ -2,6 +2,13 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import { CandleLoader } from '../ui/CandleLoader';
 import { BrandWordmark } from '../brand/BrandWordmark';
+import {
+  BOOT_TAGLINE,
+  BOOT_WORDMARK,
+  BRAND_TAGLINE,
+  bootLockupLines,
+  lockupBoxWidth,
+} from '../brand/lockupGeometry';
 import { SpacedLabel } from '../ui/SpacedLabel';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -29,6 +36,13 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
   // Scale with the device, clamped to the range a logo is allowed to occupy.
   const markSize = Math.max(72, Math.min(120, width * 0.2));
 
+  // Computed box for both brand lines -- see lockupGeometry. The caption is a
+  // status line, not brand: it gets the same box and ellipsizes honestly.
+  const lockupWidth = useMemo(
+    () => lockupBoxWidth(width - theme.spacing.lg * 2, bootLockupLines()),
+    [width, theme.spacing.lg]
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.stack}>
@@ -38,22 +52,24 @@ export const BootScreen: React.FC<BootScreenProps> = ({ caption }) => {
           resizeMode="contain"
         />
         <BrandWordmark
-          fontSize={17}
+          fontSize={BOOT_WORDMARK.fontSize}
           fontFamily={theme.fonts.monoBold}
-          letterSpacing={3.4}
-          style={styles.wordmark}
+          letterSpacing={BOOT_WORDMARK.letterSpacing}
+          maxFontSizeMultiplier={1.3}
+          style={[styles.wordmark, { width: lockupWidth }]}
         />
         {/* numberOfLines: an over-wide tagline must ellipsize, never wrap --
             a second line would push the loader off the boot frame. SpacedLabel
             books the trailing letter-spacing gap so TERMINAL keeps its L. */}
         <SpacedLabel
-          fontSize={9}
+          fontSize={BOOT_TAGLINE.fontSize}
           fontFamily={theme.fonts.mono}
-          letterSpacing={2.2}
-          style={styles.tagline}
+          letterSpacing={BOOT_TAGLINE.letterSpacing}
+          maxFontSizeMultiplier={1.3}
+          style={[styles.tagline, { width: lockupWidth }]}
           numberOfLines={1}
         >
-          {caption ?? 'FINTECH TERMINAL'}
+          {caption ?? BRAND_TAGLINE}
         </SpacedLabel>
 
         {/* Candles printing left to right: the same loader the rest of the
@@ -75,13 +91,26 @@ const createStyles = (theme: AppTheme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    stack: { alignItems: 'center' },
+    // Stretched, not content-sized: a text child of a shrink-to-fit column is
+    // measured against a width that column is itself deriving from the
+    // measurement, and the tail of the run is what pays for it (the reported
+    // "SEVEN JOURNA…" and the vanishing TERMINAL). Full width plus centring
+    // makes the box independent of any measurement.
+    stack: {
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+    },
+    // Width from the caller (lockupGeometry): a computed box, not one the
+    // layout pass has to resolve.
     wordmark: {
       marginTop: theme.spacing.md,
       color: theme.colors.textPrimary,
+      textAlign: 'center',
     },
     tagline: {
       marginTop: 6,
       color: theme.colors.textMuted,
+      textAlign: 'center',
     },
   });
