@@ -20,6 +20,14 @@ import { accountTypeLabel, localeFor, mentalStateLabel, sessionLabel, useT } fro
 import { useTrades } from '../../features/trades/useTrades';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../../features/playbook/usePlaybook';
+import {
+  newsColumns,
+  resolveNewsContext,
+  useNewsWarning,
+} from '../../features/calendar/newsContextStore';
+import { NewsWindowNote } from './NewsWindowNote';
+import { PreFlightBlock, defaultPreFlightLabels } from './PreFlightBlock';
+import { usePreFlight } from '../../features/guard/useChecklist';
 import { useUIStore } from '../../store/uiStore';
 import type { Trade, TradeTimeframe, MentalState } from '../../types/domain';
 import { calculateRMultiple } from '../../utils/financials';
@@ -344,6 +352,14 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     if (!entry || !sl || !qty) return null;
     return estimateRiskAtStop(pair, qty, entry, sl);
   }, [pair, entryPrice, stopLoss, size]);
+  /**
+   * Evaluated against the entry datetime the trader picked, not against now:
+   * this form logs trades after the fact as often as live, and warning about a
+   * release 3 hours away because the clock says so would be nonsense.
+   */
+  const newsWarning = useNewsWarning(entryDateObj);
+  const preFlight = usePreFlight();
+
   const preTradeGuard = usePreTradeGuard(
     allTrades,
     selectedAccountObj ?? null,
@@ -578,6 +594,13 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       return;
     }
 
+    // The pre-flight gate. Enforced here as well as in the quick entry: a rule
+    // that can be walked around by opening the other form is not a rule.
+    if (!preFlight.canProceed) {
+      setErrorMsg(t('preflightRequiredError'));
+      return;
+    }
+
     const entry = Number(entryPrice);
     const sl = Number(stopLoss);
     const tp = Number(takeProfit);
@@ -643,6 +666,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       notes: notes || null,
       result,
       session: session || null,
+      // Macro context, resolved from the calendar already in cache. NULL here
+      // means "not recorded" (empty cache, older app), never "no news was
+      // published" — the same rule costs and excursions follow.
+      ...newsColumns(resolveNewsContext(entryDateObj.toISOString())),
     };
 
     try {
@@ -704,6 +731,19 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           ) : null}
 
           <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+            {/* Same two gates as the quick entry: this form can also create a
+                trade, so it must not be the way around either of them. */}
+            <NewsWindowNote context={newsWarning} />
+            <PreFlightBlock
+              items={preFlight.items}
+              required={preFlight.required}
+              ticked={preFlight.ticked}
+              onToggle={preFlight.toggle}
+              onComplete={preFlight.complete}
+              onSeed={() => preFlight.addItems(defaultPreFlightLabels(t as never))}
+              onRemove={preFlight.removeItem}
+              isSaving={preFlight.isSaving}
+            />
             {/* ── SECTION 1 : PARAMÈTRES PRINCIPAUX & DATE ── */}
             <View style={styles.sectionBox}>
               <View style={styles.sectionTitleRow}>

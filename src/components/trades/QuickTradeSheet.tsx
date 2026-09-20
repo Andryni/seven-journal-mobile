@@ -5,12 +5,22 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Modal,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, ShieldCheck, ShieldAlert, ShieldX, Zap } from 'lucide-react-native';
+import {
+  newsColumns,
+  resolveNewsContext,
+  useNewsWarning,
+} from '../../features/calendar/newsContextStore';
+import { NewsWindowNote } from './NewsWindowNote';
+import { PreFlightBlock, defaultPreFlightLabels } from './PreFlightBlock';
+import { usePreFlight } from '../../features/guard/useChecklist';
 import { withAlpha } from '../../theme';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -51,6 +61,15 @@ interface QuickTradeSheetProps {
  * It is also risk-first: you type a risk %, not a lot size. The size is
  * derived, and the pre-trade guard checks it against what is left of today's
  * daily-loss allowance before the trade can be saved.
+ *
+ * Geometry: a card sized to its CONTENT, anchored to the bottom, never a
+ * full-screen page capped by a maxHeight. The form was rendering as a
+ * flex:1 page after the gesture bottom-sheet was abandoned (see the Modal
+ * note below), which left the six fields at the top of the screen and a
+ * screenful of dead space under them — everything the trader needs was in
+ * the first third, and the rest read as a form they had failed to scroll.
+ * The card still scrolls and still lifts for the keyboard; it just stops
+ * claiming a full screen to say four numbers.
  */
 export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClose }) => {
   const { theme } = useTheme();
@@ -87,6 +106,19 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   const [target, setTarget] = useState('');
   const [riskPct, setRiskPct] = useState('1');
   const [instrumentPickerVisible, setInstrumentPickerVisible] = useState(false);
+
+  /**
+   * The warning is evaluated at "now" on every render: this sheet logs a live
+   * entry, so the clock IS the entry time, and the note has to be able to
+   * appear and disappear while the sheet stays open.
+   */
+  const newsWarning = useNewsWarning(visible ? new Date() : null);
+
+  /**
+   * The pre-flight, part of canSave: it is the same "may this entry happen"
+   * question as the risk guard, asked one step earlier.
+   */
+  const preFlight = usePreFlight();
 
   useEffect(() => {
     if (!visible) {
@@ -132,6 +164,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
   const canSave =
     !isCreating &&
     guard.status !== 'blocked' &&
+    preFlight.canProceed &&
     !!account &&
     entryNum > 0 &&
     stopNum > 0 &&
@@ -139,6 +172,9 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
 
   const handleSave = async () => {
     if (!canSave || !account) return;
+    // One instant, used for the trade AND for its macro context: resolving the
+    // news twice would let the two disagree by a minute at a window edge.
+    const entryIso = new Date().toISOString();
     await createTrade({
       account_id: account.id,
       pair: instrument,
@@ -148,7 +184,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
       stop_loss: stopNum,
       take_profit: targetNum || 0,
       size: sizing.size!,
-      entry_time: new Date().toISOString(),
+      entry_time: entryIso,
       exit_time: null,
       pnl: null,
       r_multiple: null,
@@ -169,6 +205,9 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
       notes: null,
       result: 'OPEN',
       session: null,
+      // Macro context from the calendar already in cache; nothing when the
+      // cache is empty (see newsContextStore).
+      ...newsColumns(resolveNewsContext(entryIso)),
     } as never);
     onClose();
   };
@@ -214,16 +253,27 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
 
   return (
     <>
-      {/* A native full-screen slide-up. The gesture bottom-sheet that used to
-          host this content is unreliable on some devices with Reanimated 4:
-          taps were dropped entirely ("nothing happens") or the sheet opened
-          on its handle with the content unmeasured. The RN Modal is what the
-          trade form already uses and it never misses a tap. */}
-      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* A native Modal, content-sized and bottom-anchored. The gesture
+          bottom-sheet that used to host this content is unreliable on some
+          devices with Reanimated 4: taps were dropped entirely ("nothing
+          happens") or the sheet opened on its handle with the content
+          unmeasured. The RN Modal is what the trade form already uses and it
+          never misses a tap — the compact geometry comes from the layout
+          here, not from a drag handle. */}
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.sheet}
+          style={styles.overlay}
         >
+          {/* Tap-outside dismisses. The target is the strip above the card
+              only, so a mistap never closes a half-typed risk budget. */}
+          <Pressable
+            style={styles.scrim}
+            onPress={onClose}
+            accessibilityLabel={t('cancel')}
+          />
+
+          <SafeAreaView edges={['bottom']} style={styles.card} testID="quick-entry-card">
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerTitle}>
@@ -239,8 +289,27 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              style={styles.bodyScroll}
               contentContainerStyle={styles.body}
+              testID="quick-entry-body"
             >
+              {/* The news countdown, if the clock is inside the window. It sits
+                  above everything else on purpose: it is the one line that can
+                  change the decision, and the fields below it are how the
+                  trader would act on it. */}
+              <NewsWindowNote context={newsWarning} />
+
+              <PreFlightBlock
+                items={preFlight.items}
+                required={preFlight.required}
+                ticked={preFlight.ticked}
+                onToggle={preFlight.toggle}
+                onComplete={preFlight.complete}
+                onSeed={() => preFlight.addItems(defaultPreFlightLabels(t as never))}
+                onRemove={preFlight.removeItem}
+                isSaving={preFlight.isSaving}
+              />
+
               {/* Direction — the single most important toggle */}
               <View style={styles.dirRow}>
                 {(['BUY', 'SELL'] as const).map(d => {
@@ -432,6 +501,7 @@ export const QuickTradeSheet: React.FC<QuickTradeSheetProps> = ({ visible, onClo
                 </Text>
               </TouchableOpacity>
             </View>
+          </SafeAreaView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -454,16 +524,28 @@ const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: withAlpha(theme.colors.scrim, 0.6),
       justifyContent: 'flex-end',
+      backgroundColor: withAlpha(theme.colors.scrim, 0.6),
     },
-    sheetWrap: { justifyContent: 'flex-end' },
-    // Full-screen page now: the native Modal fills the screen, so the old
-    // bottom-sheet chrome (rounded top, height cap) is gone.
-    sheet: {
-      flex: 1,
+    /** The invisible dismissal strip above the card. */
+    scrim: { flex: 1 },
+    // Height comes from the CONTENT (with a ceiling), not from flex: 1.
+    card: {
       backgroundColor: theme.colors.modalBg,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      borderTopWidth: 1,
+      borderColor: theme.colors.cardBorder,
+      // A tall form (accessibility font scale, a small phone) still scrolls
+      // instead of pushing the footer off-screen.
+      maxHeight: '92%',
     },
+    /**
+     * Grows with the form, shrinks when it has to: flexShrink with no flexGrow
+     * means the ScrollView takes its content's height until the card hits its
+     * ceiling, so a short entry stays a short sheet.
+     */
+    bodyScroll: { flexGrow: 0, flexShrink: 1 },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
