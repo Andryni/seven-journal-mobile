@@ -10,6 +10,7 @@
  */
 
 export type SyncStatus = 'pending' | 'promoted' | 'linked' | 'dismissed' | 'stale';
+export type SyncResolution = 'created' | 'linked' | 'dismissed';
 export type CloseReason = 'TP' | 'SL' | 'BE' | 'CLOSED';
 
 /** One pending row of the validation queue, as read through PostgREST. */
@@ -21,6 +22,13 @@ export interface SyncTradeRow {
   open_time: string | null;
   close_time: string | null;
   status: SyncStatus;
+  /**
+   * How the row was decided. An OPEN position is promoted while still open, so
+   * its row deliberately stays `pending` (the close event has to complete the
+   * journal trade) — which means `status` alone cannot tell "not decided yet"
+   * from "already created in the journal". A non-null resolution does.
+   */
+  resolution?: SyncResolution | null;
   created_at: string;
 }
 
@@ -104,6 +112,25 @@ export interface QueueCard {
    * quiet state instead of polluting the pending count.
    */
   isStale?: boolean;
+  /**
+   * Already created in the journal (position promoted while still open, its
+   * trade completed when the broker closes it). The row is waiting on the
+   * broker, not on the human: promoting it again would insert a SECOND trade
+   * for the same position, so the card states the decision instead of
+   * offering it a second time.
+   */
+  alreadyJournaled: boolean;
+}
+
+/**
+ * True when a queue row still waits on the human. Only `pending` rows can be
+ * promoted/linked/dismissed (every server RPC guards on that status), and a
+ * row that already carries a resolution is a decision already made: promoting
+ * it again would create a second journal trade, dismissing it would strand
+ * the one the broker still has to close.
+ */
+export function isActionable(row: SyncTradeRow): boolean {
+  return row.status === 'pending' && row.resolution == null;
 }
 
 export function toQueueCard(row: SyncTradeRow): QueueCard {
@@ -125,5 +152,6 @@ export function toQueueCard(row: SyncTradeRow): QueueCard {
     exitsCount: Array.isArray(p.exits) ? p.exits.length : 0,
     pnlGap: num(p.pnl_gap),
     isStale: row.status === 'stale',
+    alreadyJournaled: row.resolution != null,
   };
 }

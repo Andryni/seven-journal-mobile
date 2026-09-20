@@ -8,6 +8,9 @@ import { useT, localeFor } from '../../i18n';
 import { Panel, Hairline } from '../ui/Panel';
 import { PressableScale } from '../ui/PressableScale';
 import { PlatformBadge } from './PlatformBadge';
+import { formatDuration } from '../../utils/formatDate';
+import { connectorHealth, silenceMs } from '../../features/sync/connectorHealth';
+import { eaSupport, eaVersionLabel } from '../../features/sync/eaVersion';
 import type { IngestAccountRow } from '../../features/sync/useSyncQueue';
 
 /**
@@ -21,28 +24,67 @@ import type { IngestAccountRow } from '../../features/sync/useSyncQueue';
 export const ConnectorCard: React.FC<{
   connector: IngestAccountRow;
   linked: { name: string; capital: string } | null;
+  /** Back-fill requests the terminal has not answered yet. */
+  pendingRequests?: number;
   isLast: boolean;
   onPress: () => void;
   onLongPress: () => void;
-}> = ({ connector: c, linked, isLast, onPress, onLongPress }) => {
+}> = ({ connector: c, linked, pendingRequests = 0, isLast, onPress, onLongPress }) => {
   const { theme } = useTheme();
   const { t, lang } = useT();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  /**
+   * Health, not the stored status.
+   *
+   * `last_sync_status` stays 'ok' forever once it is set, so a terminal that
+   * died on Tuesday kept a green dot and the row of a fed account with an
+   * empty queue read as "the app is broken". Silence is the fact that matters,
+   * and it is the one the trader can act on.
+   */
+  const health = connectorHealth(c);
+  const silentFor = silenceMs(c);
+  const silenceText =
+    health === 'quiet' && silentFor !== null && Number.isFinite(silentFor)
+      ? formatDuration(c.last_sync_at, new Date().toISOString(), lang)
+      : null;
+
+  /**
+   * What the attached EA can do — and, when it cannot, the sentence that names
+   * the fix. A completion request the terminal cannot honour is the worst kind
+   * of silence: the app has already told the trader it was sent.
+   */
+  const support = eaSupport(c);
+  const eaLabel = eaVersionLabel(c.ea_version);
+  const eaNotice =
+    support === 'legacy'
+      ? t('syncConnectorEaTooOld', eaLabel ?? '')
+      : support === 'unreported'
+        ? t('syncConnectorEaUnknown')
+        : support === 'partial' && pendingRequests > 0
+          ? t('syncConnectorEaLiveOnly', eaLabel ?? '')
+          : null;
+
   const statusColor =
-    c.last_sync_status === 'ok'
+    health === 'ok'
       ? theme.colors.green
-      : c.last_sync_status === 'error'
+      : health === 'error'
         ? theme.colors.red
-        : theme.colors.textMuted;
+        : health === 'quiet'
+          ? theme.colors.gold
+          : theme.colors.textMuted;
   const statusLabel =
-    c.last_sync_status === 'ok'
-      ? t('syncConnectorStatusOk')
-      : c.last_sync_status === 'error'
-        ? t('syncConnectorStatusError')
-        : c.last_sync_status === 'empty'
-          ? t('syncConnectorStatusEmpty')
-          : t('syncConnectorNever');
+    health === 'paused'
+      ? t('syncConnectorPaused')
+      : health === 'quiet'
+        ? t('syncConnectorQuiet', silenceText ?? '')
+        : c.last_sync_status === 'ok'
+          ? t('syncConnectorStatusOk')
+          : c.last_sync_status === 'error'
+            ? t('syncConnectorStatusError')
+            : c.last_sync_status === 'empty'
+              ? t('syncConnectorStatusEmpty')
+              : t('syncConnectorNever');
 
   const title = linked ? linked.name : c.label;
   const sub = linked
@@ -74,7 +116,31 @@ export const ConnectorCard: React.FC<{
         <View style={{ flex: 1 }}>
           <Text style={styles.label}>{title}</Text>
           <Text style={styles.sub}>{sub}</Text>
-          {c.last_sync_status === 'error' && c.last_error ? (
+          {health === 'quiet' && silenceText ? (
+            // The row has to say WHAT is wrong, not just stop being green: an
+            // EA whose PC was rebooted is the single most common reason for an
+            // empty queue, and the sentence names where to look.
+            <Text style={styles.warn} numberOfLines={2}>
+              {t('syncConnectorQuietHint')}
+            </Text>
+          ) : null}
+          {eaNotice ? (
+            // Gold, not red: an outdated EA still feeds the journal — it just
+            // cannot answer the one request that needs a newer build.
+            <Text style={styles.warn} numberOfLines={3}>
+              {eaNotice}
+            </Text>
+          ) : null}
+          {pendingRequests > 0 ? (
+            // The chat's "ask the terminal for the missing levels" is a
+            // promise about the FUTURE; this is the only place it becomes
+            // visible, and it disappears once the terminal answers at its next
+            // heartbeat.
+            <Text style={styles.pending} numberOfLines={1}>
+              {t('syncConnectorRequests', String(pendingRequests))}
+            </Text>
+          ) : null}
+          {health === 'error' && c.last_error ? (
             // A connector that pushes but gets rejected must SAY why on the
             // row itself: buried in a status dot, "error" reads as broken
             // app, not as a rejected batch the terminal can fix.
@@ -89,6 +155,9 @@ export const ConnectorCard: React.FC<{
             c.platform.startsWith('mt5') ? 'MT5' :
             c.platform.startsWith('mt4') ? 'MT4' :
             c.platform.startsWith('csv') ? 'CSV' : 'API')}
+          {/* Which build is attached, on the row itself: it is the one fact that
+              decides whether a completion request can be answered. */}
+          {eaLabel ? ` · ${eaLabel}` : ''}
         </Text>
       </PressableScale>
       {!isLast ? <Hairline inset={48} /> : null}
@@ -140,16 +209,37 @@ const createStyles = (theme: AppTheme) =>
       fontFamily: theme.fonts.sans,
       marginTop: 2,
     },
+    warn: {
+      color: theme.colors.goldLight,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sans,
+      marginTop: 2,
+    },
+    pending: {
+      color: theme.colors.primaryLight,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.mono,
+      marginTop: 2,
+    },
   });
 
 /** The panel wrapping the rows plus its add button. */
 export const ConnectorsPanel: React.FC<{
   connectors: IngestAccountRow[];
   linkedById: Map<string, { name: string; capital: string }>;
+  pendingRequestsById: Map<string, number>;
   onAdd: () => void;
   onConnectorPress: (id: string) => void;
-  onConnectorLongPress: (label: string) => void;
-}> = ({ connectors, linkedById, onAdd, onConnectorPress, onConnectorLongPress }) => {
+  /** Long press opens the manage sheet for that connector id. */
+  onConnectorLongPress: (id: string) => void;
+}> = ({
+  connectors,
+  linkedById,
+  pendingRequestsById,
+  onAdd,
+  onConnectorPress,
+  onConnectorLongPress,
+}) => {
   const { theme } = useTheme();
   const { t } = useT();
   const styles = useMemo(() => panelStyles(theme), [theme]);
@@ -161,17 +251,19 @@ export const ConnectorsPanel: React.FC<{
           <Text style={styles.emptyText}>{t('syncNoConnectors')}</Text>
         </View>
       ) : (
-        connectors.map((c, i) => (
-          <ConnectorCard
-            key={c.id}
-            connector={c}
-            linked={linkedById.get(c.id) ?? null}
-            isLast={i === connectors.length - 1}
-            onPress={() => onConnectorPress(c.id)}
-            onLongPress={() => onConnectorLongPress(c.label)}
-          />
-        ))
+        <Text style={styles.pressHint}>{t('syncConnectorPressHint')}</Text>
       )}
+      {connectors.map((c, i) => (
+        <ConnectorCard
+          key={c.id}
+          connector={c}
+          linked={linkedById.get(c.id) ?? null}
+          pendingRequests={pendingRequestsById.get(c.id) ?? 0}
+          isLast={i === connectors.length - 1}
+          onPress={() => onConnectorPress(c.id)}
+          onLongPress={() => onConnectorLongPress(c.id)}
+        />
+      ))}
       <PressableScale style={styles.addBtn} onPress={onAdd} accessibilityLabel={t('syncAddConnector')}>
         <RefreshCw size={14} color={theme.colors.primary} strokeWidth={2} />
         <Text style={styles.addBtnText}>{t('syncAddConnector')}</Text>
@@ -183,6 +275,13 @@ export const ConnectorsPanel: React.FC<{
 const panelStyles = (theme: AppTheme) =>
   StyleSheet.create({
     empty: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
+    pressHint: {
+      color: theme.colors.textMuted,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sans,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.sm,
+    },
     emptyText: {
       color: theme.colors.textMuted,
       fontSize: theme.type.label,

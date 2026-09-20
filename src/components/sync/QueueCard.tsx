@@ -101,20 +101,32 @@ export const QueueCard: React.FC<{
         </View>
       ) : null}
 
-      <View style={styles.actions}>
-        <PressableScale style={[styles.actionBtn, styles.promoteBtn]} onPress={onPromote}>
-          <Check size={13} color={theme.colors.background} strokeWidth={2.5} />
-          <Text style={[styles.actionText, styles.promoteText]}>{t('syncPromote')}</Text>
-        </PressableScale>
-        <PressableScale style={styles.actionBtn} onPress={onLink}>
-          <Link2 size={13} color={theme.colors.textPrimary} strokeWidth={2} />
-          <Text style={styles.actionText}>{t('syncLink')}</Text>
-        </PressableScale>
-        <PressableScale style={styles.actionBtn} onPress={onDismiss}>
-          <X size={13} color={theme.colors.redLight} strokeWidth={2} />
-          <Text style={[styles.actionText, styles.dismissText]}>{t('syncDismiss')}</Text>
-        </PressableScale>
-      </View>
+      {card.alreadyJournaled ? (
+        // The position is already in the journal; only the broker can move it
+        // now. No promote (a second trade for the same position), no link
+        // (same), and no dismiss either — a dismissed row stops the close
+        // event from completing that journal trade server-side. So the card
+        // states the decision instead of re-offering it.
+        <View style={styles.journaledRow}>
+          <Check size={12} color={theme.colors.greenLight} strokeWidth={2.2} />
+          <Text style={styles.journaledText}>{t('syncAlreadyJournaled')}</Text>
+        </View>
+      ) : (
+        <View style={styles.actions}>
+          <PressableScale style={[styles.actionBtn, styles.promoteBtn]} onPress={onPromote}>
+            <Check size={13} color={theme.colors.background} strokeWidth={2.5} />
+            <Text style={[styles.actionText, styles.promoteText]}>{t('syncPromote')}</Text>
+          </PressableScale>
+          <PressableScale style={styles.actionBtn} onPress={onLink}>
+            <Link2 size={13} color={theme.colors.textPrimary} strokeWidth={2} />
+            <Text style={styles.actionText}>{t('syncLink')}</Text>
+          </PressableScale>
+          <PressableScale style={styles.actionBtn} onPress={onDismiss}>
+            <X size={13} color={theme.colors.redLight} strokeWidth={2} />
+            <Text style={[styles.actionText, styles.dismissText]}>{t('syncDismiss')}</Text>
+          </PressableScale>
+        </View>
+      )}
     </Panel>
   );
 };
@@ -185,6 +197,24 @@ const createStyles = (theme: AppTheme) =>
       fontSize: theme.type.micro,
       fontFamily: theme.fonts.sans,
       flex: 1,
+    },
+    journaledRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 7,
+      backgroundColor: withAlpha(theme.colors.green, 0.08),
+      borderWidth: 1,
+      borderColor: withAlpha(theme.colors.green, 0.25),
+    },
+    journaledText: {
+      flex: 1,
+      color: theme.colors.greenLight,
+      fontSize: theme.type.micro,
+      fontFamily: theme.fonts.sansMedium,
     },
     actions: {
       flexDirection: 'row',

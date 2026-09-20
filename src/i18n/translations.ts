@@ -112,6 +112,15 @@ export const translations = {
     chatSuggest6: 'Remplis les commissions et swaps manquants depuis les données du broker.',
     chatSuggestWeekly: 'Fais-moi mon rapport hebdo : où est mon edge cette semaine ?',
     chatActionCosts: 'Écrire la commission et le swap du broker sur {n} trade(s).',
+    // What the coach is TOLD about an action the trader already confirmed.
+    // Without it the next answer described the change as still to do.
+    chatAppliedTag: (tag: string, n: string) => `tag « ${tag} » ajouté sur ${n} trade(s)`,
+    chatAppliedMental: (state: string, n: string) =>
+      `état mental « ${state} » défini sur ${n} trade(s)`,
+    chatAppliedR: (n: string) => `R-multiple calculé pour ${n} trade(s)`,
+    chatAppliedCosts: (n: string) => `frais et swaps du broker écrits sur ${n} trade(s)`,
+    chatAppliedBroker: (n: string) =>
+      `demande de niveaux (SL/TP, MAE/MFE) TRANSMISE au terminal pour ${n} position(s) — les valeurs arriveront à sa prochaine synchro, rien n'est encore rempli`,
     chatActionBrokerRequested:
       'Demande envoyée au terminal : {n} trade(s) seront complétés dès la prochaine synchronisation du bridge.',
     chatActionBroker:
@@ -198,6 +207,109 @@ export const translations = {
     syncToastDismissed: 'Trade ignoré',
     syncToastError: 'Échec — réessayez',
     syncSchemaHint: 'vérifiez que le schéma SQL (supabase/schema.sql) a bien été relancé',
+    // Partial bulk promotion: some rows landed, one was refused. The reason is
+    // appended by the hook, so the sentence always says WHY the rest failed.
+    syncToastPartial: (n: string) => `${n} trade(s) ajouté(s), le reste a échoué`,
+    // An open position promoted while still open: its journal trade exists and
+    // only the broker can change it. Still on screen (it is live), no longer a
+    // decision to make.
+    syncAlreadyJournaled: 'Déjà au journal — se complétera à la clôture',
+    // One sentence per server failure that has exactly one next step. Anything
+    // outside this list is shown verbatim rather than explained wrongly.
+    syncErrNoRouting: 'Aucun compte journal lié à ce connecteur — liez-le dans Connecteurs.',
+    syncErrBadAccount:
+      'Le compte journal visé n\u2019existe plus — reliez le connecteur à un compte existant.',
+    syncErrNotPending: 'Ce trade a déjà été traité (autre appareil ou plus tôt).',
+    syncErrAuth: 'Session expirée — reconnectez-vous.',
+    syncErrNetwork: 'Serveur injoignable — vérifiez votre connexion.',
+    // Connector health. `last_sync_status` stays 'ok' forever once set, so a
+    // terminal that died kept a green dot: silence is the fact worth showing.
+    syncConnectorPaused: 'En pause',
+    syncConnectorQuiet: (w: string) => `Silencieux depuis ${w}`,
+    syncConnectorQuietHint:
+      'Aucun signal du terminal : ouvrez MetaTrader et vérifiez que l\u2019EA est attaché et que le PC/VPS est allumé.',
+    syncConnectorRequests: (n: string) => `${n} demande(s) au terminal en attente`,
+    // Which EA build is attached. A completion request the terminal cannot
+    // honour is the worst silence: the app already said it was sent.
+    syncConnectorEaTooOld: (v: string) =>
+      `EA ${v} trop ancien : ce terminal ne peut pas renvoyer les niveaux manquants (SL/TP, MAE/MFE).`,
+    syncConnectorEaUnknown:
+      'Version de l\u2019EA non annoncée — build antérieur à la v1.16 : la complétion des niveaux n\u2019est pas garantie.',
+    syncConnectorEaLiveOnly: (v: string) =>
+      `EA ${v} : les niveaux d\u2019une position encore ouverte ne peuvent pas être renvoyés.`,
+    syncManageEaCurrent: (v: string) =>
+      `EA ${v} — peut renvoyer les niveaux manquants, positions encore ouvertes comprises.`,
+    syncManageEaUpgradeHint:
+      'Mise à jour : MetaEditor (F4) → SevenJournalSync.mq5 → Compiler (F7) → re-glissez l\u2019EA sur un graphique. URL et secret restent les mêmes.',
+    // Le fichier voyage avec l'app : l'avertissement de version ci-dessus
+    // n'est plus une impasse, il mène au fichier.
+    syncShareEa: (v: string) => `Recevoir le fichier EA (${v})`,
+    syncShareEaHint:
+      'Enregistrez-le dans MQL5\\Experts du terminal (MetaEditor : F4), puis compilez (F7) et re-glissez l\u2019EA. Le nom du fichier et le secret ne changent pas.',
+    syncShareEaUnsupported: 'Ce téléphone ne propose pas de partage de fichiers.',
+    syncShareEaMissing: 'Fichier EA absent de cette version de l\u2019app — signalez-le.',
+    otaReady: 'Mise à jour prête — redémarrer',
+    // Replay : les bougies viennent du terminal, pas d'un fournisseur — les
+    // états sont donc « disponibles », « demandées », « impossibles ».
+    replayTitle: 'Replay du trade',
+    replayAsk: 'Demander les bougies au terminal',
+    replayCheck: 'Vérifier maintenant',
+    replayAskHint:
+      'Le terminal renvoie les bougies M1 autour de ce trade à sa prochaine synchronisation (EA v1.17 minimum, historique local requis).',
+    replayWaiting:
+      'Demandé. Le terminal répondra à son prochain passage (moins d\u2019une minute si l\u2019EA est attaché).',
+    replayMeta: (bars: string, tf: string) => `${bars} bougies ${tf} · entrée, SL, TP et sortie marqués`,
+    replayTruncated: 'Fenêtre tronquée par le terminal (trade très long).',
+    // Pré-vol : la seule règle qui parle avant le trade.
+    preflightTitle: 'Pré-vol',
+    preflightNoneHint:
+      'Aucune checklist. C\u2019est la seule règle qui parle AVANT le trade — quatre points suffisent, et elle ne bloque rien si vous n\u2019en écrivez pas.',
+    preflightCreate: 'Créer le pré-vol (4 règles)',
+    preflightRequiredHint: 'Journée non confirmée : cochez vos règles avant le premier trade.',
+    preflightValidate: 'Valider le pré-vol',
+    preflightDoneToday: (n: string) => `Pré-vol fait aujourd\u2019hui · ${n} règles`,
+    preflightRemoveHint: 'Appui long sur une règle pour la supprimer.',
+    preflightRequiredError: 'Validez le pré-vol avant de journaliser une entrée.',
+    preflightDefaultRisk: 'Risque du jour défini (perte max, taille)',
+    preflightDefaultPlan: 'Plan écrit : setup, entrée, invalidation',
+    preflightDefaultState: 'État vérifié : sommeil, stress, envie de me refaire',
+    preflightDefaultNews: 'News à fort impact repérées',
+    // Contexte macro : la phrase d'avertissement avant la saisie, et le badge
+    // du détail. Le signe de l'écart vient de formatNewsOffset.
+    newsWindowWarn: (label: string, when: string) =>
+      `Publication ${label} — ${when}. Entrer ici, c'est trader la news, pas votre plan.`,
+    newsBadge: (label: string, when: string) => `News ${label} · ${when}`,
+    newsBadgeA11y: (label: string, when: string) =>
+      `Prise pendant une publication à fort impact : ${label}, ${when}.`,
+    syncConnectorPressHint:
+      'Touchez un connecteur pour choisir son compte · appui long pour le gérer (nom, secret, pause).',
+    syncConnectorRenamed: 'Connecteur renommé',
+    syncConnectorSecretRotated: 'Nouveau secret généré — copiez-le dans le terminal',
+    syncConnectorResumed: 'Alimentation reprise',
+    syncConnectorPausedToast: 'Alimentation en pause',
+    // Connector management sheet (long press on a row).
+    syncManageRenameLabel: 'Nom du connecteur',
+    syncManageRenamePlaceholder: 'ex: MT5 Challenge 100k',
+    syncManageRenameHint: 'Ce nom identifie la provenance dans la file et dans le journal.',
+    syncManageRenameAction: 'Renommer',
+    syncManageNameEmpty: 'Donnez un nom au connecteur.',
+    syncManageNameTooLong: (n: string) => `Nom trop long — ${n} caractères maximum.`,
+    syncManageNameTaken: 'Un autre connecteur porte déjà ce nom.',
+    syncManageSecretLabel: 'Secret',
+    syncManageSecretHint:
+      'Le secret n\u2019est jamais réaffiché. Régénérez-le si vous l\u2019avez exposé : l\u2019ancien devient inutilisable immédiatement.',
+    syncManageRotate: 'Régénérer le secret',
+    syncManageRotateConfirmTitle: 'Régénérer le secret ?',
+    syncManageRotateConfirmBody:
+      'Le terminal cessera d\u2019alimenter la file jusqu\u2019à ce que vous y colliez le nouveau secret. Le connecteur, son compte lié et sa file sont conservés.',
+    syncManagePause: 'Mettre en pause',
+    syncManageResume: 'Reprendre',
+    syncManageFeedActive: 'Alimentation active — le terminal peut écrire dans la file.',
+    syncManageFeedPaused:
+      'Alimentation en pause — le terminal reçoit un refus jusqu\u2019à la reprise. Rien n\u2019est supprimé.',
+    syncManageRequestsPending: (n: string) =>
+      `${n} demande(s) envoyée(s) au terminal, en attente de sa prochaine synchro.`,
+    syncManageRequestsNone: 'Aucune demande en attente auprès du terminal.',
     syncSetupGuideTitle: 'INSTALLATION MT5',
     syncSetupGuideStep1: '1. Copiez SevenJournalSync.mq5 dans MQL5/Experts du terminal',
     syncSetupGuideStep2: '2. Autorisez l\u2019URL dans Options → Expert Advisors → WebRequest',
@@ -701,6 +813,17 @@ export const translations = {
     costAvgPerTrade: 'Coût moyen par trade',
     costExpectancy: 'Expectancy brute → nette',
     costEdgeEaten: "Votre stratégie est gagnante avant frais et perdante après : le problème vient des coûts d'exécution, pas des setups. Réduisez la fréquence, renégociez les commissions ou visez des cibles plus larges.",
+    discCostTitle: "COÛT DE L'INDISCIPLINE",
+    discCostClosed: '{n} trades clôturés',
+    discCostTotal: 'COÛT TOTAL',
+    discCostBaseline: 'contre {n} trades propres ({avg} en moyenne)',
+    discCostTilt: 'État de tilt (revenge, FOMO, avidité)',
+    discCostOffPlan: 'Hors plan — aucun setup noté',
+    discCostRevenge: 'Ré-entrée moins de 30 min après une perte',
+    discCostCount: '{n} trade(s) · {pnl} réalisé',
+    discCostShare: 'soit {pct} % de votre P&L brut sur la période.',
+    discCostNone: "Aucun coût d'indiscipline sur cette période : vos trades hors plan ou sous tilt n'ont pas fait moins bien que vos trades propres.",
+    discCostNote: "Chaque trade n'est compté qu'une seule fois, dans la catégorie la plus grave : ce total ne double compte rien. Le coût est l'écart au résultat moyen de vos trades propres, jamais une perte brute.",
     excTitle: 'EXCURSIONS (MAE / MFE)',
     excCoverage: '{n}/{total} trades documentés',
     excAvgMae: 'MAE MOY.',
@@ -936,6 +1059,14 @@ export const translations = {
     daySatShort: 'SAM',
     riskAlerts: 'Alertes de risque',
     riskAlertsDesc: 'Prévenir à 70% de la limite quotidienne',
+    // Serveur et non local : ces alertes arrivent app fermée (voir
+    // supabase/functions/push). Le libellé dit CE QUI va sonner, sinon
+    // l'interrupteur ne veut rien dire.
+    serverAlerts: 'Alertes serveur',
+    serverAlertsDesc: 'Terminal muet, session verrouillée, limite de perte proche — même app fermée',
+    serverAlertsDenied: 'Autorisation refusée : activez les notifications dans les réglages du téléphone.',
+    serverAlertsUnavailable: 'Indisponible dans Expo Go — nécessite un build de développement ou de production.',
+    serverAlertsError: "Le serveur n'a pas accepté l'enregistrement de cet appareil. Réessayez plus tard.",
     weeklyReviewNotifDesc: 'Dimanche 19:00',
     appLock: 'Verrouillage biométrique',
     appLockDesc: 'Exiger Face ID / empreinte à l\'ouverture',
@@ -1329,6 +1460,12 @@ export const translations = {
     chatSuggest6: 'Fill in missing commissions and swaps from broker data.',
     chatSuggestWeekly: 'Give me my weekly report: where is my edge this week?',
     chatActionCosts: 'Write the broker\u2019s commission and swap onto {n} trade(s).',
+    chatAppliedTag: (tag: string, n: string) => `tag “${tag}” added to ${n} trade(s)`,
+    chatAppliedMental: (state: string, n: string) => `mental state “${state}” set on ${n} trade(s)`,
+    chatAppliedR: (n: string) => `R-multiple computed for ${n} trade(s)`,
+    chatAppliedCosts: (n: string) => `broker fees and swaps written onto ${n} trade(s)`,
+    chatAppliedBroker: (n: string) =>
+      `missing levels (SL/TP, MAE/MFE) REQUESTED from the terminal for ${n} position(s) — the values arrive at its next sync, nothing is filled yet`,
     chatActionBroker:
       'Ask the MT5 terminal to re-send the missing levels and extremes (SL/TP, MAE/MFE) of {n} trade(s). No existing value will be overwritten.',
     chatActionBrokerRequested:
@@ -1415,6 +1552,88 @@ export const translations = {
     syncToastDismissed: 'Trade dismissed',
     syncToastError: 'Failed — try again',
     syncSchemaHint: 'check that the SQL schema (supabase/schema.sql) has been re-run',
+    syncToastPartial: (n: string) => `${n} trade(s) added, the rest failed`,
+    syncAlreadyJournaled: 'Already in the journal — completes at close',
+    syncErrNoRouting: 'No journal account is linked to this connector — link it in Connectors.',
+    syncErrBadAccount: 'The target journal account no longer exists — re-link the connector.',
+    syncErrNotPending: 'This trade was already handled (another device, or earlier).',
+    syncErrAuth: 'Session expired — sign in again.',
+    syncErrNetwork: 'Server unreachable — check your connection.',
+    syncConnectorPaused: 'Paused',
+    syncConnectorQuiet: (w: string) => `Silent for ${w}`,
+    syncConnectorQuietHint:
+      'No signal from the terminal: open MetaTrader and check that the EA is attached and the PC/VPS is on.',
+    syncConnectorRequests: (n: string) => `${n} request(s) waiting on the terminal`,
+    syncConnectorEaTooOld: (v: string) =>
+      `EA ${v} is too old: this terminal cannot resend the missing levels (SL/TP, MAE/MFE).`,
+    syncConnectorEaUnknown:
+      'EA version not reported — a build older than v1.16: level completion is not guaranteed.',
+    syncConnectorEaLiveOnly: (v: string) =>
+      `EA ${v}: the levels of a position that is still open cannot be resent.`,
+    syncManageEaCurrent: (v: string) =>
+      `EA ${v} — can resend the missing levels, including for positions still open.`,
+    syncManageEaUpgradeHint:
+      'To update: MetaEditor (F4) → SevenJournalSync.mq5 → Compile (F7) → drag the EA onto a chart again. URL and secret are unchanged.',
+    syncShareEa: (v: string) => `Get the EA file (${v})`,
+    syncShareEaHint:
+      'Save it into the terminal\u2019s MQL5\\Experts folder (MetaEditor: F4), compile (F7), then drag the EA onto a chart. The file name and the secret do not change.',
+    syncShareEaUnsupported: 'This phone cannot share files.',
+    syncShareEaMissing: 'The EA file is missing from this build — please report it.',
+    otaReady: 'Update ready — restart',
+    replayTitle: 'Trade replay',
+    replayAsk: 'Ask the terminal for candles',
+    replayCheck: 'Check now',
+    replayAskHint:
+      'The terminal returns the M1 candles around this trade at its next sync (EA v1.17 minimum, local history required).',
+    replayWaiting:
+      'Requested. The terminal will answer on its next pass (under a minute while the EA is attached).',
+    replayMeta: (bars: string, tf: string) => `${bars} ${tf} candles · entry, SL, TP and exit marked`,
+    replayTruncated: 'Window truncated by the terminal (very long trade).',
+    preflightTitle: 'Pre-flight',
+    preflightNoneHint:
+      'No checklist yet. It is the only rule that speaks BEFORE the trade — four lines are enough, and it blocks nothing if you never write one.',
+    preflightCreate: 'Create the pre-flight (4 rules)',
+    preflightRequiredHint: 'Day not confirmed: tick your rules before the first trade.',
+    preflightValidate: 'Confirm pre-flight',
+    preflightDoneToday: (n: string) => `Pre-flight done today · ${n} rules`,
+    preflightRemoveHint: 'Long press a rule to delete it.',
+    preflightRequiredError: 'Confirm the pre-flight before journaling an entry.',
+    preflightDefaultRisk: 'Risk for the day set (max loss, size)',
+    preflightDefaultPlan: 'Plan written: setup, entry, invalidation',
+    preflightDefaultState: 'State checked: sleep, stress, urge to win it back',
+    preflightDefaultNews: 'High-impact news noted',
+    newsWindowWarn: (label: string, when: string) =>
+      `${label} release — ${when}. Entering here is trading the news, not your plan.`,
+    newsBadge: (label: string, when: string) => `News ${label} · ${when}`,
+    newsBadgeA11y: (label: string, when: string) =>
+      `Taken during a high-impact release: ${label}, ${when}.`,
+    syncConnectorPressHint:
+      'Tap a connector to pick its account · long press to manage it (name, secret, pause).',
+    syncConnectorRenamed: 'Connector renamed',
+    syncConnectorSecretRotated: 'New secret generated — paste it into the terminal',
+    syncConnectorResumed: 'Feed resumed',
+    syncConnectorPausedToast: 'Feed paused',
+    syncManageRenameLabel: 'Connector name',
+    syncManageRenamePlaceholder: 'e.g. MT5 100k challenge',
+    syncManageRenameHint: 'This name identifies the source in the queue and in the journal.',
+    syncManageRenameAction: 'Rename',
+    syncManageNameEmpty: 'Give the connector a name.',
+    syncManageNameTooLong: (n: string) => `Name too long — ${n} characters maximum.`,
+    syncManageNameTaken: 'Another connector already uses this name.',
+    syncManageSecretLabel: 'Secret',
+    syncManageSecretHint:
+      'The secret is never shown again. Regenerate it if you exposed it: the old one stops working immediately.',
+    syncManageRotate: 'Regenerate secret',
+    syncManageRotateConfirmTitle: 'Regenerate the secret?',
+    syncManageRotateConfirmBody:
+      'The terminal will stop feeding the queue until you paste the new secret into it. The connector, its linked account and its queue are kept.',
+    syncManagePause: 'Pause',
+    syncManageResume: 'Resume',
+    syncManageFeedActive: 'Feed active — the terminal can write to the queue.',
+    syncManageFeedPaused: 'Feed paused — the terminal is refused until you resume. Nothing is deleted.',
+    syncManageRequestsPending: (n: string) =>
+      `${n} request(s) sent to the terminal, waiting for its next sync.`,
+    syncManageRequestsNone: 'No request waiting on the terminal.',
     syncSetupGuideTitle: 'MT5 SETUP',
     syncSetupGuideStep1: '1. Copy SevenJournalSync.mq5 into the terminal MQL5/Experts folder',
     syncSetupGuideStep2: '2. Allow the URL under Options → Expert Advisors → WebRequest',
@@ -1918,6 +2137,17 @@ export const translations = {
     costAvgPerTrade: 'Average cost per trade',
     costExpectancy: 'Gross → net expectancy',
     costEdgeEaten: 'Your strategy wins before costs and loses after: the problem is execution costs, not the setups. Trade less often, renegotiate commissions, or aim for wider targets.',
+    discCostTitle: 'COST OF INDISCIPLINE',
+    discCostClosed: '{n} closed trades',
+    discCostTotal: 'TOTAL COST',
+    discCostBaseline: 'versus {n} clean trades ({avg} on average)',
+    discCostTilt: 'Tilt state (revenge, FOMO, greed)',
+    discCostOffPlan: 'Off-plan — no setup recorded',
+    discCostRevenge: 'Re-entry less than 30 min after a loss',
+    discCostCount: '{n} trade(s) · {pnl} realised',
+    discCostShare: 'that is {pct}% of your gross P&L for the period.',
+    discCostNone: 'No cost of indiscipline this period: your off-plan trades and tilt entries did not do worse than your clean ones.',
+    discCostNote: 'Each trade is counted once only, in the most serious category: this total double counts nothing. The cost is the gap to your clean trades\' average result, never a raw loss.',
     excTitle: 'EXCURSIONS (MAE / MFE)',
     excCoverage: '{n}/{total} trades documented',
     excAvgMae: 'AVG MAE',
@@ -2153,6 +2383,11 @@ export const translations = {
     daySatShort: 'SAT',
     riskAlerts: 'Risk alerts',
     riskAlertsDesc: 'Warn at 70% of the daily limit',
+    serverAlerts: 'Server alerts',
+    serverAlertsDesc: 'Silent terminal, locked session, loss limit near — even with the app closed',
+    serverAlertsDenied: 'Permission refused: enable notifications in your phone settings.',
+    serverAlertsUnavailable: 'Not available in Expo Go — needs a development or production build.',
+    serverAlertsError: 'The server did not accept this device registration. Try again later.',
     weeklyReviewNotifDesc: 'Sunday 19:00',
     appLock: 'Biometric lock',
     appLockDesc: 'Require Face ID / fingerprint on open',

@@ -17,6 +17,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { PickerModal } from '../components/ui/PickerModal';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { ConnectorsPanel } from '../components/sync/ConnectorCard';
+import { ConnectorSheet } from '../components/sync/ConnectorSheet';
 import { ReconcileCard } from '../components/sync/ReconcileCard';
 import { reconcileBalance } from '../features/sync/reconcileBalance';
 import { useTrades } from '../features/trades/useTrades';
@@ -24,8 +25,8 @@ import { QueueCard } from '../components/sync/QueueCard';
 import { SetupSheet } from '../components/sync/SetupSheet';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { formatCurrency, currencySymbol } from '../utils/formatCurrency';
-import { useSyncQueue } from '../features/sync/useSyncQueue';
-import { toQueueCard } from '../features/sync/normalize';
+import { usePendingFillRequests, useSyncQueue } from '../features/sync/useSyncQueue';
+import { isActionable, toQueueCard } from '../features/sync/normalize';
 
 /**
  * Auto-journal — broker trades queue up here before entering the journal.
@@ -59,10 +60,18 @@ export const AutoJournalScreen: React.FC = () => {
     closeMatch,
     createConnector,
     setRouting,
+    renameConnector,
+    isRenamingConnector,
+    rotateConnectorSecret,
+    isRotatingSecret,
+    setConnectorActive,
+    isSettingConnectorActive,
     promoteAll,
     isPromotingAll,
     dismissAll,
   } = useSyncQueue();
+  /** Terminal work still waiting to be served, per connector. */
+  const pendingRequestsById = usePendingFillRequests();
   const { accounts } = useAccounts();
   const { trades } = useTrades();
 
@@ -97,6 +106,17 @@ export const AutoJournalScreen: React.FC = () => {
   // Setup sheet for a freshly created connector (secret shown exactly once).
   const [setup, setSetup] = useState<{ secret: string; label: string } | null>(null);
   const [dismissTarget, setDismissTarget] = useState<string | null>(null);
+  /**
+   * Connector being managed (long press on its row).
+   *
+   * The row used to open the setup sheet with an EMPTY secret — a placeholder
+   * that showed a credential-shaped hole and no way to act on the connector at
+   * all. Repairing a feed (a name, a leaked secret, a paused one) is what the
+   * gesture should offer, so it opens the manage sheet; the secret only appears
+   * there when it has just been regenerated, which is the only moment it can.
+   */
+  const [manageFor, setManageFor] = useState<string | null>(null);
+  const manageConnector = connectors.find((c) => c.id === manageFor) ?? null;
 
   // Creation flow: platform -> (connector created) -> routing -> setup sheet.
   const [pickPlatform, setPickPlatform] = useState(false);
@@ -147,17 +167,19 @@ export const AutoJournalScreen: React.FC = () => {
     [lang],
   );
 
-  // Pending rows are the only ones carrying a decision; stale rows render as
-  // their own quiet panel below, so the badge counts exactly the cards shown.
-  const pendingCount = queue.filter((r) => r.status === 'pending').length;
-  // The card list mirrors that rule: a stale row's promote/link/dismiss would
-  // all no-op server-side (every RPC guards on status = 'pending'), so
+  // The card list mirrors the server's rule: a stale row's promote/link/dismiss
+  // would all no-op server-side (every RPC guards on status = 'pending'), so
   // rendering decision buttons for it would promise an action the server
   // refuses. The stale panel above is their whole UI.
   const pendingRows = useMemo(
     () => queue.filter((r) => r.status === 'pending'),
     [queue]
   );
+  // Within those rows, one that already produced a journal trade (an open
+  // position waiting for its broker close) still belongs on screen — it is
+  // live — but it is not WORK: it is excluded from the badge and from both
+  // bulk actions, which is why the count is not simply pendingRows.length.
+  const actionableCount = pendingRows.filter(isActionable).length;
 
   return (
     <ScrollView
@@ -175,31 +197,32 @@ export const AutoJournalScreen: React.FC = () => {
       <ConnectorsPanel
         connectors={connectors}
         linkedById={linkedById}
+        pendingRequestsById={pendingRequestsById}
         onAdd={() => setPickPlatform(true)}
         onConnectorPress={(id) => setRoutingFor(id)}
-        onConnectorLongPress={(label) => setSetup({ secret: '', label })}
+        onConnectorLongPress={(id) => setManageFor(id)}
       />
 
       {/* ---------------------------------------------------- file ---------- */}
       <View style={styles.queueHeader}>
         <View style={styles.queueTitleRow}>
           <Text style={styles.sectionTitle}>{t('syncQueueTitle')}</Text>
-          {pendingCount > 0 ? (
+          {actionableCount > 0 ? (
             // The number the bulk actions act on, visible without reading a
             // single card: a queue's job is to say how much work is waiting.
             <View style={styles.countBadge}>
-              <Text style={styles.countText}>{pendingCount}</Text>
+              <Text style={styles.countText}>{actionableCount}</Text>
             </View>
           ) : null}
         </View>
-        {pendingCount > 1 ? (
+        {actionableCount > 1 ? (
           <View style={styles.bulkRow}>
             <PressableScale
               style={[styles.bulkBtn, styles.bulkPromoteBtn]}
               onPress={() =>
                 Alert.alert(
                   t('syncBulkPromoteTitle'),
-                  t('syncBulkPromoteBody', String(queue.length)),
+                  t('syncBulkPromoteBody', String(actionableCount)),
                   [
                     { text: t('confirmNo'), style: 'cancel' },
                     {
@@ -220,7 +243,7 @@ export const AutoJournalScreen: React.FC = () => {
               onPress={() =>
                 Alert.alert(
                   t('syncBulkDismissTitle'),
-                  t('syncBulkDismissBody', String(queue.length)),
+                  t('syncBulkDismissBody', String(actionableCount)),
                   [
                     { text: t('confirmNo'), style: 'cancel' },
                     {
@@ -256,7 +279,7 @@ export const AutoJournalScreen: React.FC = () => {
         <Panel>
           <SkeletonRows rows={3} />
         </Panel>
-      ) : pendingCount === 0 ? (
+      ) : pendingRows.length === 0 ? (
         <Animated.View entering={FadeIn.duration(220)}>
           <EmptyState
             icon={<Inbox size={26} color={theme.colors.textMuted} strokeWidth={1.5} />}
@@ -378,6 +401,43 @@ export const AutoJournalScreen: React.FC = () => {
         }}
         onClose={() => setPickPlatform(false)}
       />
+
+      {/* ------------------------------------------------- gestion -------- */}
+      {manageConnector ? (
+        <ConnectorSheet
+          connector={manageConnector}
+          otherLabels={connectors
+            .filter((c) => c.id !== manageConnector.id)
+            .map((c) => c.label)}
+          pendingRequests={pendingRequestsById.get(manageConnector.id) ?? 0}
+          isBusy={isRenamingConnector || isRotatingSecret || isSettingConnectorActive}
+          onRename={(label) => {
+            // The sheet stays open on failure (the hook toasts the server's
+            // own reason), so the typed name is never silently lost.
+            renameConnector({ connectorId: manageConnector.id, label })
+              .then(() => setManageFor(null))
+              .catch(() => {});
+          }}
+          onRotateSecret={() => {
+            // A rotation hands back the new secret exactly like creation: the
+            // setup sheet is the one place it can be read and copied, and it is
+            // never retrievable again.
+            rotateConnectorSecret(manageConnector.id)
+              .then((row) => {
+                setManageFor(null);
+                if (row?.secret) setSetup({ secret: row.secret, label: row.label });
+              })
+              .catch(() => {});
+          }}
+          onToggleActive={() =>
+            setConnectorActive({
+              connectorId: manageConnector.id,
+              isActive: !manageConnector.is_active,
+            })
+          }
+          onClose={() => setManageFor(null)}
+        />
+      ) : null}
 
       {setup ? (
         <SetupSheet

@@ -1,4 +1,4 @@
-import { closeReasonLabel, normalizePair, toQueueCard } from '../normalize';
+import { closeReasonLabel, isActionable, normalizePair, toQueueCard } from '../normalize';
 import type { SyncTradeRow } from '../normalize';
 
 describe('normalizePair', () => {
@@ -107,5 +107,39 @@ describe('toQueueCard', () => {
     expect(card.size).toBeNull();
     expect(card.entryPrice).toBeNull();
     expect(card.pnl).toBe(10);
+  });
+
+  it('marks a promoted-while-open position as already journaled', () => {
+    // Its row stays pending while the position is live, so `status` cannot
+    // tell it apart from one awaiting a decision — the resolution does.
+    const card = toQueueCard(row({ is_open: true, resolution: 'created' }));
+    expect(card.isOpen).toBe(true);
+    expect(card.alreadyJournaled).toBe(true);
+  });
+
+  it('does not mark an undecided row as already journaled', () => {
+    expect(toQueueCard(row({})).alreadyJournaled).toBe(false);
+    expect(toQueueCard(row({ resolution: null })).alreadyJournaled).toBe(false);
+  });
+});
+
+describe('isActionable', () => {
+  const row = (over: Partial<SyncTradeRow>): SyncTradeRow => ({
+    id: 'stg-1',
+    external_id: '123456',
+    payload: {},
+    is_open: false,
+    open_time: '2026-09-18T09:31:22Z',
+    close_time: null,
+    status: 'pending',
+    created_at: '2026-09-18T09:31:23Z',
+    ...over,
+  });
+
+  it('accepts only a pending, undecided row', () => {
+    expect(isActionable(row({}))).toBe(true);
+    expect(isActionable(row({ resolution: 'created' }))).toBe(false);
+    expect(isActionable(row({ status: 'stale' }))).toBe(false);
+    expect(isActionable(row({ status: 'promoted', resolution: 'created' }))).toBe(false);
   });
 });
