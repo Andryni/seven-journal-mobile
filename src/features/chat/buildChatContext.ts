@@ -140,11 +140,26 @@ export interface ChatContext {
    * The measured anatomy of the focused trade's loss, v4. Present only when
    * the user opened the chat FROM a trade (focusTradeN) — a post-mortem of   * an unnamed trade is an accusation without an address.
    */
-  postMortem: PostMortem | null;
-  /**
-   * The last-7-local-days review, v4: attribution by setup and session, fee   * cost, completeness and up to three quantified actions. Computed over the   * WHOLE closed history's last week, not the sent window.
+  postMortem: PostMortem | null;  /**
+   * The last-7-local-days review, v4: attribution by setup and session, fee
+   * cost, completeness and up to three quantified actions. Computed over the
+   * WHOLE closed history's last week, not the sent window.
    */
   weekly: WeeklyReport | null;
+  /**
+   * Actions the trader has ALREADY confirmed in this conversation, newest
+   * last — one short factual line each ("tag « revenge » ajouté sur 3
+   * trade(s)", "demande de niveaux transmise au terminal pour 12 position(s)").
+   *
+   * The model cannot see them otherwise: the confirmation happens on the
+   * device, in the UI, after the reply was written. So the next question about
+   * it ("c'est fait ?") hit a model with no memory of its own proposal and got
+   * "rien n'est encore fait" about a change that had just been applied, or
+   * about a request the terminal was already going to serve. Carried as
+   * context rather than as an extra conversation turn: history must keep the
+   * user/model alternation the provider requires.
+   */
+  appliedActions?: string[];
 }
 
 /** Numeric gaps of one trade, keyed by its number in `trades`. */
@@ -652,6 +667,11 @@ export function buildChatContext(params: {
   brokerCosts?: Map<string, BrokerCosts> | null;
   /** High-impact calendar events, for the news-proximity detector. */
   events?: import('../calendar/economicEvents').EconomicEvent[];
+  /**
+   * Short factual lines for the actions the trader already applied (see
+   * ChatContext.appliedActions). Capped here, not by the caller.
+   */
+  appliedActions?: string[];
 }): ChatContext {
   const {
     trades,
@@ -661,6 +681,7 @@ export function buildChatContext(params: {
     isLocked = false,
     brokerCosts = null,
     events = [],
+    appliedActions = [],
   } = params;
 
   // Open positions have no result to reason about.
@@ -705,5 +726,9 @@ export function buildChatContext(params: {
     behaviour,
     postMortem,
     weekly,
+    // Five lines is the whole useful window: after that the trader has moved
+    // on, and an older note is more likely to describe a state that changed
+    // again than to prevent a contradiction.
+    appliedActions: appliedActions.filter(line => line.trim() !== '').slice(-5),
   };
 }

@@ -1,3 +1,4 @@
+import type { TFunction } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { normalizeTags } from '../../utils/tradeTags';
 import { rPatchFor } from '../../utils/rDerivation';
@@ -257,6 +258,38 @@ export function resolveAction(
     ok: true,
     action: { kind: 'filter_trades', tradeIds: trades.map(t => t.id), trades },
   };
+}
+
+/**
+ * One factual line describing an action the trader has CONFIRMED.
+ *
+ * It travels upstream in the context so the next answer cannot contradict a
+ * change the app already made — the failure mode being a coach that replies
+ * "nothing has been done yet" about its own proposal, one message after the
+ * confirmation the trader just tapped. The distinction that matters is inside
+ * `request_broker_fill`: the REQUEST is applied, the FILL is not, and the line
+ * says so instead of implying either extreme.
+ *
+ * Takes `t` rather than hardcoding French: the reply is written in the user's
+ * language, and the state it is told about must be too.
+ */
+export function appliedActionLine(action: ResolvedAction, t: TFunction): string {
+  const n = String(action.trades.length);
+  switch (action.kind) {
+    case 'add_tag':
+      return t('chatAppliedTag', action.tag ?? '', n);
+    case 'set_mental_state':
+      return t('chatAppliedMental', action.mentalState ?? '', n);
+    case 'set_r_multiple':
+      return t('chatAppliedR', n);
+    case 'set_costs':
+      return t('chatAppliedCosts', n);
+    case 'request_broker_fill':
+      return t('chatAppliedBroker', n);
+    default:
+      // filter_trades changes no data: nothing to tell the model about.
+      return '';
+  }
 }
 
 /**

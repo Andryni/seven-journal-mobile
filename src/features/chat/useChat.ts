@@ -4,7 +4,13 @@ import { supabase } from '../../api/supabaseClient';
 import { useToast } from '../../store/toastStore';
 import { useT } from '../../i18n';
 import { buildChatContext, contextWindow } from './buildChatContext';
-import { parseAction, resolveAction, patchFor, type ResolvedAction } from './chatActions';
+import {
+  appliedActionLine,
+  parseAction,
+  resolveAction,
+  patchFor,
+  type ResolvedAction,
+} from './chatActions';
 import { useTrades } from '../trades/useTrades';
 import { useBrokerCostMap } from '../sync/useBrokerCosts';
 import { useEconomicCalendar } from '../calendar/useEconomicCalendar';
@@ -149,6 +155,18 @@ export function useChat(params: {
       setDetail(null);
 
       try {
+        /**
+         * What the trader has already confirmed, so the coach cannot answer
+         * "rien n'est encore fait" about its own action (they are applied on
+         * the device, after the reply was written). Rides in the context, not
+         * in `history`: the provider requires the user/model alternation that
+         * an extra synthetic turn would break.
+         */
+        const appliedActions = messages
+          .filter(m => m.actionApplied && m.action)
+          .map(m => appliedActionLine(m.action as ResolvedAction, t))
+          .filter(line => line !== '');
+
         const context = buildChatContext({
           trades,
           account,
@@ -157,6 +175,7 @@ export function useChat(params: {
           isLocked,
           brokerCosts,
           events: calendarEvents,
+          appliedActions,
         });
         // The same ordered list the model sees as "trades", used below to
         // resolve any action it proposes against real trade ids.
@@ -232,7 +251,7 @@ export function useChat(params: {
         if (mounted.current) setLoading(false);
       }
     },
-    [messages, loading, trades, account, locale, focusTradeId, isLocked]
+    [messages, loading, trades, account, locale, focusTradeId, isLocked, brokerCosts, calendarEvents, t]
   );
 
   /**
