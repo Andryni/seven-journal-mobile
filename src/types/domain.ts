@@ -51,6 +51,16 @@ export interface Trade {
    */
   tags?: string[] | null;
   /**
+   * Macro context at entry: the high-impact release this trade sat next to.
+   *
+   * `news_offset_min` is SIGNED — negative before the release, positive after
+   * — because those are different behaviours. Null (or absent) means "not
+   * recorded", never "no news was published".
+   */
+  news_event?: string | null;
+  news_currency?: string | null;
+  news_offset_min?: number | null;
+  /**
    * Human fields promote_sync_trades had to invent because the broker feed
    * cannot carry them. Empty on a hand-written trade.
    *
