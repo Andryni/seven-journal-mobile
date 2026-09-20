@@ -57,6 +57,7 @@ import { MissingDataCard } from '../components/analytics/MissingDataCard';
 import { SessionHeatmapCard } from '../components/analytics/SessionHeatmapCard';
 import { WeeklyReviewCard } from '../components/analytics/WeeklyReviewCard';
 import { InsightsCard } from '../components/analytics/InsightsCard';
+import { DisciplineCostCard } from '../components/analytics/DisciplineCostCard';
 import { ResultSplitCard } from '../components/analytics/ResultSplitCard';
 import { MonthlyPerformanceCard } from '../components/analytics/MonthlyPerformanceCard';
 import { HBarBreakdown } from '../components/ui/HBarBreakdown';
@@ -662,6 +663,8 @@ export const AnalyticsScreen: React.FC = () => {
             playbookSetups={playbookSetups}
             debriefs={debriefs}
           />
+
+          <DisciplineCostCard trades={closed} />
 
           <Animated.View entering={FadeIn.delay(0).duration(350)}>
             {/* 24h diverging columns replace the aggregated bar chart:
