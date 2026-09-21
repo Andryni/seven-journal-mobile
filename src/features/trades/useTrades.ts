@@ -10,6 +10,9 @@ import { useToast } from '../../store/toastStore';
 import { useT } from '../../i18n';
 import type { Trade } from '../../types/domain';
 import { localDayKey } from '../../utils/formatDate';
+import {
+  sanitizeScreenshotUris,
+} from '../../utils/screenshotUri';
 import { hapticSuccess, hapticError } from '../../utils/haptics';
 
 /* ── Replayable write functions ─────────────────────────────────────────────
@@ -24,7 +27,10 @@ async function insertTrade(newTrade: Omit<Trade, 'id' | 'user_id' | 'created_at'
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Utilisateur non authentifié');
 
-  const payload = { ...newTrade, user_id: user.id };
+  // Write guard: replay captures once reached the database as bare base64
+  // (Svg.toDataURL's return value) and rendered as black gallery tiles. Every
+  // write is normalised here, so the stored data heals on the next save.
+  const payload = sanitizeScreenshotUris({ ...newTrade, user_id: user.id });
 
   let { data, error } = await supabase
     .from('trades')
@@ -43,7 +49,8 @@ async function insertTrade(newTrade: Omit<Trade, 'id' | 'user_id' | 'created_at'
   return data;
 }
 
-async function patchTrade({ id, ...updates }: Partial<Trade> & { id: string }) {
+async function patchTrade(rawUpdates: Partial<Trade> & { id: string }) {
+  const { id, ...updates } = sanitizeScreenshotUris(rawUpdates);
   let { data, error } = await supabase
     .from('trades')
     .update(updates)

@@ -70,6 +70,9 @@ adb_dumps/
 # content (the 199 MB upload warning came from the previous APK riding
 # along).
 *.apk
+# Backup archives (may contain the keystore — never repo content)
+*.7z
+*keystore-backup*
 build-apk.log
 build-local.log
 eas-build.log

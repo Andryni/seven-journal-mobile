@@ -19,6 +19,28 @@ export function isRenderableImageUri(uri: string | null | undefined): boolean {
 }
 
 /**
+ * Write guard: the payload that reaches Supabase must never carry bare
+ * base64 again. All trade writes funnel through useTrades' insertTrade /
+ * patchTrade, which normalise here — legacy rows recover at display time
+ * anyway, but a guarded write means the database heals itself on the next
+ * save instead of relying on every reader to remember.
+ */
+export function sanitizeScreenshotUris<T extends {
+  screenshot_after_url?: string | null;
+  screenshot_before_url?: string | null;
+}>(payload: T): T {
+  return {
+    ...payload,
+    ...(payload.screenshot_after_url !== undefined && {
+      screenshot_after_url: normalizeScreenshotUri(payload.screenshot_after_url),
+    }),
+    ...(payload.screenshot_before_url !== undefined && {
+      screenshot_before_url: normalizeScreenshotUri(payload.screenshot_before_url),
+    }),
+  };
+}
+
+/**
  * Wrap raw base64 (with or without newlines) into a PNG data URI. Values that
  * already carry a scheme — or that are plainly not base64 — pass through
  * unchanged; `null`/`undefined` return null so callers can chain `??` cleanly.

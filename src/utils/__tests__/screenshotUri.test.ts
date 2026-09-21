@@ -1,4 +1,8 @@
-import { isRenderableImageUri, normalizeScreenshotUri } from '../screenshotUri';
+import {
+  isRenderableImageUri,
+  normalizeScreenshotUri,
+  sanitizeScreenshotUris,
+} from '../screenshotUri';
 
 describe('screenshotUri', () => {
   describe('isRenderableImageUri', () => {
@@ -47,6 +51,45 @@ describe('screenshotUri', () => {
       expect(normalizeScreenshotUri(null)).toBeNull();
       expect(normalizeScreenshotUri(undefined)).toBeNull();
       expect(normalizeScreenshotUri('')).toBeNull();
+    });
+  });
+
+  describe('sanitizeScreenshotUris — write guard', () => {
+    it('heals bare base64 before it reaches the database', () => {
+      const raw = 'iVBORw0KGgoAAAANSUhEUg';
+      const out = sanitizeScreenshotUris({
+        pair: 'BTCUSD',
+        screenshot_after_url: raw,
+      });
+      expect(out.screenshot_after_url).toBe(`data:image/png;base64,${raw}`);
+    });
+
+    it('normalises both screenshot fields when present', () => {
+      const raw = 'QQ==';
+      const out = sanitizeScreenshotUris({
+        screenshot_before_url: raw,
+        screenshot_after_url: raw,
+      });
+      expect(out.screenshot_before_url).toBe(`data:image/png;base64,${raw}`);
+      expect(out.screenshot_after_url).toBe(`data:image/png;base64,${raw}`);
+    });
+
+    it('leaves fields absent from the payload absent (no accidental null overwrite)', () => {
+      const out = sanitizeScreenshotUris({ pair: 'US100' });
+      expect(out).toEqual({ pair: 'US100' });
+      expect('screenshot_after_url' in out).toBe(false);
+    });
+
+    it('keeps explicit nulls as nulls (clearing a screenshot stays clearing)', () => {
+      const out = sanitizeScreenshotUris({ screenshot_after_url: null });
+      expect(out.screenshot_after_url).toBeNull();
+    });
+
+    it('passes remote URLs through untouched', () => {
+      const out = sanitizeScreenshotUris({
+        screenshot_after_url: 'https://example.com/c.png',
+      });
+      expect(out.screenshot_after_url).toBe('https://example.com/c.png');
     });
   });
 });

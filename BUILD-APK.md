@@ -223,3 +223,97 @@ npx eas update:republish --group <GROUP_ID_du_bon_update>
 | `preview` | APK | Ce que vous installez à la main. **C'est celui-ci.** |
 | `development` | APK + dev client | Débogage avec rechargement à chaud |
 | `production` | AAB | Format exigé par le Play Store, non installable directement |
+
+---
+
+## Le build LOCAL — `build-local.cmd` (la voie rapide)
+
+Depuis septembre 2026, le build tourne aussi **sur cette machine** : ~5 minutes,
+sans quota EAS, sans connexion requise après le premier build, et **signé avec
+le même certificat que les APK EAS** — l'installation remplace l'app en place
+(`adb install -r`), données conservées.
+
+### Usage quotidien
+
+Double-cliquez sur **`build-local.cmd`** (ou lancez-le depuis un terminal). À la
+fin :
+
+```
+adb install -r seven-journal-preview.apk
+```
+
+Le script gère tout : JAVA_HOME, environnement, ABIs cibles
+(`armeabi-v7a,arm64-v8a` — les variantes émulateur x86 sont sautées : elles
+doublaient la compilation C++ et bloquaient), sortie copiée à la racine.
+
+### Ce qui a été réparé pour que ça marche (si ça recasse, c'est ici)
+
+1. **`android/local.properties`** — `sdk.dir` doit utiliser des slashes ou des
+   double antislashs (`C\:/Users/...` mal échappé → « The filename, directory
+   name, or volume label syntax is incorrect » à la configuration Gradle).
+2. **CMake du SDK** — `Sdk/cmake/3.22.1/bin/` doit contenir `cmake.exe` (une
+   installation corrompue ne laissait que `ninja.exe`). Réparation : extraire la
+   distribution Kitware 3.22.1 windows-x86_64 dans ce dossier.
+3. **Signature** — `android/gradle.properties` porte le bloc `MYAPP_UPLOAD_*`
+   (keystore `android/app/upload-keystore.jks`) et `app/build.gradle` le
+   `signingConfig release`, selon la procédure officielle Expo. Vérifiable :
+   `apksigner verify --print-certs seven-journal-preview.apk` → SHA-256
+   `DF:56:1D:48:99:51:2A:49:E8:A9:06:7D:5A:E5:D9:57:03:7D:76:6C:35:9B:0A:B2:C0:FA:38:D5:FC:87:C9:8A`.
+4. **`.env`** — le build local le lit directement : pas d'étape
+   `eas env:pull`, l'URL Supabase est embarquée d'office.
+
+### Quoi choisir, quand ?
+
+| | `build-local.cmd` | `eas build -p android --profile preview` |
+|---|---|---|
+| Durée | ~5 min (en cache) | 10-25 min + file d'attente |
+| Quota | Aucun | Limité (plan gratuit) |
+| Signature | Keystore EAS (identique) | Keystore EAS |
+| Réseau | Une fois les dépendances en cache | Requis pour tout |
+
+Le build EAS reste utile en secours (autre machine, CI) ; le local est la voie
+par défaut.
+
+---
+
+## Sauvegarder le keystore — LA chose à ne pas remettre
+
+**Sans ce fichier, plus aucune mise à jour de l'app n'est possible** : Android
+refuse tout APK signé différemment sur une installation existante. Le keystore
+est donc plus précieux que le code (le code, git le garde ; le keystore, lui,
+n'existe qu'en deux copies… sur ce même PC, aujourd'hui).
+
+### Les deux fichiers à sauvegarder
+
+```
+seven-journal-mobile-keystore.jks            ← le certificat (racine du projet)
+seven-journal-mobile-keystore-credentials.md ← alias + mots de passe
+```
+
+Vérification d'une copie : `sha256sum` doit redonner
+`d39b4221a39db94316446607566dda086dc35e4f9465014ed367d7a4e9e3be96`.
+
+### Où le mettre (choisir AU MOINS UNE voie, idéalement deux)
+
+| Voie | Comment | Note |
+|---|---|---|
+| **Coffre de mots de passe** (Bitwarden, 1Password, KeePass) | Pièce jointe du coffre : le `.jks` + le `.md` | Le plus sûr : chiffré, répliqué, accessible partout |
+| **Archive chiffrée sur un cloud** | `7z a -p seven-journal-backup.7z seven-journal-mobile-keystore.jks seven-journal-mobile-keystore-credentials.md` puis déposer le `.7z` (Drive, OneDrive…) | Le mot de passe du `.7z` doit être DIFFÉRENT et rangé dans le coffre |
+| **Clé USB rangée** | Copie brute des deux fichiers | Contre la panne/disparition du PC |
+
+Jamais sur GitHub (le `.jks` et le `.md` sont déjà dans le `.gitignore` — les
+laisser là), jamais en pièce jointe d'e-mail, jamais dans un cloud **sans**
+chiffrement préalable.
+
+### Restaurer (nouveau PC, ou PC réinstallé)
+
+1. Remettre le `.jks` dans `android/app/upload-keystore.jks`.
+2. Remettre les 4 lignes `MYAPP_UPLOAD_*` du `.md` dans
+   `android/gradle.properties` (ou `~/.gradle/gradle.properties`).
+3. Contrôler : `keytool -list -v -keystore android/app/upload-keystore.jks`
+   → alias `772a39ce5cfeb4bf514c18a70a43c57e`, SHA-256
+   `DF:56:1D:48:…:C9:8A` (celui qui signe les APK déjà installés).
+
+À noter : EAS conserve aussi ce keystore sur ses serveurs (c'est de là qu'il
+vient) — la sauvegarde locale protège surtout contre la perte d'accès au
+compte Expo, et garde le build local possible sans EAS.
