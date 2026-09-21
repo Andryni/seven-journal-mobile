@@ -24,6 +24,22 @@ This function only reads the due alerts, groups them by user, posts them to
 Expo, and disables tokens Expo answers `DeviceNotRegistered` for (disabled, not
 deleted: a reinstall hands the same token back and must revive that row).
 
+## Android prerequisite: FCM credentials (cannot ship over the OTA)
+
+A token is issued only when the Expo project can talk to Firebase on the
+device's behalf. Without it, the app's toggle reports "no token" and this
+function has nothing to deliver:
+
+1. Firebase console → create (or reuse) a project → **add an Android app**
+   with the exact package `com.seventracking.terminal` → download
+   `google-services.json` → place it at the **project root**;
+2. Firebase → Project settings → **Service accounts** → *Generate new private
+   key* (a JSON file);
+3. Upload that JSON to Expo: dashboard → project → **Credentials → Android →
+   Service account key (FCM V1)**, or `npx eas-cli credentials -p android`;
+4. **Rebuild the APK** — `google-services.json` changes native config, so this
+   step is a build, not an update. After that, the toggle registers a token.
+
 ## Deploy
 
 ```bash

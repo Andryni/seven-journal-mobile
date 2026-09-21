@@ -72,7 +72,9 @@ complet et un exemple JSON.
   "balance": 25000.00,
   "equity": 25120.50,
   "currency": "USD",
-  "ea_version": "1.16"
+  "login": "5031123456",
+  "server": "JustMarkets-Demo",
+  "ea_version": "1.18"
 }
 ```
 
@@ -99,6 +101,16 @@ Politique complète et seuils : `src/features/sync/eaVersion.ts`. Le champ est
 écrit **seulement s'il est présent**, comme le solde : un terminal qui n'a pas
 encore été mis à jour garde ce qu'il avait annoncé plutôt que de repasser à
 « inconnu ».
+
+#### Qui est connecté (v1.18+)
+
+`login` (numéro de compte chez le courtier) et `server` (nom du serveur MT5)
+sont stockés sur `sync_ingest_accounts.broker_login` / `broker_server`, même
+règle : écrits seulement s'ils sont présents. Le libellé du connecteur est
+choisi par le trader et peut dériver — le login ne peut pas. C'est ce que
+l'app affiche sur la ligne du connecteur et dans la feuille de gestion pour
+répondre à « quel compte alimente ce journal, exactement ? » (deux démos chez
+le même courtier, un compte renommé après coup).
 
 ## Test rapide (curl)
 

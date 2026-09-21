@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Share } from 'react-native';
+import { View, Text, StyleSheet, Modal, Clipboard } from 'react-native';
 import { ChevronRight, Copy, Check } from 'lucide-react-native';
 import { useTheme } from '../../theme';
 import type { AppTheme } from '../../theme';
@@ -13,9 +13,15 @@ import { PressableScale } from '../ui/PressableScale';
 const WS_URL = 'https://aeqyqwchxvcfvbbapqch.supabase.co/functions/v1/sync-ingest';
 
 /**
- * Overlay shown right after a connector is created: the webhook URL and the
- * secret, which the server never returns again. Share puts both on the
- * clipboard in one gesture — the URL alone is useless without its credential.
+ * Overlay shown right after a connector is created — and after a secret
+ * rotation, which is the ONLY time the new secret is ever visible.
+ *
+ * A real Modal, not an absolutely positioned overlay inside the screen's
+ * ScrollView: the connectors panel sits mid-screen on a long page, and an
+ * overlay anchored to the scroll content opened BELOW THE VIEWPORT — the
+ * trader tapped "rotate", the rotation SUCCEEDED, and the one-time secret
+ * was displayed where nobody could see it. A lost secret is only recoverable
+ * by rotating again, so the display failure silently cost a rotation.
  */
 export const SetupSheet: React.FC<{
   label: string;
@@ -29,15 +35,22 @@ export const SetupSheet: React.FC<{
 
   const copySecret = async () => {
     try {
-      await Share.share({ message: `${WS_URL}\n${secret}` });
+      // RN core's Clipboard is deprecated in favour of expo-clipboard — but
+      // adding that package is a NATIVE change: it would invalidate every
+      // installed APK, while the core module ships inside React Native
+      // itself and works in builds already in the field. Migrate to
+      // expo-clipboard only at the next rebuild that happens for its own
+      // reasons.
+      Clipboard.setString(`${WS_URL}\n${secret}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // share cancelled
+      // Clipboard unavailable (extremely rare) — the values stay on screen.
     }
   };
 
   return (
+    <Modal visible transparent animationType="fade" onRequestClose={onDone}>
     <View style={styles.overlay}>
       <View style={styles.sheet}>
         <Text style={styles.title}>{t('syncSetupTitle')}</Text>
@@ -79,14 +92,14 @@ export const SetupSheet: React.FC<{
         </PressableScale>
       </View>
     </View>
+    </Modal>
   );
 };
 
 const createStyles = (theme: AppTheme) =>
   StyleSheet.create({
     overlay: {
-      position: 'absolute',
-      inset: 0,
+      flex: 1,
       backgroundColor: withAlpha(theme.colors.background, 0.9),
       justifyContent: 'center',
       padding: theme.spacing.lg,

@@ -17,6 +17,7 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+seven-journal-mobile-keystore-credentials.md
 
 # Metro
 .metro-health-check*
@@ -70,8 +71,13 @@ adb_dumps/
 # along).
 *.apk
 build-apk.log
+build-local.log
 eas-build.log
+jdk-download.log
 easlist.tmp.json
 easview.tmp.json
 device-log.txt
 demo-missing-data.html
+
+# Local build toolchain (JDK portable, CMake repair) — machine-only
+/tools/

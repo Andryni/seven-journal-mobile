@@ -16,7 +16,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Seven Journal"
 #property link      "https://seven-journal.app"
-#property version   "1.17"
+#property version   "1.18"
 #property strict
 
 //--- Version annoncee au serveur dans le heartbeat.
@@ -26,7 +26,10 @@
 //| completion (v1.15 : oui pour les positions deja cloturees ; v1.16 : aussi
 //| pour les positions encore ouvertes) et de replay (v1.17 : renvoie les
 //| bougies M1 autour d'une position, pour que l'app dessine le trade).
-#define EA_VERSION "1.17"
+//| v1.18 : le heartbeat annonce aussi le numero de compte et le serveur
+//| (ACCOUNT_LOGIN / ACCOUNT_SERVER). Le libelle du connecteur est choisi par
+//| le trader et peut deraper de la realite ; le login, lui, ne peut pas.
+#define EA_VERSION "1.18"
 
 //--- Parametres (a renseigner apres creation du connecteur dans l'app)
 input string InpWebhookUrl     = "";    // URL du webhook (.../functions/v1/sync-ingest)
@@ -291,10 +294,16 @@ void SendHeartbeat()
    // peut pas distinguer un terminal qui ne repondra jamais a une demande de
    // completion d'un terminal simplement silencieux — elle promettait donc des
    // niveaux qui n'arriveraient pas, sans rien pour l'expliquer.
+   // v1.18 : le heartbeat dit QUI est connecte — numero de compte et serveur.
+   // Le trader nomme le connecteur a la main ; le libelle ment (deux demos
+   // chez le meme courtier, un compte renomme apres coup). Le login ne ment
+   // pas : c'est lui qui repond a "quel compte alimente ce journal, exactement ?"
    string body = "{\"type\":\"heartbeat\",\"open_ids\":[" + ids + "]"
                  + ",\"balance\":" + Num(AccountInfoDouble(ACCOUNT_BALANCE), 2)
                  + ",\"equity\":" + Num(AccountInfoDouble(ACCOUNT_EQUITY), 2)
                  + ",\"currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\""
+                 + ",\"login\":\"" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + "\""
+                 + ",\"server\":\"" + JsonEscape(AccountInfoString(ACCOUNT_SERVER)) + "\""
                  + ",\"ea_version\":\"" + EA_VERSION + "\""
                  + "}";
    string code;

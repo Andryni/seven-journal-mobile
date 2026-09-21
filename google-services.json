@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "367553336757",
+    "project_id": "seven-journal-mobile",
+    "storage_bucket": "seven-journal-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:367553336757:android:7031d8959d76c30284f5fc",
+        "android_client_info": {
+          "package_name": "com.seventracking.terminal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKVCm4zcWevnCD6vmkQtiNMigVovNWLeQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

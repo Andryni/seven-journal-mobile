@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CandleReplay } from '../CandleReplay';
 import type { Trade } from '../../../types/domain';
@@ -13,10 +13,45 @@ import type { Trade } from '../../../types/domain';
  * yet" and "cannot be asked" look identical on screen unless the component
  * distinguishes them.
  *
+ * The capture path is tested at the seam: CandleReplay rasterizes its own Svg
+ * (stubbed below) and hands the PNG to `onCapture`. The confirm/cancel flow
+ * around replacing an existing image lives in TradeDetailModal.
+ *
  * (The geometry itself — axis, domain, marker placement — is unit-tested in
  * src/utils/__tests__/candleChart.test.ts, where it can be checked without a
  * renderer.)
  */
+
+/**
+ * Rasterization is native work, so the Svg the chart mounts gets a ref handle
+ * whose toDataURL hands back a plausible data URI. Long enough to pass the
+ * component's sanity check on the rasterized bytes. The Proxy hands back
+ * inert Views for every other primitive — Line, Rect, and anything lucide's
+ * icons pull in — so no real Svg renders in tests and no icon breaks.
+ */
+const mockPngUri = 'data:image/png;base64,' + 'A'.repeat(96);
+
+jest.mock('react-native-svg', () => {
+  const React = require('react');
+  const RN = require('react-native');
+  const asView = (props: Record<string, unknown>) =>
+    React.createElement(RN.View, { ...props, children: null });
+  const mod: Record<string, unknown> = {
+    __esModule: true,
+    default: React.forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<unknown>) => {
+        React.useImperativeHandle(ref, () => ({
+          toDataURL: (cb: (uri: string) => void) => cb(mockPngUri),
+        }));
+        return asView(props);
+      }
+    ),
+  };
+  return new Proxy(mod, {
+    get: (target, key) =>
+      key in target ? target[key as string] : React.forwardRef((props: Record<string, unknown>) => asView(props)),
+  });
+});
 
 function makeClient() {
   return new QueryClient({
@@ -66,6 +101,24 @@ const trade = (over: Partial<Trade> = {}): Trade =>
     ...over,
   }) as Trade;
 
+/** Same literal the Svg stub above resolves to. */
+const PNG_URI = mockPngUri;;
+
+const seedCandles = (client: QueryClient, bars = 2) => {
+  client.setQueryData(['trade_candles', 't1'], {
+    bars: Array.from({ length: bars }, (_, i) => ({
+      t: `2026-09-15T11:5${i}:00Z`,
+      o: 2399 + i,
+      h: 2401 + i,
+      l: 2398 + i,
+      c: 2400.5 + i,
+    })),
+    timeframe: 'M1',
+    truncated: false,
+    fetchedAt: new Date().toISOString(),
+  });
+};
+
 describe('CandleReplay — states', () => {
   it('mounts for a bridge trade without throwing', () => {
     expect(() =>
@@ -97,9 +150,39 @@ describe('CandleReplay — states', () => {
         <CandleReplay trade={trade()} />
       </Wrapper>
     );
-    // The version requirement is part of the promise: a terminal older than
-    // v1.17 will never answer, and the trader has to be able to find that out
-    // here rather than by tapping forever.
-    expect(getByText(/v1\.17/)).toBeTruthy();
+
+    expect(getByText(/EA v1.17/)).toBeTruthy();
+  });
+});
+
+describe('CandleReplay — capture', () => {
+  it('emits the PNG to the wired sink when the trader captures', async () => {
+    const client = makeClient();
+    seedCandles(client);
+
+    const onCapture = jest.fn();
+    const screen = render(
+      <QueryClientProvider client={client}>
+        <CandleReplay trade={trade()} onCapture={onCapture} />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByTestId('candle-replay-chart')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('candle-replay-capture'));
+    await waitFor(() => expect(onCapture).toHaveBeenCalledWith(PNG_URI));
+  });
+
+  it('offers no capture button when no sink is wired', () => {
+    const client = makeClient();
+    seedCandles(client, 1);
+
+    const { queryByTestId } = render(
+      <QueryClientProvider client={client}>
+        <CandleReplay trade={trade()} />
+      </QueryClientProvider>
+    );
+
+    expect(queryByTestId('candle-replay-chart')).toBeTruthy();
+    expect(queryByTestId('candle-replay-capture')).toBeNull();
   });
 });

@@ -62,7 +62,7 @@ export const EA_MIN_CANDLES = { major: 1, minor: 17 } as const;
  * later on someone's VPS. shippedEa.test.ts asserts it against the bundled
  * source, so the constant cannot drift from the file.
  */
-export const EA_SHIPPED_VERSION = { major: 1, minor: 17 } as const;
+export const EA_SHIPPED_VERSION = { major: 1, minor: 18 } as const;
 
 /** "v1.16" — what the download button says. */
 export const EA_SHIPPED_LABEL = `v${EA_SHIPPED_VERSION.major}.${EA_SHIPPED_VERSION.minor}`;

@@ -158,6 +158,11 @@ export const ConnectorCard: React.FC<{
           {/* Which build is attached, on the row itself: it is the one fact that
               decides whether a completion request can be answered. */}
           {eaLabel ? ` · ${eaLabel}` : ''}
+          {/* And WHO is attached (EA v1.18+). The label above is chosen by the
+              trader and can drift; the login is the terminal's own identity.
+              On a v1.17 or older build it is absent — the same honest absence
+              as the version, not a zero and not a guess. */}
+          {c.broker_login ? ` · ${t('syncConnectorLogin', c.broker_login)}` : ''}
         </Text>
       </PressableScale>
       {!isLast ? <Hairline inset={48} /> : null}

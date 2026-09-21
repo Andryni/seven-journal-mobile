@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { BookMarked, Wallet, ChevronRight, Settings, CalendarRange, RefreshCw } from 'lucide-react-native';
+import { BookMarked, Wallet, ChevronRight, Settings, CalendarRange, RefreshCw, Calculator } from 'lucide-react-native';
 import { useTheme } from '../theme';
 import type { AppTheme } from '../theme';
 import { useT } from '../i18n';
@@ -16,10 +16,11 @@ import { MonthlyReviewScreen } from './MonthlyReviewScreen';
 import { YearlyReviewScreen } from './YearlyReviewScreen';
 import { AutoJournalScreen } from './AutoJournalScreen';
 import { SettingsSheet } from '../components/settings/SettingsSheet';
+import { PositionCalculator } from '../components/trades/PositionCalculator';
 import { useAccounts } from '../features/accounts/useAccounts';
 import { usePlaybookSetups } from '../features/playbook/usePlaybook';
 
-type Route = 'menu' | 'playbook' | 'accounts' | 'weekly' | 'monthly' | 'yearly' | 'sync';
+type Route = 'menu' | 'playbook' | 'accounts' | 'weekly' | 'monthly' | 'yearly' | 'sync' | 'calc';
 
 /**
  * "More" — collapses Playbook, Accounts and Settings behind one tab.
@@ -88,6 +89,12 @@ export const MoreScreen: React.FC = () => {
     </SubScreen>;
   }
 
+  if (route === 'calc') {
+    return <SubScreen title={t('posCalcTitle')} onBack={() => setRoute('menu')} theme={theme}>
+      <PositionCalculator />
+    </SubScreen>;
+  }
+
   const entries = [
     {
       id: 'sync' as const,
@@ -130,6 +137,16 @@ export const MoreScreen: React.FC = () => {
       title: t('tabAccounts'),
       sub: t('moreAccountsSub'),
       count: accounts.length,
+    },
+    {
+      // A PRE-trade tool, so it lives with the screen you open before a
+      // session — not inside settings, a place you visit to change a
+      // preference, not to size a trade.
+      id: 'calc' as const,
+      icon: <Calculator size={17} color={theme.colors.primary} strokeWidth={1.75} />,
+      title: t('posCalcTitle'),
+      sub: t('posCalcSubtitle'),
+      count: null as number | null,
     },
   ];
 

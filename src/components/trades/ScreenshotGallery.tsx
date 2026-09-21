@@ -10,6 +10,7 @@ import { PressableScale } from '../ui/PressableScale';
 import { useT } from '../../i18n';
 import { localeFor } from '../../i18n';
 import type { Trade } from '../../types/domain';
+import { normalizeScreenshotUri } from '../../utils/screenshotUri';
 
 interface ScreenshotGalleryProps {
   visible: boolean;
@@ -46,11 +47,16 @@ export const ScreenshotGallery: React.FC<ScreenshotGalleryProps> = ({ visible, o
   const items = useMemo<GalleryItem[]>(() => {
     const out: GalleryItem[] = [];
     for (const trade of trades) {
-      if (trade.screenshot_before_url) {
-        out.push({ trade, uri: trade.screenshot_before_url, phase: 'before', key: `${trade.id}-b` });
+      // Display-boundary normalisation: replay captures stored before the
+      // writer was fixed carry bare base64 in these columns, which decodes as
+      // a black tile. Wrapping here repairs them with no data migration.
+      const before = normalizeScreenshotUri(trade.screenshot_before_url);
+      const after = normalizeScreenshotUri(trade.screenshot_after_url);
+      if (before) {
+        out.push({ trade, uri: before, phase: 'before', key: `${trade.id}-b` });
       }
-      if (trade.screenshot_after_url) {
-        out.push({ trade, uri: trade.screenshot_after_url, phase: 'after', key: `${trade.id}-a` });
+      if (after) {
+        out.push({ trade, uri: after, phase: 'after', key: `${trade.id}-a` });
       }
     }
     return out;

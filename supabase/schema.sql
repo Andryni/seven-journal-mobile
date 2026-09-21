@@ -20,7 +20,18 @@
 --   every single time: this file once declared playbook_setups/daily_debriefs
 --   and checklist_items(label, is_checked, position) when the app was really
 --   reading user_checklists(text, is_done, sort_order).
+--
+-- RUN IT QUIET
+--   The script takes exclusive locks (drop policy, alter table) while the app
+--   and the EA's heartbeat keep reading and writing the same tables. Run with
+--   the app closed and the terminal paused, or the two can deadlock (40P01)
+--   mid-file. The lock_timeout below makes that failure fast and legible
+--   instead of silent: a statement that cannot get its lock in 8s aborts with
+--   "lock timeout" — re-run after closing the app. Nothing breaks on a partial
+--   run: every statement is idempotent, so re-running simply finishes the job.
 -- ============================================================================
+
+set lock_timeout = '8s';
 
 create extension if not exists "pgcrypto";
 
@@ -577,7 +588,13 @@ alter table public.sync_ingest_accounts
   -- STATEMENT, not a gap: an older build has no field to fill, so a connector
   -- that beats and reports no version is one the app must not promise a
   -- completion request to. See src/features/sync/eaVersion.ts for the policy.
-  add column if not exists ea_version       text;
+  add column if not exists ea_version       text,
+  -- WHO is connected, as the terminal knows itself (EA v1.18+): the broker
+  -- account number and the server name. The app's label is chosen by the
+  -- trader and can drift from reality — the login cannot. Shown on the
+  -- connector row so "which terminal is this, exactly" stops being a guess.
+  add column if not exists broker_login     text,
+  add column if not exists broker_server    text;
 
 -- A journal account may be fed by more than one connector (an MT5 demo and a
 -- cTrader demo can both belong to "50k Paper Trading"), so the association is
@@ -840,17 +857,23 @@ begin
     v_payload := v_row.payload;
 
     -- Record what we are about to invent, before inventing it.
+    --
+    -- array_append, not `v_seeded || 'name'`: with a bare unknown literal,
+    -- Postgres resolves `text[] || unknown` as ARRAY CONCATENATION and casts
+    -- the literal to text[], so promotion failed wholesale with
+    -- `malformed array literal: "mental_state"`. The element type has to be
+    -- stated for the operator to be an append.
     v_seeded := array[]::text[];
     if nullif(v_over->>'mental_state','') is null then
-      v_seeded := v_seeded || 'mental_state';
+      v_seeded := array_append(v_seeded, 'mental_state');
     end if;
     if nullif(v_over->>'timeframe','') is null
        and nullif(v_payload->>'timeframe','') is null then
-      v_seeded := v_seeded || 'timeframe';
+      v_seeded := array_append(v_seeded, 'timeframe');
     end if;
     -- Context the bridge never carries at all.
-    v_seeded := v_seeded || 'setup';
-    v_seeded := v_seeded || 'notes';
+    v_seeded := array_append(v_seeded, 'setup');
+    v_seeded := array_append(v_seeded, 'notes');
 
     insert into public.trades (
       user_id, account_id, pair, direction, entry_price, exit_price,
@@ -1287,10 +1310,19 @@ grant execute on function public.dismiss_sync_trades(uuid[], text) to authentica
 grant execute on function public.match_candidates(uuid)          to authenticated;
 grant execute on function public.set_sync_routing(uuid, uuid)    to authenticated;
 
--- Connector creation runs server-side so the secret is born from
--- gen_random_bytes(32), never from client randomness, and never transits a
--- client-side generator. Returns the row including the plaintext secret ONCE;
--- nothing ever exposes it again (rotate = delete + recreate).
+-- Connector creation runs server-side so the secret is born from server
+-- entropy, never from client randomness, and never transits a client-side
+-- generator. Returns the row including the plaintext secret ONCE; nothing
+-- ever exposes it again (rotate = replace, same one-time display).
+--
+-- The secret comes from TWO gen_random_uuid() concatenated: 64 hex chars,
+-- 256 bits, URL-safe. Deliberately NOT pgcrypto's gen_random_bytes: the
+-- extension lives in the `extensions` schema on Supabase, which a SECURITY
+-- DEFINER pinned to search_path = public cannot see — rotation failed at
+-- runtime with "function gen_random_bytes(integer) does not exist" even
+-- though CREATE had succeeded (plpgsql binds function bodies late).
+-- gen_random_uuid is built into PostgreSQL 13+: no extension, no placement
+-- surprise.
 create or replace function public.create_sync_ingest_account(
   p_platform  text,
   p_label     text,
@@ -1313,8 +1345,9 @@ begin
     auth.uid(),
     p_platform,
     left(p_label, 60),
-    -- base64url without padding: URL-safe, fits a Bearer header cleanly.
-    replace(replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_'), '=', ''),
+    -- Hex-only: URL-safe, fits a Bearer header cleanly.
+    replace(gen_random_uuid()::text, '-', '')
+      || replace(gen_random_uuid()::text, '-', ''),
     p_account_id
   )
   returning * into v_acc;
@@ -1417,8 +1450,13 @@ begin
     raise exception 'P0001: unauthenticated';
   end if;
 
+  -- Two UUIDs = 64 hex chars = 256 bits, from the OS entropy pool. NOT
+  -- pgcrypto's gen_random_bytes: see create_sync_ingest_account — the
+  -- extension is invisible to search_path = public, which is exactly the
+  -- "function does not exist" the trader saw mid-rotation.
   update public.sync_ingest_accounts
-     set secret           = replace(replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_'), '=', ''),
+     set secret           = replace(gen_random_uuid()::text, '-', '')
+                            || replace(gen_random_uuid()::text, '-', ''),
          last_sync_at     = null,
          last_sync_status = null,
          last_error       = null

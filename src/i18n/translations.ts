@@ -229,6 +229,9 @@ export const translations = {
     syncConnectorQuietHint:
       'Aucun signal du terminal : ouvrez MetaTrader et vérifiez que l\u2019EA est attaché et que le PC/VPS est allumé.',
     syncConnectorRequests: (n: string) => `${n} demande(s) au terminal en attente`,
+    // The terminal's own identity (EA v1.18+) — the trader's label can drift,
+    // the login the broker reports cannot.
+    syncConnectorLogin: (id: string) => `login ${id}`,
     // Which EA build is attached. A completion request the terminal cannot
     // honour is the worst silence: the app already said it was sent.
     syncConnectorEaTooOld: (v: string) =>
@@ -241,6 +244,7 @@ export const translations = {
       `EA ${v} — peut renvoyer les niveaux manquants, positions encore ouvertes comprises.`,
     syncManageEaUpgradeHint:
       'Mise à jour : MetaEditor (F4) → SevenJournalSync.mq5 → Compiler (F7) → re-glissez l\u2019EA sur un graphique. URL et secret restent les mêmes.',
+    syncManageServer: (s: string) => `Serveur : ${s}`,
     // Le fichier voyage avec l'app : l'avertissement de version ci-dessus
     // n'est plus une impasse, il mène au fichier.
     syncShareEa: (v: string) => `Recevoir le fichier EA (${v})`,
@@ -260,6 +264,15 @@ export const translations = {
       'Demandé. Le terminal répondra à son prochain passage (moins d\u2019une minute si l\u2019EA est attaché).',
     replayMeta: (bars: string, tf: string) => `${bars} bougies ${tf} · entrée, SL, TP et sortie marqués`,
     replayTruncated: 'Fenêtre tronquée par le terminal (trade très long).',
+    // Capture du replay : le PNG devient l'image « après » du trade.
+    replayCapture: 'CAPTURER COMME IMAGE APRÈS',
+    replayCapturing: 'CAPTURE…',
+    replayCaptured: 'Graphique capturé',
+    replayCaptureFailed: 'Capture impossible sur cet appareil.',
+    replaySaved: 'Image « après » mise à jour depuis le replay.',
+    replaySaveFailed: 'Impossible d’enregistrer l’image.',
+    replayReplaceTitle: 'Remplacer l’image après ?',
+    replayReplaceBody: 'La capture du replay remplacera l’image actuelle de ce trade.',
     // Pré-vol : la seule règle qui parle avant le trade.
     preflightTitle: 'Pré-vol',
     preflightNoneHint:
@@ -763,7 +776,7 @@ export const translations = {
     tfChooseSetup: 'CHOISIR VOTRE STRATÉGIE PLAYBOOK',
     tfNoSetupHint: "Aucune stratégie créée. Rendez-vous dans l'onglet Playbook pour structurer vos setups.",
     tfUt: (tfs: string) => `UT: ${tfs}`,
-    tfSection3: '3. SCREENSHOTS DU GRAPHIQUE (AVANT & APRÈS)',
+    tfSection3: '3. SCREENSHOT DU GRAPHIQUE (APRÈS)',
     tfScreenshotBefore: 'SCREENSHOT AVANT LE TRADE',
     tfScreenshotAfter: 'SCREENSHOT APRÈS LE TRADE',
     tfEditImgBefore: 'Modifier image avant',
@@ -1066,6 +1079,10 @@ export const translations = {
     serverAlertsDesc: 'Terminal muet, session verrouillée, limite de perte proche — même app fermée',
     serverAlertsDenied: 'Autorisation refusée : activez les notifications dans les réglages du téléphone.',
     serverAlertsUnavailable: 'Indisponible dans Expo Go — nécessite un build de développement ou de production.',
+    serverAlertsNoToken:
+      "Android exige des identifiants FCM : dans Firebase, ajoutez l'app (com.seventracking.terminal), placez google-services.json à la racine du projet, générez une clé de compte de service et téléversez-la dans Expo (Credentials → Android). Le prochain build activera les alertes — cette partie ne passe pas par l'OTA.",
+    serverAlertsSchema:
+      "La base ne connaît pas encore les jetons push : relancez supabase/schema.sql (Supabase → SQL Editor → Run), puis réessayez.",
     serverAlertsError: "Le serveur n'a pas accepté l'enregistrement de cet appareil. Réessayez plus tard.",
     weeklyReviewNotifDesc: 'Dimanche 19:00',
     appLock: 'Verrouillage biométrique',
@@ -1564,6 +1581,7 @@ export const translations = {
     syncConnectorQuietHint:
       'No signal from the terminal: open MetaTrader and check that the EA is attached and the PC/VPS is on.',
     syncConnectorRequests: (n: string) => `${n} request(s) waiting on the terminal`,
+    syncConnectorLogin: (id: string) => `login ${id}`,
     syncConnectorEaTooOld: (v: string) =>
       `EA ${v} is too old: this terminal cannot resend the missing levels (SL/TP, MAE/MFE).`,
     syncConnectorEaUnknown:
@@ -1574,6 +1592,7 @@ export const translations = {
       `EA ${v} — can resend the missing levels, including for positions still open.`,
     syncManageEaUpgradeHint:
       'To update: MetaEditor (F4) → SevenJournalSync.mq5 → Compile (F7) → drag the EA onto a chart again. URL and secret are unchanged.',
+    syncManageServer: (s: string) => `Server: ${s}`,
     syncShareEa: (v: string) => `Get the EA file (${v})`,
     syncShareEaHint:
       'Save it into the terminal\u2019s MQL5\\Experts folder (MetaEditor: F4), compile (F7), then drag the EA onto a chart. The file name and the secret do not change.',
@@ -1589,6 +1608,15 @@ export const translations = {
       'Requested. The terminal will answer on its next pass (under a minute while the EA is attached).',
     replayMeta: (bars: string, tf: string) => `${bars} ${tf} candles · entry, SL, TP and exit marked`,
     replayTruncated: 'Window truncated by the terminal (very long trade).',
+    // Replay capture: the PNG becomes the trade's after-screenshot.
+    replayCapture: 'CAPTURE AS AFTER-IMAGE',
+    replayCapturing: 'CAPTURING…',
+    replayCaptured: 'Chart captured',
+    replayCaptureFailed: 'Capture not available on this device.',
+    replaySaved: 'After-image updated from the replay.',
+    replaySaveFailed: 'Could not save the image.',
+    replayReplaceTitle: 'Replace the after-image?',
+    replayReplaceBody: 'The replay capture will replace this trade’s current image.',
     preflightTitle: 'Pre-flight',
     preflightNoneHint:
       'No checklist yet. It is the only rule that speaks BEFORE the trade — four lines are enough, and it blocks nothing if you never write one.',
@@ -2087,7 +2115,7 @@ export const translations = {
     tfChooseSetup: 'CHOOSE YOUR PLAYBOOK STRATEGY',
     tfNoSetupHint: 'No strategy created yet. Go to the Playbook tab to structure your setups.',
     tfUt: (tfs: string) => `TF: ${tfs}`,
-    tfSection3: '3. CHART SCREENSHOTS (BEFORE & AFTER)',
+    tfSection3: '3. CHART SCREENSHOT (AFTER)',
     tfScreenshotBefore: 'SCREENSHOT BEFORE THE TRADE',
     tfScreenshotAfter: 'SCREENSHOT AFTER THE TRADE',
     tfEditImgBefore: 'Edit before image',
@@ -2387,6 +2415,10 @@ export const translations = {
     serverAlertsDesc: 'Silent terminal, locked session, loss limit near — even with the app closed',
     serverAlertsDenied: 'Permission refused: enable notifications in your phone settings.',
     serverAlertsUnavailable: 'Not available in Expo Go — needs a development or production build.',
+    serverAlertsNoToken:
+      "Android requires FCM credentials: in Firebase, add the app (com.seventracking.terminal), place google-services.json at the project root, generate a service account key and upload it to Expo (Credentials → Android). The next build will enable alerts — this part cannot ship over the OTA.",
+    serverAlertsSchema:
+      'The database does not know push tokens yet: re-run supabase/schema.sql (Supabase → SQL Editor → Run), then try again.',
     serverAlertsError: 'The server did not accept this device registration. Try again later.',
     weeklyReviewNotifDesc: 'Sunday 19:00',
     appLock: 'Biometric lock',

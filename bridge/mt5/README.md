@@ -99,6 +99,14 @@ complet, seules les nouvelles positions partent à chaque scan.
 > le compléter. La v1.16 détecte la position vivante et renvoie son état
 > courant, SL/TP inclus. **Recompilez le `.mq5` (F7) puis re-attachez l'EA**
 > pour en bénéficier — le `.ex5` fourni ici est compilé depuis la v1.15.
+>
+> **v1.18 — le heartbeat dit QUI est connecté :** `login` (numéro de compte
+> chez le courtier) et `server` (nom du serveur) voyagent avec le solde.
+> Le libellé du connecteur est nommé à la main et peut dériver (deux démos
+> chez le même courtier) ; le login ne peut pas. L'app l'affiche sur la ligne
+> du connecteur — c'est la réponse à « quel compte alimente ce journal,
+> exactement ? ». Même règle que pour le solde : absent sur un build plus
+> ancien, jamais faux.
 
 ## Comment ça marche
 

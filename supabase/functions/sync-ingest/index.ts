@@ -282,6 +282,17 @@ Deno.serve(async (req: Request) => {
      */
     const eaVersion = str(body.ea_version, 16);
     if (eaVersion) beat.ea_version = eaVersion;
+    /**
+     * WHO is connected (v1.18+): the broker account number and server name,
+     * reported by the terminal itself. Written only when present, like the
+     * version — a terminal that has not been recompiled keeps whatever it last
+     * reported, and the app keeps reading null as "not reported by this build".
+     * The login is the one identity that cannot drift: the trader's label can.
+     */
+    const login = str(body.login, 32);
+    if (login) beat.broker_login = login;
+    const server = str(body.server, 120);
+    if (server) beat.broker_server = server;
 
     await admin.from('sync_ingest_accounts').update(beat).eq('id', ingestId);
 

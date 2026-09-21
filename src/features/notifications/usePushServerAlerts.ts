@@ -3,7 +3,11 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '../../api/supabaseClient';
 import { useI18nStore } from '../../i18n';
-import { Notifications, notificationsAvailable } from './notificationsModule';
+import {
+  Notifications,
+  notificationsAvailable,
+  isExpoGo,
+} from './notificationsModule';
 import { useNotificationPrefs } from './useNotifications';
 import { buildPushRegistration } from './pushRegistration';
 
@@ -23,7 +27,30 @@ import { buildPushRegistration } from './pushRegistration';
  * on sign-out so a logged-out phone stops hearing about someone else's trades.
  */
 
-export type PushSetupResult = 'ok' | 'unavailable' | 'denied' | 'error';
+/**
+ * Why a registration failed. The distinction matters because the fixes live on
+ * different machines:
+ *
+ *   * 'denied'      — the phone: enable notifications;
+ *   * 'unavailable' — Expo Go: remote push cannot work there at all;
+ *   * 'no_token'    — a REAL build, but the Expo project has no FCM
+ *                     credentials (Android): the token cannot be issued;
+ *                     fixed in Firebase + Expo Credentials, then one rebuild;
+ *   * 'schema'      — the database: the push tables do not exist yet, the
+ *                     latest schema.sql has not been re-run;
+ *   * 'error'       — everything else, which is genuinely "try later".
+ *
+ * Collapsing these into one message made every failure read as a server
+ * outage — a trader on an installed build was told "unavailable in Expo Go",
+ * which reads as nonsense and helps nobody.
+ */
+export type PushSetupResult =
+  | 'ok'
+  | 'unavailable'
+  | 'no_token'
+  | 'denied'
+  | 'schema'
+  | 'error';
 
 /** The EAS project id `getExpoPushTokenAsync` needs in a standalone build. */
 export function expoProjectId(): string | undefined {
@@ -81,14 +108,27 @@ export function usePushServerAlerts() {
         os: Platform.OS,
         lang,
       });
-      if (!payload) return 'error';
+      // No token is not a server problem: say which machine to fix. In Expo
+      // Go the notifications module never even loaded; in a real build a
+      // missing token means the project's FCM credentials (Android).
+      if (!payload) return isExpoGo ? 'unavailable' : 'no_token';
 
       const { error } = await supabase.rpc('register_push_token', {
         p_token: payload.token,
         p_platform: payload.platform,
         p_locale: payload.locale,
       });
-      if (error) return 'error';
+      if (error) {
+        // 42883 = undefined_function: the RPC itself is missing, which means
+        // the database predates the push tables. That is a fixable, named
+        // state — not "try again later".
+        const code = (error as { code?: string }).code;
+        const message = (error as { message?: string }).message ?? '';
+        if (code === '42883' || message.includes('register_push_token')) {
+          return 'schema';
+        }
+        return 'error';
+      }
 
       set({ serverToken: payload.token });
       return 'ok';

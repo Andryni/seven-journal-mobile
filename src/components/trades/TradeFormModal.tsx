@@ -67,6 +67,7 @@ import { estimatePnl } from '../../utils/positionSizing';
 import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { isOutcomeInconsistent } from '../../utils/tradeOutcome';
 import { parseTagInput, normalizeTags } from '../../utils/tradeTags';
+import { normalizeScreenshotUri } from '../../utils/screenshotUri';
 import { TwinTradeHint } from './TwinTradeHint';
 
 const TIMEFRAMES: TradeTimeframe[] = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
@@ -221,10 +222,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   // Section 2: Strategy & Setup (Playbook Only)
   const [selectedSetupTitle, setSelectedSetupTitle] = useState('');
 
-  // Section 3: Screenshots (URL or Local Pick)
-  const [screenshotBefore, setScreenshotBefore] = useState('');
+  // Section 3: Screenshot « après » (URL ou galerie). L'« avant » n'est plus
+  // saisi ici ; sa valeur existante est rejetée telle quelle à l'enregistrement
+  // (voir plus bas) pour ne rien effacer des trades plus anciens.
   const [screenshotAfter, setScreenshotAfter] = useState('');
-  const [screenshotBeforeType, setScreenshotBeforeType] = useState<'url' | 'file'>('url');
   const [screenshotAfterType, setScreenshotAfterType] = useState<'url' | 'file'>('url');
 
   // Section 4: Mental State & Notes
@@ -282,8 +283,11 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
           ? editingTrade.setup_structures.find(s => s !== 'BOS') || editingTrade.setup_structures[0]
           : ''
       );
-      setScreenshotBefore(editingTrade.screenshot_before_url || '');
-      setScreenshotAfter(editingTrade.screenshot_after_url || '');
+      // « Avant » n'est plus édité ici ; la valeur existante est préservée
+      // telle quelle à l'enregistrement.
+      // Normalising here also migrates legacy bare-base64 captures: the next
+      // save writes the wrapped data URI, fixing storage as a side effect.
+      setScreenshotAfter(normalizeScreenshotUri(editingTrade.screenshot_after_url) || '');
       setMentalState(editingTrade.mental_state || 'focused');
       setNotes(editingTrade.notes || '');
     } else {
@@ -325,7 +329,6 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     setTagsInput('');
     setManualRMultiple('');
     setSelectedSetupTitle('');
-    setScreenshotBefore('');
     setScreenshotAfter('');
     setMentalState('focused');
     setNotes('');
@@ -539,8 +542,8 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
     });
   }, [autoResult, resultTouched]);
 
-  // Image Picker Handler
-  const pickImage = async (target: 'before' | 'after') => {
+  // Image Picker Handler — « after » only now.
+  const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       alert(t('tfPermissionRequired'));
@@ -556,12 +559,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
 
     if (!res.canceled && res.assets && res.assets.length > 0) {
       const asset = res.assets[0];
-      const dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-      if (target === 'before') {
-        setScreenshotBefore(dataUri);
-      } else {
-        setScreenshotAfter(dataUri);
-      }
+      setScreenshotAfter(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
     }
   };
 
@@ -661,7 +659,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       mental_state: mentalState,
       cookie_jar_ref: false,
       rule_40_percent: false,
-      screenshot_before_url: screenshotBefore || null,
+      // Le formulaire ne gère plus l'« avant » : on renvoie la valeur
+      // existante inchangée, donc éditer un vieux trade n'efface jamais son
+      // screenshot d'entrée.
+      screenshot_before_url: editingTrade?.screenshot_before_url ?? null,
       screenshot_after_url: screenshotAfter || null,
       notes: notes || null,
       result,
@@ -1483,52 +1484,10 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                 <Text style={styles.sectionTitle}>{t('tfSection3')}</Text>
               </View>
 
-              {/* Screenshot Avant */}
+              {/* Screenshot Après — seul l'après compte (TP/SL/BE/clôture).
+                  L'ancien champ « avant » n'est plus demandé ; les trades qui
+                  en ont déjà un continuent de l'afficher dans le détail. */}
               <View style={styles.screenshotBox}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.fieldLabel}>{t('tfScreenshotBefore')}</Text>
-                  <View style={styles.flexRow}>
-                    <TouchableOpacity
-                      style={[styles.toggleBtn, screenshotBeforeType === 'url' && styles.toggleBtnActive]}
-                      onPress={() => setScreenshotBeforeType('url')}
-                    >
-                      <Link size={12} color={theme.colors.textPrimary} />
-                      <Text style={styles.toggleText}>URL</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.toggleBtn, screenshotBeforeType === 'file' && styles.toggleBtnActive]}
-                      onPress={() => setScreenshotBeforeType('file')}
-                    >
-                      <Upload size={12} color={theme.colors.textPrimary} />
-                      <Text style={styles.toggleText}>{t('gallery')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {screenshotBeforeType === 'url' ? (
-                  <TextInput
-                    style={styles.input}
-                    placeholder="https://www.tradingview.com/x/..."
-                    placeholderTextColor={theme.colors.textMuted}
-                    value={screenshotBefore}
-                    onChangeText={setScreenshotBefore}
-                  />
-                ) : (
-                  <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage('before')}>
-                    <Upload size={16} color={theme.colors.primaryLight} />
-                    <Text style={styles.uploadBtnText}>
-                      {screenshotBefore ? t('tfEditImgBefore') : t('tfSelectImgBefore')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {screenshotBefore ? (
-                  <Image source={{ uri: screenshotBefore }} style={styles.previewImage} resizeMode="cover" />
-                ) : null}
-              </View>
-
-              {/* Screenshot Après */}
-              <View style={[styles.screenshotBox, { marginTop: 10 }]}>
                 <View style={styles.rowBetween}>
                   <Text style={styles.fieldLabel}>{t('tfScreenshotAfter')}</Text>
                   <View style={styles.flexRow}>
@@ -1558,7 +1517,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     onChangeText={setScreenshotAfter}
                   />
                 ) : (
-                  <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage('after')}>
+                  <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage()}>
                     <Upload size={16} color={theme.colors.primaryLight} />
                     <Text style={styles.uploadBtnText}>
                       {screenshotAfter ? t('tfEditImgAfter') : t('tfSelectImgAfter')}

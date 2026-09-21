@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Linking,
   Modal,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { ScreenshotViewer } from './ScreenshotViewer';
 import { withAlpha } from '../../theme';
@@ -21,6 +22,8 @@ import { ExcursionBar } from './ExcursionBar';
 import { NewsBadge } from './NewsWindowNote';
 import { CandleReplay } from './CandleReplay';
 import { newsFromTrade } from '../../features/calendar/newsContextStore';
+import { useTrades } from '../../features/trades/useTrades';
+import { useToast } from '../../store/toastStore';
 import { PartialExitsPanel } from './PartialExitsPanel';
 import { captureRatio, isNearMiss, isGiveBack } from '../../utils/excursions';
 import { tagsOf } from '../../utils/tradeTags';
@@ -31,6 +34,7 @@ import { useSizeUnitLabel } from '../../features/accounts/useMarket';
 import { useAccounts } from '../../features/accounts/useAccounts';
 import { useFillHistory } from '../../features/trades/useFillHistory';
 import { fillInfoForTrade, historyForTrade, historyWhen } from '../../features/trades/fillHistory';
+import { normalizeScreenshotUri } from '../../utils/screenshotUri';
 import { Badge } from '../ui/Badge';
 import { AssetGlyph } from '../ui/AssetGlyph';
 import { X, Edit3, Trash2, ExternalLink, Share2 } from 'lucide-react-native';
@@ -66,7 +70,31 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const money = useMoney(accounts.find(a => a.id === trade?.account_id) ?? null);
   const { t, lang } = useT();
   const { history, revertWrite } = useFillHistory();
+  const { updateTrade } = useTrades();
+  const toast = useToast();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  // A replay capture becomes the trade's after-screenshot. Replacing an
+  // existing image is a decision, so it asks first; a blank slot is filled
+  // silently — that is the whole point of the capture.
+  const handleReplayCapture = (dataUri: string) => {
+    if (!trade) return;
+    const id = trade.id;
+    const hadImage = !!trade.screenshot_after_url;
+    const proceed = () => {
+      updateTrade({ id, screenshot_after_url: dataUri })
+        .then(() => toast.showSuccess(t('replaySaved')))
+        .catch(() => toast.showError(t('replaySaveFailed')));
+    };
+    if (hadImage) {
+      Alert.alert(t('replayReplaceTitle'), t('replayReplaceBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('save'), onPress: proceed },
+      ]);
+      return;
+    }
+    proceed();
+  };
 
   const holdingTime = useMemo(
     () => formatDuration(trade?.entry_time, trade?.exit_time, lang),
@@ -209,7 +237,9 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
               typed by hand has no terminal to ask, and a button that can never
               be answered is worse than no button.
             */}
-            {trade.sync_source_id ? <CandleReplay trade={trade} /> : null}
+            {trade.sync_source_id ? (
+              <CandleReplay trade={trade} onCapture={handleReplayCapture} />
+            ) : null}
 
             {showCosts && (
               <View style={styles.costBox}>
@@ -369,24 +399,28 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             {(trade.screenshot_before_url || trade.screenshot_after_url) && (
               <View style={styles.sectionBox}>
                 <Text style={styles.sectionTitle}>{t('tdSetupScreenshots')}</Text>
-                {trade.screenshot_before_url && (
+                {(() => {
+                  // Bare base64 from early replay captures renders nowhere
+                  // without this wrap; complete URIs pass through untouched.
+                  const uriBefore = normalizeScreenshotUri(trade.screenshot_before_url);
+                  return uriBefore && (
                   <View style={{ marginBottom: 10 }}>
                     <Text style={styles.miniLabel}>{t('tdChartBefore')}</Text>
-                    {trade.screenshot_before_url.startsWith('data:') || trade.screenshot_before_url.startsWith('file:') || trade.screenshot_before_url.startsWith('http') ? (
+                    {uriBefore.startsWith('data:') || uriBefore.startsWith('file:') || uriBefore.startsWith('http') ? (
                       <TouchableOpacity
                         activeOpacity={0.85}
                         onPress={() =>
                           setViewer({
-                            uri: trade.screenshot_before_url!,
+                            uri: uriBefore,
                             label: t('tdChartBefore'),
                           })
                         }
                         accessibilityLabel={t('tdChartBefore')}
                       >
-                        <Image source={{ uri: trade.screenshot_before_url }} style={styles.screenshotImg} resizeMode="contain" />
+                        <Image source={{ uri: uriBefore }} style={styles.screenshotImg} resizeMode="contain" />
                       </TouchableOpacity>
                     ) : null}
-                    {trade.screenshot_before_url.startsWith('http') && (
+                    {uriBefore.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_before_url!)}
                   style={styles.linkRow}
                   accessibilityRole="link"
@@ -397,26 +431,29 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                       </TouchableOpacity>
                     )}
                   </View>
-                )}
+                  );
+                })()}
 
-                {trade.screenshot_after_url && (
+                {(() => {
+                  const uriAfter = normalizeScreenshotUri(trade.screenshot_after_url);
+                  return uriAfter && (
                   <View>
                     <Text style={styles.miniLabel}>{t('tdChartAfter')}</Text>
-                    {trade.screenshot_after_url.startsWith('data:') || trade.screenshot_after_url.startsWith('file:') || trade.screenshot_after_url.startsWith('http') ? (
+                    {uriAfter.startsWith('data:') || uriAfter.startsWith('file:') || uriAfter.startsWith('http') ? (
                       <TouchableOpacity
                         activeOpacity={0.85}
                         onPress={() =>
                           setViewer({
-                            uri: trade.screenshot_after_url!,
+                            uri: uriAfter,
                             label: t('tdChartAfter'),
                           })
                         }
                         accessibilityLabel={t('tdChartAfter')}
                       >
-                        <Image source={{ uri: trade.screenshot_after_url }} style={styles.screenshotImg} resizeMode="contain" />
+                        <Image source={{ uri: uriAfter }} style={styles.screenshotImg} resizeMode="contain" />
                       </TouchableOpacity>
                     ) : null}
-                    {trade.screenshot_after_url.startsWith('http') && (
+                    {uriAfter.startsWith('http') && (
                       <TouchableOpacity onPress={() => Linking.openURL(trade.screenshot_after_url!)}
                   style={styles.linkRow}
                   accessibilityRole="link"
@@ -427,7 +464,8 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
                       </TouchableOpacity>
                     )}
                   </View>
-                )}
+                  );
+                })()}
               </View>
             )}
 

@@ -15,7 +15,8 @@
     },
     "android": {
       "package": "com.seventracking.terminal",
-      "versionCode": 1,
+      "versionCode": 2,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0B",
         "foregroundImage": "./assets/android-icon-foreground.png",

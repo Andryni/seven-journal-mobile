@@ -158,6 +158,13 @@ export const ConnectorSheet: React.FC<{
                     : connector.platform.startsWith('csv')
                       ? 'CSV'
                       : 'MT5'}
+                {/* The terminal's own identity (EA v1.18+): the account number
+                    and server as the BROKER knows them, not as the trader
+                    named them. This is the line that answers "is the right
+                    terminal attached?" when two accounts look alike. */}
+                {connector.broker_login
+                  ? ` · ${t('syncConnectorLogin', connector.broker_login)}`
+                  : ''}
                 {silenceText ? ` · ${t('syncConnectorQuiet', silenceText)}` : ''}
               </Text>
             </View>
@@ -245,6 +252,12 @@ export const ConnectorSheet: React.FC<{
           </Text>
           {eaLine ? (
             <Text style={[styles.hint, eaNeedsUpgrade ? styles.hintWarn : null]}>{eaLine}</Text>
+          ) : null}
+          {connector.broker_server ? (
+            // The broker server as the terminal reports it — the second half
+            // of "which terminal is this", and the one that disambiguates a
+            // demo from a live account at the same broker.
+            <Text style={styles.hint}>{t('syncManageServer', connector.broker_server)}</Text>
           ) : null}
           {eaNeedsUpgrade ? (
             <Text style={styles.hint}>{t('syncManageEaUpgradeHint')}</Text>

@@ -46,6 +46,14 @@ export interface IngestAccountRow {
    */
   ea_version: string | null;
   /**
+   * WHO the terminal says it is (EA v1.18+): the broker account number and
+   * server name. The trader's label is a guess that can drift; the login is
+   * the answer to "which account feeds this journal, exactly?". Null on an
+   * older build — the same honest null as the version.
+   */
+  broker_login: string | null;
+  broker_server: string | null;
+  /**
    * True when this row was read through a fallback column set, i.e. on a
    * database the latest schema.sql has not been re-run on. The newest columns
    * were never queried, so their nulls mean "not asked for", not "not
@@ -187,7 +195,7 @@ export function useSyncQueue() {
        * readers already treat as "not reported yet".
        */
       const COLUMN_SETS = [
-        'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error, broker_balance, broker_equity, broker_currency, broker_state_at, ea_version',
+        'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error, broker_balance, broker_equity, broker_currency, broker_state_at, ea_version, broker_login, broker_server',
         // v1.14 columns only: reconciliation, no reported EA version.
         'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error, broker_balance, broker_equity, broker_currency, broker_state_at',
         'id, platform, label, is_active, account_id, last_sync_at, last_sync_status, last_error',
@@ -214,6 +222,8 @@ export function useSyncQueue() {
             broker_currency: null,
             broker_state_at: null,
             ea_version: null,
+            broker_login: null,
+            broker_server: null,
             schema_partial: partial,
             ...row,
           } as unknown as IngestAccountRow));
